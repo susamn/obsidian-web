@@ -23,12 +23,29 @@ A web-based viewer and editor for Obsidian vaults with support for multiple stor
 - **internal/llm**: LLM provider abstraction
 - **internal/orchestrator**: REST API layer
 
+**Key Libraries:**
+- chi/v5: HTTP router
+- logrus: Structured logging
+- viper: Configuration management
+- AWS SDK v2: S3 support
+- Minio SDK: MinIO support
+
 ### Frontend (Vue.js)
 - **views**: Page components
 - **components**: Reusable UI components
 - **services**: API client services
 - **stores**: Pinia state management
 - **router**: Vue Router configuration
+
+**Key Libraries:**
+- Vue 3 + Vue Router + Pinia
+- Element Plus: UI framework
+- Tailwind CSS: Utility-first CSS
+- markdown-it: Markdown parsing
+- D3.js + Cytoscape: Graph visualization
+- lodash-es: Utility functions
+- dayjs: Date/time handling
+- axios: HTTP client
 
 ## Prerequisites
 

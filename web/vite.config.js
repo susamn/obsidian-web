@@ -21,5 +21,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom'
+  },
+  optimizeDeps: {
+    include: ['element-plus']
   }
 })
