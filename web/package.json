@@ -16,7 +16,7 @@
   "dependencies": {
     "vue": "^3.4.21",
     "vue-router": "^4.3.0",
-    "pinia": "^2.1.7",
+    "pinia": "^3.0.4",
     "axios": "^1.6.7",
     "markdown-it": "^14.0.0",
     "d3": "^7.9.0",
