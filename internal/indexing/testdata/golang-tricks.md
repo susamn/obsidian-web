@@ -93,7 +93,7 @@ fmt.Println(formatted)
 
 
 #### Date manipulation
-##### Parsing [[Date Formats#^e4a164|RFC3339]] date
+##### Parsing `[[Date Formats#^e4a164|RFC3339]]` date
 ```go
 parsedTime, err := time.Parse(time.RFC3339, num.(string))  
 if err == nil {  

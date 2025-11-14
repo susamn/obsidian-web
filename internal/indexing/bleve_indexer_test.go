@@ -359,11 +359,12 @@ func TestBuildIndexMapping(t *testing.T) {
 
 	// Test indexing a document
 	testDoc := &MarkdownDoc{
-		Path:     "test.md",
-		Title:    "Test",
-		Content:  "Test content",
-		Tags:     []string{"test"},
-		Metadata: "title: Test",
+		Path:      "test.md",
+		Title:     "Test",
+		Content:   "Test content",
+		Tags:      []string{"test"},
+		Wikilinks: []string{"TestNote"},
+		Metadata:  "title: Test",
 	}
 
 	if err := index.Index("test", testDoc); err != nil {
@@ -409,7 +410,7 @@ func TestIndexMarkdownFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get doc count: %v", err)
 	}
-	expectedCount := uint64(14) // All .md files including subdir (9 original + 3 new inline tag files + 1 in subdir + 1 go-microservices)
+	expectedCount := uint64(20) // All .md files including subdir
 	if count != expectedCount {
 		t.Errorf("DocCount = %d, want %d", count, expectedCount)
 	}
@@ -480,11 +481,12 @@ func TestIndexMarkdownFilesEmptyDirectory(t *testing.T) {
 
 func TestMarkdownDocStruct(t *testing.T) {
 	doc := &MarkdownDoc{
-		Path:     "/path/to/note.md",
-		Title:    "Test Note",
-		Content:  "Test content",
-		Tags:     []string{"tag1", "tag2"},
-		Metadata: "title: Test",
+		Path:      "/path/to/note.md",
+		Title:     "Test Note",
+		Content:   "Test content",
+		Tags:      []string{"tag1", "tag2"},
+		Wikilinks: []string{"Note1", "Note2"},
+		Metadata:  "title: Test",
 	}
 
 	if doc.Path != "/path/to/note.md" {
@@ -498,6 +500,9 @@ func TestMarkdownDocStruct(t *testing.T) {
 	}
 	if len(doc.Tags) != 2 {
 		t.Errorf("Tags length = %v, want 2", len(doc.Tags))
+	}
+	if len(doc.Wikilinks) != 2 {
+		t.Errorf("Wikilinks length = %v, want 2", len(doc.Wikilinks))
 	}
 	if doc.Metadata != "title: Test" {
 		t.Errorf("Metadata = %v, want 'title: Test'", doc.Metadata)
@@ -597,5 +602,288 @@ func TestIndexIgnoresNonMarkdownFiles(t *testing.T) {
 		if filepath.Ext(hit.ID) == ".txt" {
 			t.Error("Non-markdown file was indexed")
 		}
+	}
+}
+
+func TestExtractWikilinks(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{
+			name:    "single basic wikilink",
+			content: "See [[Getting Started]] for more info.",
+			want:    []string{"Getting Started"},
+		},
+		{
+			name:    "multiple wikilinks",
+			content: "Read [[Introduction]], [[Guide]], and [[FAQ]].",
+			want:    []string{"Introduction", "Guide", "FAQ"},
+		},
+		{
+			name:    "wikilink with alias",
+			content: "Check [[Configuration Options|config]] for settings.",
+			want:    []string{"Configuration Options"},
+		},
+		{
+			name:    "wikilink with heading",
+			content: "See [[Installation#Prerequisites]] first.",
+			want:    []string{"Installation#Prerequisites"},
+		},
+		{
+			name:    "wikilink with heading and alias",
+			content: "Read [[API Docs#Auth|authentication guide]] for details.",
+			want:    []string{"API Docs#Auth"},
+		},
+		{
+			name:    "multiple aliases same link",
+			content: "See [[Note|alias1]] and [[Note|alias2]].",
+			want:    []string{"Note"}, // Deduplicated
+		},
+		{
+			name:    "wikilink in code block ignored",
+			content: "Valid: [[Note1]]\n```\n[[Ignored]]\n```\nValid: [[Note2]]",
+			want:    []string{"Note1", "Note2"},
+		},
+		{
+			name:    "wikilink in inline code ignored",
+			content: "Valid [[Note1]] but `[[Ignored]]` in code. Also [[Note2]].",
+			want:    []string{"Note1", "Note2"},
+		},
+		{
+			name:    "no wikilinks",
+			content: "Just plain text with [regular links](url).",
+			want:    []string{},
+		},
+		{
+			name:    "empty wikilink",
+			content: "Empty [[ ]] should be ignored.",
+			want:    []string{},
+		},
+		{
+			name:    "nested wikilinks",
+			content: "Links: [[path/to/note]] and [[another/nested/note]]",
+			want:    []string{"path/to/note", "another/nested/note"},
+		},
+		{
+			name:    "wikilink with special characters",
+			content: "Link to [[Note-with-dashes]] and [[Note_with_underscores]]",
+			want:    []string{"Note-with-dashes", "Note_with_underscores"},
+		},
+		{
+			name:    "embed without block reference",
+			content: "Image: ![[parse-int-golang.png]]",
+			want:    []string{"parse-int-golang.png"},
+		},
+		{
+			name:    "embed with block reference",
+			content: "See ![[Date Formats#^e4a164|RFC3339]] for details.",
+			want:    []string{"Date Formats"},
+		},
+		{
+			name:    "embed with block reference no alias",
+			content: "Check ![[Golang FAQs#^46e652]] here.",
+			want:    []string{"Golang FAQs"},
+		},
+		{
+			name:    "mixed wikilinks and embeds",
+			content: "Link [[Note1]] and embed ![[Note2#^ref123|content]]",
+			want:    []string{"Note1", "Note2"},
+		},
+		{
+			name:    "duplicate links with different block refs",
+			content: "![[Note#^abc]] and ![[Note#^def]]",
+			want:    []string{"Note"}, // Deduplicated after stripping block refs
+		},
+		{
+			name:    "multiple embeds",
+			content: "![[img1.png]] and ![[img2.png]]",
+			want:    []string{"img1.png", "img2.png"},
+		},
+		{
+			name:    "embed in code block ignored",
+			content: "Valid: ![[Note1]]\n```\n![[Ignored]]\n```\nValid: ![[Note2]]",
+			want:    []string{"Note1", "Note2"},
+		},
+		{
+			name:    "embed in inline code ignored",
+			content: "Valid ![[Note1]] but `![[Ignored]]` in code. Also ![[Note2]].",
+			want:    []string{"Note1", "Note2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractWikilinks(tt.content)
+
+			if len(got) != len(tt.want) {
+				t.Errorf("extractWikilinks() length = %v, want %v\nGot: %v\nWant: %v",
+					len(got), len(tt.want), got, tt.want)
+				return
+			}
+
+			// Check each expected wikilink is present
+			gotMap := make(map[string]bool)
+			for _, link := range got {
+				gotMap[link] = true
+			}
+
+			for _, wantLink := range tt.want {
+				if !gotMap[wantLink] {
+					t.Errorf("extractWikilinks() missing link %v\nGot: %v\nWant: %v",
+						wantLink, got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestExtractLinkFromWikilink(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "basic note",
+			content: "Note Name",
+			want:    "Note Name",
+		},
+		{
+			name:    "note with alias",
+			content: "Note Name|alias text",
+			want:    "Note Name",
+		},
+		{
+			name:    "note with heading",
+			content: "Note#Heading",
+			want:    "Note#Heading",
+		},
+		{
+			name:    "note with heading and alias",
+			content: "Note#Heading|alias",
+			want:    "Note#Heading",
+		},
+		{
+			name:    "note with spaces",
+			content: "  Note With Spaces  ",
+			want:    "Note With Spaces",
+		},
+		{
+			name:    "note with spaces and alias",
+			content: "  Note  |  alias  ",
+			want:    "Note",
+		},
+		{
+			name:    "empty content",
+			content: "",
+			want:    "",
+		},
+		{
+			name:    "only alias separator",
+			content: "|",
+			want:    "",
+		},
+		{
+			name:    "note with block reference",
+			content: "Date Formats#^e4a164",
+			want:    "Date Formats",
+		},
+		{
+			name:    "note with block reference and alias",
+			content: "Date Formats#^e4a164|RFC3339",
+			want:    "Date Formats",
+		},
+		{
+			name:    "note with block reference no spaces",
+			content: "Golang FAQs#^46e652",
+			want:    "Golang FAQs",
+		},
+		{
+			name:    "note with heading (not block ref)",
+			content: "Note#Heading",
+			want:    "Note#Heading",
+		},
+		{
+			name:    "note with heading and alias (not block ref)",
+			content: "Note#Heading|alias",
+			want:    "Note#Heading",
+		},
+		{
+			name:    "image file",
+			content: "parse-int-golang.png",
+			want:    "parse-int-golang.png",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractLinkFromWikilink(tt.content)
+			if got != tt.want {
+				t.Errorf("extractLinkFromWikilink() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseMarkdownFileWithWikilinks(t *testing.T) {
+	testdataDir := "testdata"
+
+	tests := []struct {
+		name               string
+		filename           string
+		wantWikilinksCount int
+	}{
+		{
+			name:               "basic wikilinks",
+			filename:           "wikilinks-basic.md",
+			wantWikilinksCount: 6, // Getting Started, Advanced Topics, FAQ, Tutorials, Examples, API Reference
+		},
+		{
+			name:               "wikilinks with aliases",
+			filename:           "wikilinks-with-aliases.md",
+			wantWikilinksCount: 5, // Introduction, Configuration Options, Troubleshooting Guide, API Documentation, Best Practices
+		},
+		{
+			name:               "wikilinks with headings",
+			filename:           "wikilinks-with-headings.md",
+			wantWikilinksCount: 6, // Installation#Prerequisites, Configuration#Basic Setup, Advanced Topics#Performance Tuning, Getting Started#Installation, API Reference#Authentication, Troubleshooting#Common Errors
+		},
+		{
+			name:               "mixed wikilinks",
+			filename:           "wikilinks-mixed.md",
+			wantWikilinksCount: 8, // Note1-Note8 (deduplicated)
+		},
+		{
+			name:               "wikilinks in code ignored",
+			filename:           "wikilinks-in-code.md",
+			wantWikilinksCount: 3, // Valid Note, Another Valid Note, Final Note
+		},
+		{
+			name:               "no wikilinks",
+			filename:           "no-wikilinks.md",
+			wantWikilinksCount: 0,
+		},
+		{
+			name:               "golang tricks with embeds and block refs",
+			filename:           "golang-tricks.md",
+			wantWikilinksCount: 16, // parse-int-golang.png, parse-float-go.png, random, indexing, Interpolation, Date Formats, JSON, HTTP, GET, Golang, Golang FAQs (deduplicated from 2 block refs), POST, Deamon, while{}, for(), Queue, Graph
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filePath := filepath.Join(testdataDir, tt.filename)
+			doc, err := parseMarkdownFile(filePath)
+			if err != nil {
+				t.Fatalf("parseMarkdownFile() error = %v", err)
+			}
+
+			if len(doc.Wikilinks) != tt.wantWikilinksCount {
+				t.Errorf("Wikilinks count = %v, want %v (wikilinks: %v)",
+					len(doc.Wikilinks), tt.wantWikilinksCount, doc.Wikilinks)
+			}
+		})
 	}
 }
