@@ -17,6 +17,7 @@ dist/
 # Go coverage
 *.cover
 coverage.out
+coverage-*.out
 coverage.html
 
 # IDE
@@ -69,3 +70,7 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Bleve indexes (test artifacts)
+*.bleve/
+markdown.bleve/
