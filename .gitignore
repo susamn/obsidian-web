@@ -37,8 +37,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Vue build output
-dist/
 dist-ssr/
+.run/
 *.local
 
 # Environment files
