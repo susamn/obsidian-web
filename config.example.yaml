@@ -1,0 +1,129 @@
+# Obsidian Web Configuration Example
+#
+# For local development:
+#   Copy this file to ~/.config/obsidian-web/config.yaml and customize
+#
+# For Docker:
+#   Use environment variables to override settings (see docker-compose.yml)
+#
+# Configuration priority:
+#   1. Command-line flag: --config /path/to/config.yaml
+#   2. Environment variable: OBSIDIAN_WEB_CONFIG_PATH
+#   3. ~/.config/obsidian-web/config.yaml
+#   4. ./config.yaml (current directory)
+#   5. /etc/obsidian-web/config.yaml
+#   6. Built-in defaults
+
+# HTTP Server Configuration
+server:
+  # Host to bind to (use "0.0.0.0" for Docker, "localhost" for local dev)
+  host: "localhost"
+
+  # Port to listen on
+  port: 8080
+
+  # Request timeout settings
+  read_timeout: 30s
+  write_timeout: 30s
+
+# SQLite Database Configuration
+database:
+  # Path to SQLite database file
+  # For local dev, this will default to ~/.config/obsidian-web/app.db
+  # For Docker, use /data/app.db (volume mounted)
+  path: "./data/app.db"
+
+# Logging Configuration
+logging:
+  # Log level: debug, info, warn, error
+  level: "info"
+
+  # Log format: json, text
+  format: "text"
+
+  # Log output: stdout, stderr, or file path
+  output: "stdout"
+
+# Vault Configurations
+# You can configure multiple vaults with different storage backends
+vaults:
+  # Default vault (local filesystem)
+  - id: "default"
+    name: "My Obsidian Vault"
+
+    # Storage backend configuration
+    storage:
+      # Storage type: local, s3, minio
+      type: "local"
+
+      # Local filesystem storage configuration
+      local:
+        # Path to your Obsidian vault directory
+        # Change this to point to your actual vault!
+        path: "./data/vault"
+
+    # Path where the search index will be stored
+    # For local dev, defaults to ~/.config/obsidian-web/indexes/default
+    index_path: "./data/indexes/default"
+
+    # Enable/disable this vault
+    enabled: true
+
+    # Mark as default vault (only one can be default)
+    default: true
+
+  # Example: Additional vault with S3 storage (disabled by default)
+  # - id: "work"
+  #   name: "Work Notes"
+  #   storage:
+  #     type: "s3"
+  #     s3:
+  #       bucket: "work-notes-bucket"
+  #       region: "us-west-2"
+  #       access_key: "${AWS_ACCESS_KEY_ID}"     # or set via env var
+  #       secret_key: "${AWS_SECRET_ACCESS_KEY}" # or set via env var
+  #       # endpoint: "https://s3.amazonaws.com"   # optional for S3-compatible services
+  #   index_path: "./data/indexes/work"
+  #   enabled: false
+  #   default: false
+
+  # Example: Vault with MinIO storage (disabled by default)
+  # - id: "archive"
+  #   name: "Archive"
+  #   storage:
+  #     type: "minio"
+  #     minio:
+  #       endpoint: "localhost:9000"
+  #       bucket: "my-vault"
+  #       access_key: "${MINIO_ACCESS_KEY}"
+  #       secret_key: "${MINIO_SECRET_KEY}"
+  #       use_ssl: false
+  #   index_path: "./data/indexes/archive"
+  #   enabled: false
+  #   default: false
+
+# Search Configuration
+search:
+  # Default number of results to return
+  default_limit: 20
+
+  # Maximum allowed results (prevents excessive queries)
+  max_limit: 100
+
+  # Index cache size in megabytes
+  cache_size_mb: 512
+
+# Indexing Configuration
+indexing:
+  # Number of documents to index per batch
+  batch_size: 100
+
+  # Automatically index all vaults on application startup
+  auto_index_on_startup: true
+
+  # Watch for file changes and re-index automatically (future feature)
+  watch_for_changes: false
+
+  # Periodic re-indexing interval (e.g., "5m", "1h", "24h")
+  # Set to "0" to disable periodic re-indexing
+  update_interval: 5m

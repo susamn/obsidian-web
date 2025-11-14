@@ -2,7 +2,10 @@ module github.com/susamn/obsidian-web
 
 go 1.23
 
-require github.com/blevesearch/bleve/v2 v2.5.5
+require (
+	github.com/blevesearch/bleve/v2 v2.5.5
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/RoaringBitmap/roaring/v2 v2.4.5 // indirect
