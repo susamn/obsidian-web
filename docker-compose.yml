@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  obsidian-web:
+    build: .
+    container_name: obsidian-web
+    ports:
+      - "${PORT:-8080}:8080"
+
+    volumes:
+      # Mount your Obsidian vault (read-only recommended)
+      # Change the left side to point to your actual vault directory
+      - /path/to/your/vault:/data/vault:ro
+
+      # Persistent storage for database and indexes
+      - obsidian-data:/data
+
+    environment:
+      # Server configuration
+      - OBSIDIAN_WEB_SERVER_HOST=0.0.0.0
+      - OBSIDIAN_WEB_SERVER_PORT=8080
+
+      # Database path (inside container)
+      - OBSIDIAN_WEB_DATABASE_PATH=/data/app.db
+
+      # Logging configuration
+      - OBSIDIAN_WEB_LOG_LEVEL=${LOG_LEVEL:-info}
+      - OBSIDIAN_WEB_LOG_FORMAT=json
+
+      # Vault configuration
+      - OBSIDIAN_WEB_VAULT_PATH=/data/vault
+      - OBSIDIAN_WEB_INDEX_PATH=/data/indexes/default
+
+      # Search configuration
+      - OBSIDIAN_WEB_SEARCH_DEFAULT_LIMIT=20
+      - OBSIDIAN_WEB_SEARCH_MAX_LIMIT=100
+
+      # Indexing configuration
+      - OBSIDIAN_WEB_INDEXING_BATCH_SIZE=100
+      - OBSIDIAN_WEB_INDEXING_AUTO_INDEX=true
+
+      # AWS credentials (if using S3 storage)
+      # Uncomment and set these if you're using S3
+      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  # Named volume for persistent data (database and indexes)
+  obsidian-data:
+    driver: local
+
+# Example: Using S3 storage instead of local volume
+# Uncomment this service definition and comment out the volume mount above
+#
+# services:
+#   obsidian-web-s3:
+#     build: .
+#     container_name: obsidian-web-s3
+#     ports:
+#       - "8080:8080"
+#     volumes:
+#       - obsidian-data:/data
+#     environment:
+#       - OBSIDIAN_WEB_SERVER_HOST=0.0.0.0
+#       - OBSIDIAN_WEB_SERVER_PORT=8080
+#       - OBSIDIAN_WEB_DATABASE_PATH=/data/app.db
+#       - OBSIDIAN_WEB_LOG_LEVEL=info
+#       - OBSIDIAN_WEB_LOG_FORMAT=json
+#
+#       # S3 storage configuration
+#       # Note: The storage type is set in config file or use a full config mount
+#       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+#       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+#       - AWS_REGION=${AWS_REGION:-us-east-1}
+#
+#       - OBSIDIAN_WEB_INDEX_PATH=/data/indexes/default
+#     restart: unless-stopped
