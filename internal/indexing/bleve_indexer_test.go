@@ -410,7 +410,7 @@ func TestIndexMarkdownFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get doc count: %v", err)
 	}
-	expectedCount := uint64(20) // All .md files including subdir
+	expectedCount := uint64(22) // All .md files including subdir (added advanced-wikilinks.md and inline-tags-only.md)
 	if count != expectedCount {
 		t.Errorf("DocCount = %d, want %d", count, expectedCount)
 	}
