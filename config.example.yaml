@@ -26,6 +26,9 @@ server:
   read_timeout: 30s
   write_timeout: 30s
 
+  # Static files directory (for web UI assets)
+  static_dir: "./static"
+
 # SQLite Database Configuration
 database:
   # Path to SQLite database file
