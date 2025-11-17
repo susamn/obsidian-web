@@ -205,6 +205,8 @@ func (v *Vault) monitorIndexAndStartSearch() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	searchServiceStarted := false
+
 	for {
 		select {
 		case <-v.ctx.Done():
@@ -213,15 +215,29 @@ func (v *Vault) monitorIndexAndStartSearch() {
 			v.setStatus(VaultStatusError)
 			return
 		case <-ticker.C:
-			status := v.indexService.GetStatus()
-			if status == indexing.StatusReady {
-				if err := v.searchService.Start(); err != nil {
+			indexStatus := v.indexService.GetStatus()
+
+			// Wait for index to be ready first
+			if !searchServiceStarted {
+				if indexStatus == indexing.StatusReady {
+					if err := v.searchService.Start(); err != nil {
+						v.setStatus(VaultStatusError)
+						return
+					}
+					searchServiceStarted = true
+				} else if indexStatus == indexing.StatusError {
 					v.setStatus(VaultStatusError)
 					return
 				}
+				continue
+			}
+
+			// Once search service is started, wait for it to be ready
+			searchStatus := v.searchService.GetStatus()
+			if searchStatus == search.StatusReady {
 				v.setStatus(VaultStatusActive)
 				return
-			} else if status == indexing.StatusError {
+			} else if searchStatus == search.StatusError {
 				v.setStatus(VaultStatusError)
 				return
 			}
@@ -297,9 +313,12 @@ func (v *Vault) GetMetrics() VaultMetrics {
 	}
 
 	if v.indexService != nil {
-		if index := v.indexService.GetIndex(); index != nil {
-			count, _ := index.DocCount()
-			metrics.IndexedFiles = count
+		index := v.indexService.GetIndex()
+		if index != nil {
+			count, err := index.DocCount()
+			if err == nil {
+				metrics.IndexedFiles = count
+			}
 		}
 	}
 

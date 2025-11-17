@@ -169,6 +169,7 @@ func (s *IndexService) Start() error {
 		defer close(s.statusChan)
 
 		if err := s.performInitialIndexing(); err != nil {
+			log.Printf("[%s] Initial indexing failed: %v", s.vaultID, err)
 			s.updateStatus(StatusUpdate{
 				Status:  StatusError,
 				Message: "Initial indexing failed",
@@ -214,13 +215,17 @@ func (s *IndexService) performInitialIndexing() error {
 	log.Printf("[%s] Index location: %s", s.vaultID, s.indexPath)
 
 	var err error
+	var index bleve.Index
 
 	// Try to open existing index
-	s.index, err = bleve.Open(s.indexPath)
-	if errors.Is(err, bleve.ErrorIndexPathDoesNotExist) {
-		// Create new index
+	index, err = bleve.Open(s.indexPath)
+	needsCreate := errors.Is(err, bleve.ErrorIndexPathDoesNotExist) ||
+		(err != nil && strings.Contains(err.Error(), "metadata missing"))
+
+	if needsCreate {
+		// Create new index (either path doesn't exist or metadata is missing)
 		docMapping := buildIndexMapping()
-		s.index, err = bleve.New(s.indexPath, docMapping)
+		index, err = bleve.New(s.indexPath, docMapping)
 		if err != nil {
 			return fmt.Errorf("failed to create index: %w", err)
 		}
@@ -230,6 +235,11 @@ func (s *IndexService) performInitialIndexing() error {
 	} else {
 		log.Printf("[%s] Opened existing index", s.vaultID)
 	}
+
+	// Set the index with proper locking
+	s.mu.Lock()
+	s.index = index
+	s.mu.Unlock()
 
 	// First, count total files
 	totalFiles := 0
@@ -256,7 +266,7 @@ func (s *IndexService) performInitialIndexing() error {
 	})
 
 	// Walk through markdown files and index them
-	batch := s.index.NewBatch()
+	batch := index.NewBatch()
 	indexedCount := 0
 
 	err = filepath.WalkDir(s.vaultPath, func(path string, d fs.DirEntry, err error) error {
@@ -297,7 +307,7 @@ func (s *IndexService) performInitialIndexing() error {
 
 		// Batch index every 100 documents
 		if batch.Size() >= 100 {
-			if err := s.index.Batch(batch); err != nil {
+			if err := index.Batch(batch); err != nil {
 				return fmt.Errorf("batch index failed: %w", err)
 			}
 			log.Printf("[%s] Indexed %d/%d documents...", s.vaultID, indexedCount, totalFiles)
@@ -311,7 +321,7 @@ func (s *IndexService) performInitialIndexing() error {
 				Message:        fmt.Sprintf("Indexed %d/%d documents", indexedCount, totalFiles),
 			})
 
-			batch = s.index.NewBatch()
+			batch = index.NewBatch()
 		}
 
 		return nil
@@ -323,7 +333,7 @@ func (s *IndexService) performInitialIndexing() error {
 
 	// Index remaining documents
 	if batch.Size() > 0 {
-		if err := s.index.Batch(batch); err != nil {
+		if err := index.Batch(batch); err != nil {
 			return fmt.Errorf("final batch index failed: %w", err)
 		}
 	}
@@ -419,6 +429,8 @@ func (s *IndexService) deleteFromIndex(docPath string) error {
 // GetIndex returns the underlying bleve index
 // This allows search operations to be performed
 func (s *IndexService) GetIndex() bleve.Index {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.index
 }
 

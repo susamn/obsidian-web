@@ -113,8 +113,8 @@ func (s *SearchService) Start() error {
 		s.setStatus(StatusReady)
 		log.Printf("[%s] Search service ready", s.vaultID)
 	} else {
-		// Not ready yet, waiting for index
-		s.setStatus(StatusError)
+		// Not ready yet, waiting for index - stay in Initializing status
+		// Will transition to Ready when we receive index update notification
 		log.Printf("[%s] Search service waiting for index", s.vaultID)
 	}
 
