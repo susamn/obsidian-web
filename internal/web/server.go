@@ -54,6 +54,10 @@ func NewServer(ctx context.Context, cfg *config.Config, vaults map[string]*vault
 // setupRoutes configures all HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// API routes
+	mux.HandleFunc("/api/v1/files/tree/", s.handleGetTree)
+	mux.HandleFunc("/api/v1/files/children/", s.handleGetChildren)
+	mux.HandleFunc("/api/v1/files/meta/", s.handleGetMetadata)
+	mux.HandleFunc("/api/v1/files/refresh/", s.handleRefreshTree)
 	mux.HandleFunc("/api/v1/files/", s.handleGetFile)
 	mux.HandleFunc("/api/v1/raw/", s.handleGetRaw)
 	mux.HandleFunc("/api/v1/search/", s.handleSearch)
