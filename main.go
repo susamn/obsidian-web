@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/susamn/obsidian-web/internal/config"
+	"github.com/susamn/obsidian-web/internal/logger"
 	"github.com/susamn/obsidian-web/internal/vault"
 	"github.com/susamn/obsidian-web/internal/web"
 )
@@ -19,34 +19,40 @@ func main() {
 	configPath := flag.String("config", "", "Path to configuration file")
 	flag.Parse()
 
-	// Load configuration
-	log.Println("Loading configuration...")
+	// Load configuration (using basic logging before logger is initialized)
 	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		logger.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// Initialize logger
+	if err := logger.Initialize(&cfg.Logging); err != nil {
+		logger.Fatalf("Failed to initialize logger: %v", err)
+	}
+
+	logger.Info("Loading configuration...")
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("Configuration validation failed: %v", err)
+		logger.Fatalf("Configuration validation failed: %v", err)
 	}
 
 	// Ensure all required directories exist
 	if err := cfg.EnsureDirectories(); err != nil {
-		log.Fatalf("Failed to create directories: %v", err)
+		logger.Fatalf("Failed to create directories: %v", err)
 	}
 
 	// Display loaded configuration
-	log.Printf("\n=== Obsidian Web Configuration ===")
-	log.Printf("Server: %s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("Database: %s", cfg.Database.Path)
-	log.Printf("Log Level: %s", cfg.Logging.Level)
+	logger.Info("\n=== Obsidian Web Configuration ===")
+	logger.Infof("Server: %s:%d", cfg.Server.Host, cfg.Server.Port)
+	logger.Infof("Database: %s", cfg.Database.Path)
+	logger.Infof("Log Level: %s", cfg.Logging.Level)
 
 	// Display configured vaults
 	enabledVaults := cfg.ListEnabledVaults()
-	log.Printf("\n=== Configured Vaults: %d ===", len(enabledVaults))
+	logger.Infof("\n=== Configured Vaults: %d ===", len(enabledVaults))
 	for _, vaultCfg := range enabledVaults {
-		log.Printf("  - %s (%s) [%s]", vaultCfg.Name, vaultCfg.ID, vaultCfg.Storage.GetType())
+		logger.Infof("  - %s (%s) [%s]", vaultCfg.Name, vaultCfg.ID, vaultCfg.Storage.GetType())
 	}
 
 	// Create application context
@@ -54,58 +60,61 @@ func main() {
 	defer cancel()
 
 	// Initialize vaults
-	log.Printf("\n=== Initializing Vaults ===")
+	logger.Info("\n=== Initializing Vaults ===")
 	vaults := make(map[string]*vault.Vault)
 
 	for _, vaultCfg := range enabledVaults {
-		log.Printf("Creating vault: %s", vaultCfg.Name)
+		logger.WithField("vault", vaultCfg.Name).Info("Creating vault")
 
 		v, err := vault.NewVault(ctx, &vaultCfg)
 		if err != nil {
-			log.Printf("Failed to create vault %s: %v", vaultCfg.ID, err)
+			logger.WithError(err).WithField("vault_id", vaultCfg.ID).Error("Failed to create vault")
 			continue
 		}
 
 		// Start vault
-		log.Printf("Starting vault: %s", vaultCfg.Name)
+		logger.WithField("vault", vaultCfg.Name).Info("Starting vault")
 		if err := v.Start(); err != nil {
-			log.Printf("Failed to start vault %s: %v", vaultCfg.ID, err)
+			logger.WithError(err).WithField("vault_id", vaultCfg.ID).Error("Failed to start vault")
 			continue
 		}
 
 		vaults[vaultCfg.ID] = v
-		log.Printf("✓ Vault %s started successfully", vaultCfg.Name)
+		logger.WithField("vault", vaultCfg.Name).Info("✓ Vault started successfully")
 	}
 
 	if len(vaults) == 0 {
-		log.Fatal("No vaults were successfully initialized")
+		logger.Fatal("No vaults were successfully initialized")
 	}
 
-	log.Printf("Successfully initialized %d vault(s)", len(vaults))
+	logger.Infof("Successfully initialized %d vault(s)", len(vaults))
 
 	// Wait for vaults to be ready
-	log.Printf("\n=== Waiting for vaults to be ready ===")
+	logger.Info("\n=== Waiting for vaults to be ready ===")
 	for id, v := range vaults {
 		if err := v.WaitForReady(30 * time.Second); err != nil {
-			log.Printf("Warning: Vault %s not ready: %v", id, err)
+			logger.WithError(err).WithField("vault_id", id).Warn("Vault not ready")
 		} else {
-			log.Printf("✓ Vault %s is ready", id)
+			logger.WithField("vault_id", id).Info("✓ Vault is ready")
 		}
 	}
 
 	// Create and start web server
-	log.Printf("\n=== Starting Web Server ===")
+	logger.Info("\n=== Starting Web Server ===")
 	server := web.NewServer(ctx, cfg, vaults)
 
 	if err := server.Start(); err != nil {
-		log.Fatalf("Failed to start web server: %v", err)
+		logger.WithError(err).Fatal("Failed to start web server")
 	}
 
-	log.Printf("✓ Web server started on %s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("\n=== Obsidian Web is running ===")
-	log.Printf("API available at: http://%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("Health check: http://%s:%d/api/v1/health", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("\nPress Ctrl+C to stop")
+	logger.WithFields(map[string]interface{}{
+		"host": cfg.Server.Host,
+		"port": cfg.Server.Port,
+	}).Info("✓ Web server started")
+	logger.Info("\n=== Obsidian Web is running ===")
+	logger.Infof("API available at: http://%s:%d", cfg.Server.Host, cfg.Server.Port)
+	logger.Infof("Health check: http://%s:%d/api/v1/health", cfg.Server.Host, cfg.Server.Port)
+	logger.Info("\nPress Ctrl+C to stop")
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -114,22 +123,22 @@ func main() {
 	// Wait for interrupt signal
 	<-sigChan
 
-	log.Printf("\n=== Shutting down gracefully ===")
+	logger.Info("\n=== Shutting down gracefully ===")
 
 	// Stop web server
-	log.Println("Stopping web server...")
+	logger.Info("Stopping web server...")
 	if err := server.Stop(); err != nil {
-		log.Printf("Error stopping web server: %v", err)
+		logger.WithError(err).Error("Error stopping web server")
 	}
 
 	// Stop all vaults
-	log.Println("Stopping vaults...")
+	logger.Info("Stopping vaults...")
 	for id, v := range vaults {
-		log.Printf("Stopping vault: %s", id)
+		logger.WithField("vault_id", id).Info("Stopping vault")
 		if err := v.Stop(); err != nil {
-			log.Printf("Error stopping vault %s: %v", id, err)
+			logger.WithError(err).WithField("vault_id", id).Error("Error stopping vault")
 		}
 	}
 
-	log.Println("✓ Shutdown complete")
+	logger.Info("✓ Shutdown complete")
 }

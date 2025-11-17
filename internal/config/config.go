@@ -36,9 +36,19 @@ type DatabaseConfig struct {
 
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
-	Level  string `yaml:"level"`  // debug, info, warn, error
-	Format string `yaml:"format"` // json, text
-	Output string `yaml:"output"` // stdout, stderr, or file path
+	Level  string        `yaml:"level"`  // debug, info, warn, error
+	Format string        `yaml:"format"` // json, text
+	Output string        `yaml:"output"` // stdout, stderr, file
+	File   LogFileConfig `yaml:"file"`   // file rotation settings (when output: file)
+}
+
+// LogFileConfig holds file-based logging configuration
+type LogFileConfig struct {
+	Path       string `yaml:"path"`        // log file path
+	MaxSize    int    `yaml:"max_size"`    // megabytes
+	MaxBackups int    `yaml:"max_backups"` // number of old files to keep
+	MaxAge     int    `yaml:"max_age"`     // days
+	Compress   bool   `yaml:"compress"`    // compress rotated files
 }
 
 // VaultConfig represents a single vault configuration
