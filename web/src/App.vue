@@ -1,12 +1,23 @@
 <template>
-  <div id="app" class="dark">
+  <div id="app">
+    <TopBar />
     <router-view />
   </div>
 </template>
 
 <script>
+import TopBar from './components/TopBar.vue';
+import { useThemeStore } from './stores/theme';
+
 export default {
   name: 'App',
+  components: {
+    TopBar,
+  },
+  setup() {
+    const themeStore = useThemeStore();
+    themeStore.loadThemeFromLocalStorage();
+  },
 };
 </script>
 
@@ -16,12 +27,8 @@ export default {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
-  color: #2c3e50;
-}
-
-#app.dark {
-  background-color: #1a1a1a;
-  color: #f0f0f0;
   min-height: 100vh;
+  background-color: var(--background-color);
+  color: var(--text-color);
 }
 </style>

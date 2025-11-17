@@ -87,7 +87,7 @@ export default {
 
 .subtitle {
   font-size: 1.2rem;
-  color: #aaa;
+  color: var(--text-color);
 }
 
 .main-content {
@@ -113,7 +113,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background-color: #2a2a2a;
+  background-color: var(--background-color-light);
   border-radius: 8px;
   margin-bottom: 1rem;
   cursor: pointer;
@@ -121,7 +121,7 @@ export default {
 }
 
 .vault-item:hover {
-  background-color: #3a3a3a;
+  background-color: var(--background-color);
 }
 
 .vault-name {
@@ -146,7 +146,7 @@ export default {
 }
 
 .no-vaults {
-  color: #aaa;
+  color: var(--text-color);
 }
 
 .create-vault-form {
@@ -157,8 +157,8 @@ export default {
 
 .form-input {
   padding: 0.8rem;
-  border: 1px solid #444;
-  background-color: #2a2a2a;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color-light);
   color: var(--text-color);
   border-radius: 4px;
 }
@@ -175,6 +175,7 @@ export default {
 }
 
 .form-button:hover {
-  background-color: #7a42e6;
+  background-color: var(--primary-color);
+  filter: brightness(1.2);
 }
 </style>

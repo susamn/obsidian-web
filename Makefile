@@ -17,6 +17,16 @@ build: ## Build backend and frontend
 	go build -o bin/server ./cmd/server
 	@echo "Building frontend..."
 	cd web && npm run build
+	@echo "Copying frontend to backend..."
+	rm -rf internal/public
+	mkdir -p internal/public
+	cp -r web/dist/* internal/public
+	@echo "Copying themes to backend..."
+	mkdir -p internal/public/assets/themes
+	cp -r web/src/assets/themes/*.css internal/public/assets/themes/
+
+run: build dev-backend ## Build and run the application
+
 
 test: ## Run all tests
 	@echo "Running backend tests..."

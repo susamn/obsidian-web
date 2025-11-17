@@ -43,9 +43,9 @@ export default {
 
 .sidebar {
   width: 250px;
-  background-color: #2a2a2a;
+  background-color: var(--background-color-light);
   padding: 1rem;
-  border-right: 1px solid #444;
+  border-right: 1px solid var(--border-color);
 }
 
 .sidebar-header {
