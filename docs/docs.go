@@ -15,6 +15,243 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/files/children/{vault}": {
+            "get": {
+                "description": "Get the direct children of a directory (lazy-loaded)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "Get directory children",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault ID",
+                        "name": "vault",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Directory path (empty for root)",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of child nodes",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "405": {
+                        "description": "Method Not Allowed",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/files/meta/{vault}": {
+            "get": {
+                "description": "Get metadata for a file or directory",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "Get file/directory metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault ID",
+                        "name": "vault",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "File or directory path",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Metadata",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "405": {
+                        "description": "Method Not Allowed",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/files/refresh/{vault}": {
+            "post": {
+                "description": "Manually refresh the cached directory tree for a path",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "Refresh directory tree",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault ID",
+                        "name": "vault",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Directory path (empty for root)",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "405": {
+                        "description": "Method Not Allowed",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/files/tree/{vault}": {
+            "get": {
+                "description": "Get the directory tree (lazy-loaded) for a path in a vault",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "Get directory tree",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault ID",
+                        "name": "vault",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Directory path (empty for root)",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tree node with metadata",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "405": {
+                        "description": "Method Not Allowed",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/files/{vault}/{path}": {
             "get": {
                 "description": "Get the content of a file from a vault",
@@ -45,31 +282,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/web.FileResponse"
+                            "$ref": "#/definitions/internal_web.FileResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "503": {
                         "description": "Service Unavailable",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -89,13 +326,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/web.HealthResponse"
+                            "$ref": "#/definitions/internal_web.HealthResponse"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -129,13 +366,13 @@ const docTemplate = `{
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -177,25 +414,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "503": {
                         "description": "Service Unavailable",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -228,7 +465,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/web.SearchRequest"
+                            "$ref": "#/definitions/internal_web.SearchRequest"
                         }
                     }
                 ],
@@ -236,31 +473,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/web.SearchResponse"
+                            "$ref": "#/definitions/internal_web.SearchResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "503": {
                         "description": "Service Unavailable",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -280,13 +517,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/web.VaultsResponse"
+                            "$ref": "#/definitions/internal_web.VaultsResponse"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -321,7 +558,7 @@ const docTemplate = `{
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -363,19 +600,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/web.ErrorResponse"
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
                         }
                     }
                 }
@@ -383,7 +620,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "web.ErrorResponse": {
+        "internal_web.ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -394,7 +631,7 @@ const docTemplate = `{
                 }
             }
         },
-        "web.FileResponse": {
+        "internal_web.FileResponse": {
             "type": "object",
             "properties": {
                 "content": {
@@ -408,7 +645,7 @@ const docTemplate = `{
                 }
             }
         },
-        "web.HealthResponse": {
+        "internal_web.HealthResponse": {
             "type": "object",
             "properties": {
                 "status": {
@@ -422,7 +659,7 @@ const docTemplate = `{
                 }
             }
         },
-        "web.SearchRequest": {
+        "internal_web.SearchRequest": {
             "type": "object",
             "properties": {
                 "limit": {
@@ -456,13 +693,13 @@ const docTemplate = `{
                 }
             }
         },
-        "web.SearchResponse": {
+        "internal_web.SearchResponse": {
             "type": "object",
             "properties": {
                 "results": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/web.SearchResult"
+                        "$ref": "#/definitions/internal_web.SearchResult"
                     }
                 },
                 "took": {
@@ -473,7 +710,7 @@ const docTemplate = `{
                 }
             }
         },
-        "web.SearchResult": {
+        "internal_web.SearchResult": {
             "type": "object",
             "properties": {
                 "fields": {
@@ -497,7 +734,7 @@ const docTemplate = `{
                 }
             }
         },
-        "web.VaultInfo": {
+        "internal_web.VaultInfo": {
             "type": "object",
             "properties": {
                 "active": {
@@ -514,7 +751,7 @@ const docTemplate = `{
                 }
             }
         },
-        "web.VaultsResponse": {
+        "internal_web.VaultsResponse": {
             "type": "object",
             "properties": {
                 "total": {
@@ -523,7 +760,7 @@ const docTemplate = `{
                 "vaults": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/web.VaultInfo"
+                        "$ref": "#/definitions/internal_web.VaultInfo"
                     }
                 }
             }

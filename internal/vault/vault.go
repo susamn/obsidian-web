@@ -8,6 +8,7 @@ import (
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/susamn/obsidian-web/internal/config"
+	"github.com/susamn/obsidian-web/internal/explorer"
 	"github.com/susamn/obsidian-web/internal/indexing"
 	"github.com/susamn/obsidian-web/internal/logger"
 	"github.com/susamn/obsidian-web/internal/search"
@@ -56,9 +57,10 @@ type Vault struct {
 	vaultPath string
 
 	// Services
-	syncService   *syncpkg.SyncService
-	indexService  *indexing.IndexService
-	searchService *search.SearchService
+	syncService     *syncpkg.SyncService
+	indexService    *indexing.IndexService
+	searchService   *search.SearchService
+	explorerService *explorer.ExplorerService
 
 	// State
 	status       VaultStatus
@@ -147,6 +149,12 @@ func (v *Vault) initializeServices() error {
 	// Register search service to receive index update notifications
 	v.indexService.RegisterIndexNotifier(v.searchService)
 
+	// Create explorer service
+	v.explorerService, err = explorer.NewExplorerService(v.ctx, v.config.ID, v.vaultPath)
+	if err != nil {
+		return fmt.Errorf("failed to create explorer service: %w", err)
+	}
+
 	return nil
 }
 
@@ -168,6 +176,12 @@ func (v *Vault) Start() error {
 
 	// Monitor index and start search
 	go v.monitorIndexAndStartSearch()
+
+	// Start explorer service
+	if err := v.explorerService.Start(); err != nil {
+		v.setStatus(VaultStatusError)
+		return fmt.Errorf("failed to start explorer service: %w", err)
+	}
 
 	// Start sync service
 	if err := v.syncService.Start(); err != nil {
@@ -248,7 +262,7 @@ func (v *Vault) monitorIndexAndStartSearch() {
 	}
 }
 
-// startEventRouter connects sync events to index
+// startEventRouter connects sync events to index and explorer
 func (v *Vault) startEventRouter() {
 	v.eventRouter.Add(1)
 	go func() {
@@ -265,6 +279,7 @@ func (v *Vault) startEventRouter() {
 				}
 				v.trackFileOperation(event)
 				v.indexService.UpdateIndex(event)
+				v.explorerService.UpdateIndex(event)
 			}
 		}
 	}()
@@ -287,6 +302,10 @@ func (v *Vault) Stop() error {
 	}
 
 	v.eventRouter.Wait()
+
+	if v.explorerService != nil {
+		v.explorerService.Stop()
+	}
 
 	if v.searchService != nil {
 		v.searchService.Stop()
@@ -351,6 +370,13 @@ func (v *Vault) GetSearchService() *search.SearchService {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	return v.searchService
+}
+
+// GetExplorerService returns the explorer service
+func (v *Vault) GetExplorerService() *explorer.ExplorerService {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.explorerService
 }
 
 // GetIndex returns the underlying Bleve index

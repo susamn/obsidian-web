@@ -1,12 +1,12 @@
 definitions:
-  web.ErrorResponse:
+  internal_web.ErrorResponse:
     properties:
       error:
         type: string
       message:
         type: string
     type: object
-  web.FileResponse:
+  internal_web.FileResponse:
     properties:
       content:
         type: string
@@ -15,7 +15,7 @@ definitions:
       size:
         type: integer
     type: object
-  web.HealthResponse:
+  internal_web.HealthResponse:
     properties:
       status:
         type: string
@@ -24,7 +24,7 @@ definitions:
       uptime:
         type: string
     type: object
-  web.SearchRequest:
+  internal_web.SearchRequest:
     properties:
       limit:
         description: max results
@@ -48,18 +48,18 @@ definitions:
           type: string
         type: array
     type: object
-  web.SearchResponse:
+  internal_web.SearchResponse:
     properties:
       results:
         items:
-          $ref: '#/definitions/web.SearchResult'
+          $ref: '#/definitions/internal_web.SearchResult'
         type: array
       took:
         type: string
       total:
         type: integer
     type: object
-  web.SearchResult:
+  internal_web.SearchResult:
     properties:
       fields:
         additionalProperties: true
@@ -75,7 +75,7 @@ definitions:
       score:
         type: number
     type: object
-  web.VaultInfo:
+  internal_web.VaultInfo:
     properties:
       active:
         type: boolean
@@ -86,13 +86,13 @@ definitions:
       status:
         type: string
     type: object
-  web.VaultsResponse:
+  internal_web.VaultsResponse:
     properties:
       total:
         type: integer
       vaults:
         items:
-          $ref: '#/definitions/web.VaultInfo'
+          $ref: '#/definitions/internal_web.VaultInfo'
         type: array
     type: object
 info:
@@ -118,24 +118,181 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/web.FileResponse'
+            $ref: '#/definitions/internal_web.FileResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "503":
           description: Service Unavailable
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: Get a file from a vault
+      tags:
+      - files
+  /api/v1/files/children/{vault}:
+    get:
+      description: Get the direct children of a directory (lazy-loaded)
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      - description: Directory path (empty for root)
+        in: query
+        name: path
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Array of child nodes
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+      summary: Get directory children
+      tags:
+      - files
+  /api/v1/files/meta/{vault}:
+    get:
+      description: Get metadata for a file or directory
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      - description: File or directory path
+        in: query
+        name: path
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Metadata
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+      summary: Get file/directory metadata
+      tags:
+      - files
+  /api/v1/files/refresh/{vault}:
+    post:
+      description: Manually refresh the cached directory tree for a path
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      - description: Directory path (empty for root)
+        in: query
+        name: path
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success message
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+      summary: Refresh directory tree
+      tags:
+      - files
+  /api/v1/files/tree/{vault}:
+    get:
+      description: Get the directory tree (lazy-loaded) for a path in a vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      - description: Directory path (empty for root)
+        in: query
+        name: path
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Tree node with metadata
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+      summary: Get directory tree
       tags:
       - files
   /api/v1/health:
@@ -147,11 +304,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/web.HealthResponse'
+            $ref: '#/definitions/internal_web.HealthResponse'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: Health check
       tags:
       - monitoring
@@ -173,11 +330,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: Get metrics
       tags:
       - monitoring
@@ -205,19 +362,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "503":
           description: Service Unavailable
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: Get a raw file from a vault
       tags:
       - files
@@ -237,30 +394,30 @@ paths:
         name: query
         required: true
         schema:
-          $ref: '#/definitions/web.SearchRequest'
+          $ref: '#/definitions/internal_web.SearchRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/web.SearchResponse'
+            $ref: '#/definitions/internal_web.SearchResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "503":
           description: Service Unavailable
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: Search a vault
       tags:
       - search
@@ -273,11 +430,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/web.VaultsResponse'
+            $ref: '#/definitions/internal_web.VaultsResponse'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: List all vaults
       tags:
       - vaults
@@ -300,7 +457,7 @@ paths:
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: Get vault info
       tags:
       - vaults
@@ -328,15 +485,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/web.ErrorResponse'
+            $ref: '#/definitions/internal_web.ErrorResponse'
       summary: Perform a vault operation
       tags:
       - vaults
