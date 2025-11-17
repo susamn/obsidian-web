@@ -3,6 +3,24 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <h2 class="vault-name">{{ vaultName }}</h2>
+        <div class="connection-status">
+          <span
+            class="status-indicator"
+            :class="{
+              'connected': connected,
+              'disconnected': !connected && !error,
+              'error': error
+            }"
+            :title="error || (connected ? 'Live updates enabled' : 'Connecting...')"
+          >
+            <i v-if="connected" class="fas fa-circle"></i>
+            <i v-else-if="error" class="fas fa-exclamation-circle"></i>
+            <i v-else class="fas fa-circle-notch fa-spin"></i>
+          </span>
+          <span class="status-text">
+            {{ connected ? 'Live' : (error ? 'Offline' : 'Connecting') }}
+          </span>
+        </div>
       </div>
       <div class="file-tree">
         <p v-if="fileStore.loading">Loading file tree...</p>
@@ -26,12 +44,14 @@
 import { ref, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
+import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
 
 const route = useRoute();
 const fileStore = useFileStore();
 const vaultName = ref('');
 const expandedNodes = ref({});
+const sseConnectionStatus = ref('disconnected');
 
 const handleToggleExpand = async (node) => {
   if (node.metadata.is_directory) {
@@ -69,13 +89,82 @@ const updateNodeChildren = (nodes, targetPath, newChildren) => {
   return false;
 };
 
+/**
+ * Refresh a specific node or the entire tree
+ */
+const refreshNode = async (path = '') => {
+  console.log('[VaultView] Refreshing node:', path);
+
+  if (path === '') {
+    // Refresh entire tree
+    await fileStore.fetchTree(fileStore.vaultId);
+  } else {
+    // Find the parent directory and refresh it
+    const parentPath = path.substring(0, path.lastIndexOf('/'));
+
+    // Check if parent is expanded
+    if (expandedNodes.value[parentPath] !== undefined) {
+      // Refresh parent's children
+      await fileStore.fetchChildren(fileStore.vaultId, parentPath);
+      updateNodeChildren(fileStore.treeData, parentPath, fileStore.childrenData);
+    } else {
+      // If parent is not expanded, just invalidate cache by refreshing the tree
+      await fileStore.fetchTree(fileStore.vaultId);
+    }
+  }
+};
+
+// SSE event handlers
+const sseCallbacks = {
+  onConnected: (data) => {
+    console.log('[VaultView] SSE connected:', data);
+    sseConnectionStatus.value = 'connected';
+  },
+
+  onFileCreated: async (event) => {
+    console.log('[VaultView] File created:', event.path);
+    await refreshNode(event.path);
+  },
+
+  onFileModified: async (event) => {
+    console.log('[VaultView] File modified:', event.path);
+    await refreshNode(event.path);
+  },
+
+  onFileDeleted: async (event) => {
+    console.log('[VaultView] File deleted:', event.path);
+    await refreshNode(event.path);
+  },
+
+  onTreeRefresh: async (event) => {
+    console.log('[VaultView] Tree refresh requested:', event.path);
+    await refreshNode(event.path);
+  },
+
+  onError: (err) => {
+    console.error('[VaultView] SSE error:', err);
+    sseConnectionStatus.value = 'error';
+  },
+};
+
+// Initialize SSE connection (vaultId will be passed when calling connect())
+const { connected, error, connect, disconnect, reconnect } = useSSE(sseCallbacks);
+
 // Watch for changes in the route params, specifically the 'id' for the vault
-watch(() => route.params.id, (newId) => {
+watch(() => route.params.id, (newId, oldId) => {
   if (newId) {
+    // Disconnect old SSE connection if vault changes
+    if (oldId && oldId !== newId) {
+      disconnect();
+    }
+
     fileStore.setVaultId(newId);
     vaultName.value = `Vault ${newId}`;
     fileStore.fetchTree(newId);
     expandedNodes.value = {}; // Reset expanded nodes when vault changes
+
+    // Connect to SSE for the new vault
+    connect(newId);
   }
 }, { immediate: true }); // Immediate: true to run the watcher on initial component mount
 
@@ -85,6 +174,7 @@ onMounted(() => {
     fileStore.setVaultId(route.params.id);
     vaultName.value = `Vault ${route.params.id}`;
     fileStore.fetchTree(route.params.id);
+    connect(route.params.id);
   }
 });
 </script>
@@ -110,6 +200,47 @@ onMounted(() => {
   font-size: 1.2rem;
   font-weight: bold;
   color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+/* Connection status indicator */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+}
+
+.status-indicator.connected {
+  color: #98c379; /* Green */
+}
+
+.status-indicator.disconnected {
+  color: #e5c07b; /* Yellow/Orange */
+}
+
+.status-indicator.error {
+  color: #e06c75; /* Red */
+}
+
+.status-text {
+  color: var(--text-color-secondary, #666);
+}
+
+.status-indicator.connected + .status-text {
+  color: #98c379;
+}
+
+.status-indicator.error + .status-text {
+  color: #e06c75;
 }
 
 .main-content {
