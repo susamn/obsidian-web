@@ -74,3 +74,6 @@ temp/
 # Bleve indexes (test artifacts)
 *.bleve/
 markdown.bleve/
+
+# Compiled frontend
+internal/public/

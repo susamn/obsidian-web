@@ -39,7 +39,7 @@ clean: ## Clean build artifacts
 	cd web && rm -rf node_modules/
 
 dev-backend: ## Run backend in development mode
-	go run ./cmd/server
+	go run ./cmd/server/main.go
 
 dev-frontend: ## Run frontend in development mode
 	cd web && npm run dev

@@ -2,95 +2,48 @@ package web
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 )
 
-// handleIndex serves the main web UI
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+// spaHandler implements the http.Handler interface and serves a single page application.
+type spaHandler struct {
+	staticPath string
+	indexPath  string
+}
+
+// ServeHTTP serves the single page application.
+func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// if the request is for an API endpoint, let the default mux handle it
+	if strings.HasPrefix(r.URL.Path, "/api") || strings.HasPrefix(r.URL.Path, "/swagger") {
 		http.NotFound(w, r)
 		return
 	}
 
-	// For now, serve a simple HTML page
-	// TODO: Replace with actual web UI
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(indexHTML))
-}
-
-// handleStatic serves static files
-func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
-	// Remove /static/ prefix
-	path := strings.TrimPrefix(r.URL.Path, "/static/")
-	if path == "" {
-		http.NotFound(w, r)
+	// get the absolute path to prevent directory traversal
+	path, err := filepath.Abs(r.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Security: prevent directory traversal
-	if strings.Contains(path, "..") {
-		writeError(w, http.StatusBadRequest, "Invalid path")
+	// prepend the path with the path to the static directory
+	path = filepath.Join(h.staticPath, path)
+
+	// check whether a file exists at the given path
+	_, err = os.Stat(path)
+	if os.IsNotExist(err) {
+		// file does not exist, serve index.html
+		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
+		return
+	} else if err != nil {
+		// if we got an error (that wasn't that the file doesn't exist) stating the
+		// file, return a 500 internal server error and stop
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Get static directory from config
-	staticDir := s.config.Server.StaticDir
-	if staticDir == "" {
-		staticDir = "./static"
-	}
-
-	// Build full path
-	fullPath := filepath.Join(staticDir, path)
-
-	// Serve file
-	http.ServeFile(w, r, fullPath)
+	// otherwise, use http.FileServer to serve the static file
+	http.FileServer(http.Dir(h.staticPath)).ServeHTTP(w, r)
 }
-
-// indexHTML is a simple placeholder HTML page
-const indexHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Obsidian Web</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-        h1 { color: #333; }
-        .endpoints {
-            background: #f5f5f5;
-            padding: 20px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        code {
-            background: #e0e0e0;
-            padding: 2px 6px;
-            border-radius: 3px;
-        }
-    </style>
-</head>
-<body>
-    <h1>Obsidian Web API</h1>
-    <p>Welcome to the Obsidian Web API server.</p>
-
-    <div class="endpoints">
-        <h2>Available Endpoints:</h2>
-        <ul>
-            <li><code>GET /api/v1/health</code> - Health check</li>
-            <li><code>GET /api/v1/vaults</code> - List all vaults</li>
-            <li><code>GET /api/v1/vaults/:id</code> - Get vault info</li>
-            <li><code>GET /api/v1/metrics/:vault</code> - Vault metrics</li>
-            <li><code>POST /api/v1/search/:vault</code> - Search vault</li>
-            <li><code>GET /api/v1/files/:vault/:path</code> - Get file</li>
-        </ul>
-    </div>
-</body>
-</html>`

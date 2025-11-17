@@ -53,27 +53,21 @@ func NewServer(ctx context.Context, cfg *config.Config, vaults map[string]*vault
 
 // setupRoutes configures all HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
-	// Static content
-	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/static/", s.handleStatic)
-
-	// File operations
+	// API routes
 	mux.HandleFunc("/api/v1/files/", s.handleGetFile)
 	mux.HandleFunc("/api/v1/raw/", s.handleGetRaw)
-
-	// Search
 	mux.HandleFunc("/api/v1/search/", s.handleSearch)
-
-	// Vault management
 	mux.HandleFunc("/api/v1/vaults", s.handleVaults)
 	mux.HandleFunc("/api/v1/vaults/", s.handleVaultOps)
-
-	// Monitoring
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
 	mux.HandleFunc("/api/v1/metrics/", s.handleMetrics)
 
 	// Swagger
 	mux.HandleFunc("/swagger/", s.handleSwagger)
+
+	// Static files
+	spa := spaHandler{staticPath: "./internal/public", indexPath: "index.html"}
+	mux.Handle("/", spa)
 }
 
 // Start starts the HTTP server
