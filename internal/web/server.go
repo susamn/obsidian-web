@@ -71,6 +71,9 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// Monitoring
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
 	mux.HandleFunc("/api/v1/metrics/", s.handleMetrics)
+
+	// Swagger
+	mux.HandleFunc("/swagger/", s.handleSwagger)
 }
 
 // Start starts the HTTP server

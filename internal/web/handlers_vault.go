@@ -22,7 +22,14 @@ type VaultsResponse struct {
 	Total  int         `json:"total"`
 }
 
-// handleVaults handles GET /api/v1/vaults
+// handleVaults godoc
+// @Summary List all vaults
+// @Description Get a list of all available vaults
+// @Tags vaults
+// @Produce json
+// @Success 200 {object} VaultsResponse
+// @Failure 405 {object} ErrorResponse
+// @Router /api/v1/vaults [get]
 func (s *Server) handleVaults(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -77,7 +84,15 @@ func (s *Server) handleVaultOps(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusBadRequest, "Invalid request")
 }
 
-// handleGetVaultInfo handles GET /api/v1/vaults/:id
+// handleGetVaultInfo godoc
+// @Summary Get vault info
+// @Description Get information about a specific vault
+// @Tags vaults
+// @Produce json
+// @Param id path string true "Vault ID"
+// @Success 200 {object} object "Vault information"
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/vaults/{id} [get]
 func (s *Server) handleGetVaultInfo(w http.ResponseWriter, r *http.Request, vaultID string) {
 	v, ok := s.getVault(vaultID)
 	if !ok {
@@ -100,7 +115,18 @@ func (s *Server) handleGetVaultInfo(w http.ResponseWriter, r *http.Request, vaul
 	writeSuccess(w, info)
 }
 
-// handleVaultOperation handles POST /api/v1/vaults/:id/:operation
+// handleVaultOperation godoc
+// @Summary Perform a vault operation
+// @Description Perform an operation on a vault (start, stop, resume)
+// @Tags vaults
+// @Produce json
+// @Param id path string true "Vault ID"
+// @Param operation path string true "Operation (start, stop, resume)"
+// @Success 200 {object} object "Operation status"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/vaults/{id}/{operation} [post]
 func (s *Server) handleVaultOperation(w http.ResponseWriter, r *http.Request, vaultID, operation string) {
 	v, ok := s.getVault(vaultID)
 	if !ok {

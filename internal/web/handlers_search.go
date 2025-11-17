@@ -34,7 +34,20 @@ type SearchResponse struct {
 	Took    string         `json:"took"`
 }
 
-// handleSearch handles POST /api/v1/search/:vault
+// handleSearch godoc
+// @Summary Search a vault
+// @Description Search for notes in a vault
+// @Tags search
+// @Accept json
+// @Produce json
+// @Param vault path string true "Vault ID"
+// @Param query body SearchRequest true "Search query"
+// @Success 200 {object} SearchResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/search/{vault} [post]
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")

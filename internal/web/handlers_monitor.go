@@ -35,7 +35,14 @@ type SystemMetrics struct {
 
 var serverStartTime = time.Now()
 
-// handleHealth handles GET /api/v1/health
+// handleHealth godoc
+// @Summary Health check
+// @Description Check if the server is running
+// @Tags monitoring
+// @Produce json
+// @Success 200 {object} HealthResponse
+// @Failure 405 {object} ErrorResponse
+// @Router /api/v1/health [get]
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -49,7 +56,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleMetrics handles GET /api/v1/metrics/:vault
+// handleMetrics godoc
+// @Summary Get metrics
+// @Description Get system-wide or vault-specific metrics
+// @Tags monitoring
+// @Produce json
+// @Param vault path string false "Vault ID"
+// @Success 200 {object} object "SystemMetrics or MetricsResponse"
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Router /api/v1/metrics/{vault} [get]
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")

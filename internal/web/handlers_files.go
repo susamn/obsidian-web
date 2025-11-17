@@ -15,8 +15,19 @@ type FileResponse struct {
 	Size    int64  `json:"size"`
 }
 
-// handleGetFile handles GET /api/v1/files/:vault/:path
-// Returns markdown file content as JSON
+// handleGetFile godoc
+// @Summary Get a file from a vault
+// @Description Get the content of a file from a vault
+// @Tags files
+// @Produce json
+// @Param vault path string true "Vault ID"
+// @Param path path string true "File path"
+// @Success 200 {object} FileResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/files/{vault}/{path} [get]
 func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -58,8 +69,19 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleGetRaw handles GET /api/v1/raw/:vault/*path
-// Returns raw file content with appropriate Content-Type
+// handleGetRaw godoc
+// @Summary Get a raw file from a vault
+// @Description Get the raw content of a file from a vault
+// @Tags files
+// @Produce octet-stream
+// @Param vault path string true "Vault ID"
+// @Param path path string true "File path"
+// @Success 200 {string} string "Raw file content"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/raw/{vault}/{path} [get]
 func (s *Server) handleGetRaw(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")

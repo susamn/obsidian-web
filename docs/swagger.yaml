@@ -1,0 +1,343 @@
+definitions:
+  web.ErrorResponse:
+    properties:
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  web.FileResponse:
+    properties:
+      content:
+        type: string
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
+  web.HealthResponse:
+    properties:
+      status:
+        type: string
+      timestamp:
+        type: string
+      uptime:
+        type: string
+    type: object
+  web.SearchRequest:
+    properties:
+      limit:
+        description: max results
+        type: integer
+      query:
+        type: string
+      tags:
+        description: for tag search
+        items:
+          type: string
+        type: array
+      title_only:
+        description: search title only
+        type: boolean
+      type:
+        description: text, tag, wikilink, fuzzy, phrase, prefix
+        type: string
+      wikilinks:
+        description: for wikilink search
+        items:
+          type: string
+        type: array
+    type: object
+  web.SearchResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/web.SearchResult'
+        type: array
+      took:
+        type: string
+      total:
+        type: integer
+    type: object
+  web.SearchResult:
+    properties:
+      fields:
+        additionalProperties: true
+        type: object
+      fragments:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+      id:
+        type: string
+      score:
+        type: number
+    type: object
+  web.VaultInfo:
+    properties:
+      active:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  web.VaultsResponse:
+    properties:
+      total:
+        type: integer
+      vaults:
+        items:
+          $ref: '#/definitions/web.VaultInfo'
+        type: array
+    type: object
+info:
+  contact: {}
+paths:
+  /api/v1/files/{vault}/{path}:
+    get:
+      description: Get the content of a file from a vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      - description: File path
+        in: path
+        name: path
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/web.FileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get a file from a vault
+      tags:
+      - files
+  /api/v1/health:
+    get:
+      description: Check if the server is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/web.HealthResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Health check
+      tags:
+      - monitoring
+  /api/v1/metrics/{vault}:
+    get:
+      description: Get system-wide or vault-specific metrics
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: SystemMetrics or MetricsResponse
+          schema:
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get metrics
+      tags:
+      - monitoring
+  /api/v1/raw/{vault}/{path}:
+    get:
+      description: Get the raw content of a file from a vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      - description: File path
+        in: path
+        name: path
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Raw file content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get a raw file from a vault
+      tags:
+      - files
+  /api/v1/search/{vault}:
+    post:
+      consumes:
+      - application/json
+      description: Search for notes in a vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      - description: Search query
+        in: body
+        name: query
+        required: true
+        schema:
+          $ref: '#/definitions/web.SearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/web.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Search a vault
+      tags:
+      - search
+  /api/v1/vaults:
+    get:
+      description: Get a list of all available vaults
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/web.VaultsResponse'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: List all vaults
+      tags:
+      - vaults
+  /api/v1/vaults/{id}:
+    get:
+      description: Get information about a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vault information
+          schema:
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get vault info
+      tags:
+      - vaults
+  /api/v1/vaults/{id}/{operation}:
+    post:
+      description: Perform an operation on a vault (start, stop, resume)
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Operation (start, stop, resume)
+        in: path
+        name: operation
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Operation status
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Perform a vault operation
+      tags:
+      - vaults
+swagger: "2.0"
