@@ -42,6 +42,11 @@ type TreeNode struct {
 	Loaded   bool         `json:"-"`                  // Whether children have been loaded
 }
 
+// SSEBroadcaster defines the interface for SSE broadcasting
+type SSEBroadcaster interface {
+	BroadcastFileEvent(vaultID, path string, eventType interface{})
+}
+
 // ExplorerService provides lazy-loaded directory tree exploration with caching
 type ExplorerService struct {
 	ctx       context.Context
@@ -56,6 +61,9 @@ type ExplorerService struct {
 	// Event handling
 	eventChan chan syncpkg.FileChangeEvent
 	wg        sync.WaitGroup
+
+	// SSE broadcasting
+	sseBroadcaster SSEBroadcaster
 
 	// Configuration
 	maxCacheSize int           // Maximum number of cached nodes
@@ -492,16 +500,31 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		"event_type": event.EventType,
 	}).Debug("Processing file event")
 
+	var sseEventType interface{}
+
 	switch event.EventType {
-	case syncpkg.FileCreated, syncpkg.FileModified:
+	case syncpkg.FileCreated:
 		// Invalidate the node itself and its parent
 		e.invalidateCache(relPath)
 		e.invalidateParent(relPath)
+		sseEventType = "file_created"
+
+	case syncpkg.FileModified:
+		// Invalidate the node itself and its parent
+		e.invalidateCache(relPath)
+		e.invalidateParent(relPath)
+		sseEventType = "file_modified"
 
 	case syncpkg.FileDeleted:
 		// Invalidate the node and its parent
 		e.invalidateCache(relPath)
 		e.invalidateParent(relPath)
+		sseEventType = "file_deleted"
+	}
+
+	// Broadcast SSE event if broadcaster is available
+	if e.sseBroadcaster != nil && sseEventType != nil {
+		e.sseBroadcaster.BroadcastFileEvent(e.vaultID, relPath, sseEventType)
 	}
 }
 
@@ -541,4 +564,9 @@ func (e *ExplorerService) GetCacheStats() map[string]interface{} {
 		"ttl":      e.cacheTTL.String(),
 		"vault_id": e.vaultID,
 	}
+}
+
+// SetSSEBroadcaster sets the SSE broadcaster for real-time updates
+func (e *ExplorerService) SetSSEBroadcaster(broadcaster SSEBroadcaster) {
+	e.sseBroadcaster = broadcaster
 }

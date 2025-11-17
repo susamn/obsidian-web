@@ -107,6 +107,14 @@ func main() {
 		logger.WithError(err).Fatal("Failed to start web server")
 	}
 
+	// Wire up SSE broadcasting to vaults' explorer services
+	sseManager := server.GetSSEManager()
+	for _, v := range vaults {
+		if explorerSvc := v.GetExplorerService(); explorerSvc != nil {
+			explorerSvc.SetSSEBroadcaster(sseManager)
+		}
+	}
+
 	logger.WithFields(map[string]interface{}{
 		"host": cfg.Server.Host,
 		"port": cfg.Server.Port,

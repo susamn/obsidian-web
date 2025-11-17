@@ -492,6 +492,67 @@
                 }
             }
         },
+        "/api/v1/sse/stats": {
+            "get": {
+                "description": "Get statistics about active SSE connections",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sse"
+                ],
+                "summary": "Get SSE connection statistics",
+                "responses": {
+                    "200": {
+                        "description": "SSE statistics",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sse/{vault}": {
+            "get": {
+                "description": "Server-Sent Events endpoint for receiving real-time file change notifications",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "sse"
+                ],
+                "summary": "SSE endpoint for real-time file updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault ID",
+                        "name": "vault",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_web.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/vaults": {
             "get": {
                 "description": "Get a list of all available vaults",

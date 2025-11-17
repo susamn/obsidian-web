@@ -9,29 +9,35 @@ import (
 
 	"github.com/susamn/obsidian-web/internal/config"
 	"github.com/susamn/obsidian-web/internal/logger"
+	"github.com/susamn/obsidian-web/internal/sse"
 	"github.com/susamn/obsidian-web/internal/vault"
 )
 
 // Server represents the HTTP server
 type Server struct {
-	mu      sync.RWMutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-	config  *config.Config
-	vaults  map[string]*vault.Vault
-	server  *http.Server
-	started bool
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	config     *config.Config
+	vaults     map[string]*vault.Vault
+	server     *http.Server
+	sseManager *sse.Manager
+	started    bool
 }
 
 // NewServer creates a new HTTP server
 func NewServer(ctx context.Context, cfg *config.Config, vaults map[string]*vault.Vault) *Server {
 	serverCtx, cancel := context.WithCancel(ctx)
 
+	// Create SSE manager
+	sseManager := sse.NewManager(serverCtx)
+
 	s := &Server{
-		ctx:    serverCtx,
-		cancel: cancel,
-		config: cfg,
-		vaults: vaults,
+		ctx:        serverCtx,
+		cancel:     cancel,
+		config:     cfg,
+		vaults:     vaults,
+		sseManager: sseManager,
 	}
 
 	// Setup routes
@@ -66,6 +72,10 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
 	mux.HandleFunc("/api/v1/metrics/", s.handleMetrics)
 
+	// SSE routes - stats must be registered before the wildcard route
+	mux.HandleFunc("/api/v1/sse/stats", s.handleSSEStats)
+	mux.HandleFunc("/api/v1/sse/", s.handleSSE)
+
 	// Swagger
 	mux.HandleFunc("/swagger/", s.handleSwagger)
 
@@ -83,6 +93,9 @@ func (s *Server) Start() error {
 	}
 	s.started = true
 	s.mu.Unlock()
+
+	// Start SSE manager
+	s.sseManager.Start()
 
 	logger.WithField("address", s.server.Addr).Info("Starting HTTP server")
 
@@ -116,6 +129,9 @@ func (s *Server) Stop() error {
 	s.mu.Unlock()
 
 	logger.Info("Stopping HTTP server")
+
+	// Stop SSE manager first
+	s.sseManager.Stop()
 
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -154,4 +170,9 @@ func (s *Server) listVaults() []*vault.Vault {
 		vaults = append(vaults, v)
 	}
 	return vaults
+}
+
+// GetSSEManager returns the SSE manager
+func (s *Server) GetSSEManager() *sse.Manager {
+	return s.sseManager
 }

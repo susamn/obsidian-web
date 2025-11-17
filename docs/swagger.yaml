@@ -421,6 +421,47 @@ paths:
       summary: Search a vault
       tags:
       - search
+  /api/v1/sse/{vault}:
+    get:
+      description: Server-Sent Events endpoint for receiving real-time file change
+        notifications
+      parameters:
+      - description: Vault ID
+        in: path
+        name: vault
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_web.ErrorResponse'
+      summary: SSE endpoint for real-time file updates
+      tags:
+      - sse
+  /api/v1/sse/stats:
+    get:
+      description: Get statistics about active SSE connections
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: SSE statistics
+          schema:
+            type: object
+      summary: Get SSE connection statistics
+      tags:
+      - sse
   /api/v1/vaults:
     get:
       description: Get a list of all available vaults
