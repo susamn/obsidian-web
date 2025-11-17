@@ -3,13 +3,13 @@ package vault
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/susamn/obsidian-web/internal/config"
 	"github.com/susamn/obsidian-web/internal/indexing"
+	"github.com/susamn/obsidian-web/internal/logger"
 	"github.com/susamn/obsidian-web/internal/search"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
@@ -116,8 +116,11 @@ func NewVault(ctx context.Context, cfg *config.VaultConfig) (*Vault, error) {
 		return nil, fmt.Errorf("failed to initialize services: %w", err)
 	}
 
-	log.Printf("[%s] Vault initialized (path: %s, storage: %s)",
-		cfg.ID, vaultPath, cfg.Storage.GetType())
+	logger.WithFields(map[string]interface{}{
+		"vault_id": cfg.ID,
+		"path":     vaultPath,
+		"storage":  cfg.Storage.GetType(),
+	}).Info("Vault initialized")
 
 	return vault, nil
 }

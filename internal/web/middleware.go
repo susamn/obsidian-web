@@ -1,10 +1,11 @@
 package web
 
 import (
-	"log"
 	"net/http"
 	"runtime/debug"
 	"time"
+
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 // withMiddleware wraps the handler with middleware chain
@@ -24,11 +25,12 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(wrapped, r)
 
-		log.Printf("%s %s - %d (%v)",
-			r.Method,
-			r.URL.Path,
-			wrapped.statusCode,
-			time.Since(start))
+		logger.WithFields(map[string]interface{}{
+			"method":   r.Method,
+			"path":     r.URL.Path,
+			"status":   wrapped.statusCode,
+			"duration": time.Since(start),
+		}).Info("HTTP request")
 	})
 }
 
@@ -53,7 +55,13 @@ func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Printf("Panic recovered: %v\n%s", err, debug.Stack())
+				logger.WithFields(map[string]interface{}{
+					"panic":      err,
+					"stack":      string(debug.Stack()),
+					"method":     r.Method,
+					"path":       r.URL.Path,
+					"remote_add": r.RemoteAddr,
+				}).Error("Panic recovered")
 				writeError(w, http.StatusInternalServerError, "Internal server error")
 			}
 		}()

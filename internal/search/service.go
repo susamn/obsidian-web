@@ -3,13 +3,13 @@ package search
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/susamn/obsidian-web/internal/indexing"
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 // ServiceStatus represents the current state of the search service
@@ -98,7 +98,7 @@ func (s *SearchService) Start() error {
 	}
 	s.statusMu.Unlock()
 
-	log.Printf("[%s] Starting search service...", s.vaultID)
+	logger.WithField("vault_id", s.vaultID).Info("Starting search service")
 
 	// Start event processor (always start it to receive index updates)
 	s.wg.Add(1)
@@ -111,11 +111,11 @@ func (s *SearchService) Start() error {
 
 	if hasIndex {
 		s.setStatus(StatusReady)
-		log.Printf("[%s] Search service ready", s.vaultID)
+		logger.WithField("vault_id", s.vaultID).Info("Search service ready")
 	} else {
 		// Not ready yet, waiting for index - stay in Initializing status
 		// Will transition to Ready when we receive index update notification
-		log.Printf("[%s] Search service waiting for index", s.vaultID)
+		logger.WithField("vault_id", s.vaultID).Info("Search service waiting for index")
 	}
 
 	return nil
@@ -130,7 +130,7 @@ func (s *SearchService) Stop() error {
 	}
 	s.statusMu.Unlock()
 
-	log.Printf("[%s] Stopping search service...", s.vaultID)
+	logger.WithField("vault_id", s.vaultID).Info("Stopping search service")
 
 	// Signal stop
 	close(s.stopChan)
@@ -142,7 +142,7 @@ func (s *SearchService) Stop() error {
 	s.wg.Wait()
 
 	s.setStatus(StatusStopped)
-	log.Printf("[%s] Search service stopped", s.vaultID)
+	logger.WithField("vault_id", s.vaultID).Info("Search service stopped")
 
 	return nil
 }
@@ -151,21 +151,21 @@ func (s *SearchService) Stop() error {
 func (s *SearchService) processIndexUpdates() {
 	defer s.wg.Done()
 
-	log.Printf("[%s] Index update processor started", s.vaultID)
+	logger.WithField("vault_id", s.vaultID).Info("Index update processor started")
 
 	for {
 		select {
 		case <-s.ctx.Done():
-			log.Printf("[%s] Index update processor stopped (context cancelled)", s.vaultID)
+			logger.WithField("vault_id", s.vaultID).Info("Index update processor stopped")
 			return
 
 		case <-s.stopChan:
-			log.Printf("[%s] Index update processor stopped", s.vaultID)
+			logger.WithField("vault_id", s.vaultID).Info("Index update processor stopped")
 			return
 
 		case event, ok := <-s.updateChan:
 			if !ok {
-				log.Printf("[%s] Index update processor stopped (channel closed)", s.vaultID)
+				logger.WithField("vault_id", s.vaultID).Info("Index update processor stopped")
 				return
 			}
 
@@ -192,18 +192,18 @@ func (s *SearchService) processIndexUpdateEvent(event indexing.IndexUpdateEvent)
 		s.index = event.NewIndex
 		s.indexMu.Unlock()
 
-		log.Printf("[%s] Index reference updated after rebuild (refresh #%d)", s.vaultID, refreshCount)
+		logger.WithFields(map[string]interface{}{"vault_id": s.vaultID, "refresh": refreshCount}).Info("Index reference updated")
 
 		// If we just got an index and were in error state, move to ready
 		s.statusMu.Lock()
 		if s.status == StatusError || s.status == StatusInitializing {
 			s.status = StatusReady
-			log.Printf("[%s] Search service now ready", s.vaultID)
+			logger.WithField("vault_id", s.vaultID).Info("Search service now ready")
 		}
 		s.statusMu.Unlock()
 	} else {
 		// Incremental update - index updated in-place, just log for metrics
-		log.Printf("[%s] Index updated incrementally (refresh #%d)", s.vaultID, refreshCount)
+		logger.WithFields(map[string]interface{}{"vault_id": s.vaultID, "refresh": refreshCount}).Debug("Index updated incrementally")
 
 		// If we have an index and were waiting, move to ready
 		s.indexMu.RLock()
@@ -214,7 +214,7 @@ func (s *SearchService) processIndexUpdateEvent(event indexing.IndexUpdateEvent)
 			s.statusMu.Lock()
 			if s.status == StatusError || s.status == StatusInitializing {
 				s.status = StatusReady
-				log.Printf("[%s] Search service now ready", s.vaultID)
+				logger.WithField("vault_id", s.vaultID).Info("Search service now ready")
 			}
 			s.statusMu.Unlock()
 		}
@@ -233,7 +233,7 @@ func (s *SearchService) NotifyIndexUpdate(event indexing.IndexUpdateEvent) {
 		// Service stopping
 	default:
 		// Channel full, skip this update (non-blocking)
-		log.Printf("[%s] ⚠️  Search update channel full, skipping refresh", s.vaultID)
+		logger.WithField("vault_id", s.vaultID).Warn("Search update channel full, skipping refresh")
 	}
 }
 

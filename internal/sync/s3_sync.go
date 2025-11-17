@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/susamn/obsidian-web/internal/config"
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 // s3Sync monitors S3 bucket for changes
@@ -23,6 +24,12 @@ func newS3Sync(vaultID string, config *config.S3StorageConfig) *s3Sync {
 
 // Start begins monitoring the S3 bucket (placeholder implementation)
 func (s *s3Sync) Start(ctx context.Context, events chan<- FileChangeEvent) error {
+	logger.WithFields(map[string]interface{}{
+		"vault_id": s.vaultID,
+		"bucket":   s.config.Bucket,
+		"region":   s.config.Region,
+	}).Warn("S3 sync not yet implemented - placeholder running")
+
 	// TODO: Implement S3 monitoring
 	// Options:
 	// 1. S3 Event Notifications (SNS/SQS)
@@ -31,6 +38,7 @@ func (s *s3Sync) Start(ctx context.Context, events chan<- FileChangeEvent) error
 
 	// For now, just wait for context cancellation
 	<-ctx.Done()
+	logger.WithField("vault_id", s.vaultID).Info("S3 sync stopped")
 	return nil
 }
 

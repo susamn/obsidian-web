@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/susamn/obsidian-web/internal/config"
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 // minioSync monitors MinIO bucket for changes
@@ -23,6 +24,12 @@ func newMinIOSync(vaultID string, config *config.MinIOStorageConfig) *minioSync 
 
 // Start begins monitoring the MinIO bucket (placeholder implementation)
 func (m *minioSync) Start(ctx context.Context, events chan<- FileChangeEvent) error {
+	logger.WithFields(map[string]interface{}{
+		"vault_id": m.vaultID,
+		"bucket":   m.config.Bucket,
+		"endpoint": m.config.Endpoint,
+	}).Warn("MinIO sync not yet implemented - placeholder running")
+
 	// TODO: Implement MinIO monitoring
 	// Options:
 	// 1. MinIO Bucket Notifications (webhook, AMQP, NATS, etc.)
@@ -31,6 +38,7 @@ func (m *minioSync) Start(ctx context.Context, events chan<- FileChangeEvent) er
 
 	// For now, just wait for context cancellation
 	<-ctx.Done()
+	logger.WithField("vault_id", m.vaultID).Info("MinIO sync stopped")
 	return nil
 }
 

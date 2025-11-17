@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/susamn/obsidian-web/internal/config"
+	"github.com/susamn/obsidian-web/internal/logger"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
@@ -169,7 +169,7 @@ func (s *IndexService) Start() error {
 		defer close(s.statusChan)
 
 		if err := s.performInitialIndexing(); err != nil {
-			log.Printf("[%s] Initial indexing failed: %v", s.vaultID, err)
+			logger.WithError(err).WithField("vault_id", s.vaultID).Error("Initial indexing failed")
 			s.updateStatus(StatusUpdate{
 				Status:  StatusError,
 				Message: "Initial indexing failed",
@@ -211,8 +211,11 @@ func (s *IndexService) Start() error {
 
 // performInitialIndexing performs the actual indexing work
 func (s *IndexService) performInitialIndexing() error {
-	log.Printf("[%s] Indexing vault from: %s", s.vaultID, s.vaultPath)
-	log.Printf("[%s] Index location: %s", s.vaultID, s.indexPath)
+	logger.WithFields(map[string]interface{}{
+		"vault_id":   s.vaultID,
+		"vault_path": s.vaultPath,
+		"index_path": s.indexPath,
+	}).Info("Indexing vault")
 
 	var err error
 	var index bleve.Index
@@ -229,11 +232,11 @@ func (s *IndexService) performInitialIndexing() error {
 		if err != nil {
 			return fmt.Errorf("failed to create index: %w", err)
 		}
-		log.Printf("[%s] Created new index", s.vaultID)
+		logger.WithField("vault_id", s.vaultID).Info("Created new index")
 	} else if err != nil {
 		return fmt.Errorf("failed to open index: %w", err)
 	} else {
-		log.Printf("[%s] Opened existing index", s.vaultID)
+		logger.WithField("vault_id", s.vaultID).Info("Opened existing index")
 	}
 
 	// Set the index with proper locking
@@ -293,7 +296,10 @@ func (s *IndexService) performInitialIndexing() error {
 
 		doc, err := parseMarkdownFile(path)
 		if err != nil {
-			log.Printf("[%s] Error parsing %s: %v", s.vaultID, path, err)
+			logger.WithError(err).WithFields(map[string]interface{}{
+				"vault_id": s.vaultID,
+				"path":     path,
+			}).Warn("Error parsing file")
 			return nil // Continue processing other files
 		}
 
@@ -310,7 +316,11 @@ func (s *IndexService) performInitialIndexing() error {
 			if err := index.Batch(batch); err != nil {
 				return fmt.Errorf("batch index failed: %w", err)
 			}
-			log.Printf("[%s] Indexed %d/%d documents...", s.vaultID, indexedCount, totalFiles)
+			logger.WithFields(map[string]interface{}{
+				"vault_id": s.vaultID,
+				"indexed":  indexedCount,
+				"total":    totalFiles,
+			}).Info("Indexing progress")
 
 			// Send progress update
 			s.updateStatus(StatusUpdate{
@@ -347,7 +357,10 @@ func (s *IndexService) performInitialIndexing() error {
 		Message:        fmt.Sprintf("Successfully indexed %d documents", indexedCount),
 	})
 
-	log.Printf("[%s] Successfully indexed %d documents", s.vaultID, indexedCount)
+	logger.WithFields(map[string]interface{}{
+		"vault_id": s.vaultID,
+		"count":    indexedCount,
+	}).Info("Successfully indexed documents")
 
 	// Notify search service that initial index is ready (rebuild event)
 	s.notifyIndexUpdate("rebuild")
@@ -401,7 +414,10 @@ func (s *IndexService) reIndex(docPath string) error {
 		return fmt.Errorf("failed to index document: %w", err)
 	}
 
-	log.Printf("[%s] Re-indexed document: %s", s.vaultID, relPath)
+	logger.WithFields(map[string]interface{}{
+		"vault_id": s.vaultID,
+		"path":     relPath,
+	}).Debug("Re-indexed document")
 	return nil
 }
 
@@ -422,7 +438,10 @@ func (s *IndexService) deleteFromIndex(docPath string) error {
 		return fmt.Errorf("failed to delete document: %w", err)
 	}
 
-	log.Printf("[%s] Deleted document from index: %s", s.vaultID, relPath)
+	logger.WithFields(map[string]interface{}{
+		"vault_id": s.vaultID,
+		"path":     relPath,
+	}).Debug("Deleted document from index")
 	return nil
 }
 
@@ -444,7 +463,7 @@ func (s *IndexService) RegisterIndexNotifier(notifier IndexUpdateNotifier) {
 	s.indexNotifiers = append(s.indexNotifiers, notifier)
 	s.indexNotifiersMu.Unlock()
 
-	log.Printf("[%s] Registered index update notifier", s.vaultID)
+	logger.WithField("vault_id", s.vaultID).Debug("Registered index update notifier")
 }
 
 // notifyIndexUpdate notifies all registered notifiers that the index has been updated
@@ -481,8 +500,12 @@ func (s *IndexService) notifyIndexUpdate(eventType string) {
 func (s *IndexService) processEvents() {
 	defer s.wg.Done()
 
-	log.Printf("[%s] Event processor started (buffer: %d, batch: %d, flush: %v)",
-		s.vaultID, s.eventBuffer, s.batchSize, s.flushInterval)
+	logger.WithFields(map[string]interface{}{
+		"vault_id":       s.vaultID,
+		"buffer":         s.eventBuffer,
+		"batch_size":     s.batchSize,
+		"flush_interval": s.flushInterval,
+	}).Info("Event processor started")
 
 	// Ticker for periodic batch flushing
 	ticker := time.NewTicker(s.flushInterval)
@@ -493,15 +516,18 @@ func (s *IndexService) processEvents() {
 		case <-s.ctx.Done():
 			// Flush any pending events before stopping
 			s.flushPendingEvents()
-			log.Printf("[%s] Event processor stopped (processed: %d, dropped: %d)",
-				s.vaultID, atomic.LoadInt64(&s.processedEvents), atomic.LoadInt64(&s.droppedEvents))
+			logger.WithFields(map[string]interface{}{
+				"vault_id":  s.vaultID,
+				"processed": atomic.LoadInt64(&s.processedEvents),
+				"dropped":   atomic.LoadInt64(&s.droppedEvents),
+			}).Info("Event processor stopped")
 			return
 
 		case event, ok := <-s.eventChan:
 			if !ok {
 				// Channel closed, flush and exit
 				s.flushPendingEvents()
-				log.Printf("[%s] Event channel closed", s.vaultID)
+				logger.WithField("vault_id", s.vaultID).Info("Event channel closed")
 				return
 			}
 
@@ -563,7 +589,10 @@ func (s *IndexService) flushPendingEvents() {
 	batchSize := len(eventsToProcess)
 	s.pendingMu.Unlock()
 
-	log.Printf("[%s] Flushing batch of %d coalesced events", s.vaultID, batchSize)
+	logger.WithFields(map[string]interface{}{
+		"vault_id":   s.vaultID,
+		"batch_size": batchSize,
+	}).Debug("Flushing batch of coalesced events")
 
 	// Process all events in the batch
 	for _, event := range eventsToProcess {
@@ -583,28 +612,49 @@ func (s *IndexService) processEvent(event syncpkg.FileChangeEvent) {
 	s.mu.RUnlock()
 
 	if status != StatusReady {
-		log.Printf("[%s] Skipping event %s for %s - service not ready (status: %s)",
-			s.vaultID, event.EventType, event.Path, status)
+		logger.WithFields(map[string]interface{}{
+			"vault_id":   s.vaultID,
+			"event_type": event.EventType,
+			"path":       event.Path,
+			"status":     status,
+		}).Debug("Skipping event - service not ready")
 		return
 	}
 
 	switch event.EventType {
 	case syncpkg.FileCreated, syncpkg.FileModified:
 		if err := s.reIndex(event.Path); err != nil {
-			log.Printf("[%s] Failed to re-index %s: %v", s.vaultID, event.Path, err)
+			logger.WithError(err).WithFields(map[string]interface{}{
+				"vault_id": s.vaultID,
+				"path":     event.Path,
+			}).Error("Failed to re-index")
 		} else {
-			log.Printf("[%s] Re-indexed %s (%s)", s.vaultID, event.Path, event.EventType)
+			logger.WithFields(map[string]interface{}{
+				"vault_id":   s.vaultID,
+				"path":       event.Path,
+				"event_type": event.EventType,
+			}).Debug("Re-indexed file")
 		}
 
 	case syncpkg.FileDeleted:
 		if err := s.deleteFromIndex(event.Path); err != nil {
-			log.Printf("[%s] Failed to delete %s from index: %v", s.vaultID, event.Path, err)
+			logger.WithError(err).WithFields(map[string]interface{}{
+				"vault_id": s.vaultID,
+				"path":     event.Path,
+			}).Error("Failed to delete from index")
 		} else {
-			log.Printf("[%s] Deleted %s from index", s.vaultID, event.Path)
+			logger.WithFields(map[string]interface{}{
+				"vault_id": s.vaultID,
+				"path":     event.Path,
+			}).Debug("Deleted from index")
 		}
 
 	default:
-		log.Printf("[%s] Unknown event type: %s for %s", s.vaultID, event.EventType, event.Path)
+		logger.WithFields(map[string]interface{}{
+			"vault_id":   s.vaultID,
+			"event_type": event.EventType,
+			"path":       event.Path,
+		}).Warn("Unknown event type")
 	}
 }
 
@@ -614,7 +664,7 @@ func (s *IndexService) processEvent(event syncpkg.FileChangeEvent) {
 func (s *IndexService) UpdateIndex(event syncpkg.FileChangeEvent) {
 	// Validate event
 	if event.Path == "" {
-		log.Printf("[%s] Warning: Ignoring event with empty path", s.vaultID)
+		logger.WithField("vault_id", s.vaultID).Warn("Ignoring event with empty path")
 		return
 	}
 
@@ -623,7 +673,11 @@ func (s *IndexService) UpdateIndex(event syncpkg.FileChangeEvent) {
 	case syncpkg.FileCreated, syncpkg.FileModified, syncpkg.FileDeleted:
 		// Valid event type, continue
 	default:
-		log.Printf("[%s] Warning: Unknown event type %s for %s", s.vaultID, event.EventType, event.Path)
+		logger.WithFields(map[string]interface{}{
+			"vault_id":   s.vaultID,
+			"event_type": event.EventType,
+			"path":       event.Path,
+		}).Warn("Unknown event type")
 		return
 	}
 
@@ -635,7 +689,10 @@ func (s *IndexService) UpdateIndex(event syncpkg.FileChangeEvent) {
 		// log.Printf("[%s] Queued %s event for: %s", s.vaultID, event.EventType, event.Path)
 	case <-s.ctx.Done():
 		// Context cancelled, skip event
-		log.Printf("[%s] Context cancelled, skipping event for: %s", s.vaultID, event.Path)
+		logger.WithFields(map[string]interface{}{
+			"vault_id": s.vaultID,
+			"path":     event.Path,
+		}).Debug("Context cancelled, skipping event")
 		atomic.AddInt64(&s.droppedEvents, 1)
 	default:
 		// Channel full, drop event and track metric
@@ -644,9 +701,11 @@ func (s *IndexService) UpdateIndex(event syncpkg.FileChangeEvent) {
 
 		// Log warning periodically to avoid log spam
 		if dropped%100 == 1 || dropped < 10 {
-			log.Printf("[%s] ⚠️  BACKPRESSURE: Event channel full (%d buffer), dropped %d events total. "+
-				"Consider increasing buffer size or reducing event rate.",
-				s.vaultID, s.eventBuffer, dropped)
+			logger.WithFields(map[string]interface{}{
+				"vault_id":      s.vaultID,
+				"buffer":        s.eventBuffer,
+				"dropped_total": dropped,
+			}).Warn("BACKPRESSURE: Event channel full, consider increasing buffer size")
 		}
 	}
 }
@@ -664,7 +723,7 @@ func (s *IndexService) Stop() error {
 
 	// Close the index
 	if s.index != nil {
-		log.Printf("[%s] Closing index", s.vaultID)
+		logger.WithField("vault_id", s.vaultID).Info("Closing index")
 		if err := s.index.Close(); err != nil {
 			return fmt.Errorf("failed to close index: %w", err)
 		}

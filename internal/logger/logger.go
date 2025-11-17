@@ -16,6 +16,18 @@ var (
 	Log *logrus.Logger
 )
 
+// init initializes the logger with a basic configuration
+// This ensures the logger is always usable, even before Initialize() is called
+func init() {
+	Log = logrus.New()
+	Log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+	Log.SetOutput(os.Stdout)
+	Log.SetLevel(logrus.InfoLevel)
+}
+
 // Initialize sets up the logger based on configuration
 func Initialize(cfg *config.LoggingConfig) error {
 	Log = logrus.New()

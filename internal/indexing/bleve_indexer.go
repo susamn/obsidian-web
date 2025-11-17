@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/keyword"
 	"github.com/blevesearch/bleve/v2/mapping"
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 type MarkdownDoc struct {
@@ -382,7 +382,7 @@ func IndexMarkdownFiles(indexPath, docsPath string) (bleve.Index, error) {
 
 		doc, err := parseMarkdownFile(path)
 		if err != nil {
-			log.Printf("Error parsing %s: %v", path, err)
+			logger.WithError(err).WithField("path", path).Warn("Error parsing file")
 			return nil // Continue processing other files
 		}
 
@@ -399,7 +399,7 @@ func IndexMarkdownFiles(indexPath, docsPath string) (bleve.Index, error) {
 			if err := index.Batch(batch); err != nil {
 				return fmt.Errorf("batch index failed: %w", err)
 			}
-			fmt.Printf("Indexed %d documents...\n", count)
+			logger.WithField("count", count).Debug("Indexed documents batch")
 			batch = index.NewBatch()
 		}
 
@@ -417,6 +417,6 @@ func IndexMarkdownFiles(indexPath, docsPath string) (bleve.Index, error) {
 		}
 	}
 
-	fmt.Printf("Successfully indexed %d documents\n", count)
+	logger.WithField("count", count).Info("Successfully indexed documents")
 	return index, nil
 }

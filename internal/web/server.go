@@ -3,12 +3,12 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/susamn/obsidian-web/internal/config"
+	"github.com/susamn/obsidian-web/internal/logger"
 	"github.com/susamn/obsidian-web/internal/vault"
 )
 
@@ -83,7 +83,7 @@ func (s *Server) Start() error {
 	s.started = true
 	s.mu.Unlock()
 
-	log.Printf("Starting HTTP server on %s", s.server.Addr)
+	logger.WithField("address", s.server.Addr).Info("Starting HTTP server")
 
 	// Start server in goroutine
 	errChan := make(chan error, 1)
@@ -114,7 +114,7 @@ func (s *Server) Stop() error {
 	}
 	s.mu.Unlock()
 
-	log.Printf("Stopping HTTP server...")
+	logger.Info("Stopping HTTP server")
 
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -131,7 +131,7 @@ func (s *Server) Stop() error {
 	s.started = false
 	s.mu.Unlock()
 
-	log.Printf("HTTP server stopped")
+	logger.Info("HTTP server stopped")
 	return nil
 }
 

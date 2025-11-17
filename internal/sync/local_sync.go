@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 // localSync monitors local filesystem for changes using fsnotify
@@ -40,6 +41,11 @@ func newLocalSync(vaultID, rootPath string) (*localSync, error) {
 
 // Start begins monitoring the filesystem in a non-blocking manner
 func (l *localSync) Start(ctx context.Context, events chan<- FileChangeEvent) error {
+	logger.WithFields(map[string]interface{}{
+		"vault_id": l.vaultID,
+		"path":     l.rootPath,
+	}).Info("Starting local filesystem sync")
+
 	// Add all directories recursively to the watcher
 	if err := l.addRecursive(l.rootPath); err != nil {
 		return fmt.Errorf("failed to add directories to watcher: %w", err)
@@ -48,6 +54,7 @@ func (l *localSync) Start(ctx context.Context, events chan<- FileChangeEvent) er
 	// Start the event loop in the current goroutine (will block until context is cancelled)
 	l.watchLoop(ctx, events)
 
+	logger.WithField("vault_id", l.vaultID).Info("Local sync stopped")
 	return nil
 }
 
@@ -95,7 +102,12 @@ func (l *localSync) watchLoop(ctx context.Context, events chan<- FileChangeEvent
 				case <-ctx.Done():
 					return
 				default:
-					// Channel full, skip this event (could log here)
+					// Channel full, skip this event
+					logger.WithFields(map[string]interface{}{
+						"vault_id": l.vaultID,
+						"path":     event.Name,
+						"event":    fileEvent.EventType.String(),
+					}).Warn("Event channel full, dropping event")
 				}
 			}
 
@@ -104,15 +116,16 @@ func (l *localSync) watchLoop(ctx context.Context, events chan<- FileChangeEvent
 				// Watcher closed
 				return
 			}
-			// Could log error here
-			_ = err
+			// Log watcher error
+			logger.WithError(err).WithField("vault_id", l.vaultID).Error("Filesystem watcher error")
 		}
 	}
 }
 
 // addRecursive adds a directory and all subdirectories to the watcher
 func (l *localSync) addRecursive(path string) error {
-	return filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
+	dirCount := 0
+	err := filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -127,10 +140,21 @@ func (l *localSync) addRecursive(path string) error {
 			if err := l.watcher.Add(walkPath); err != nil {
 				return fmt.Errorf("failed to watch directory %s: %w", walkPath, err)
 			}
+			dirCount++
 		}
 
 		return nil
 	})
+
+	if err == nil && dirCount > 0 {
+		logger.WithFields(map[string]interface{}{
+			"vault_id":    l.vaultID,
+			"directories": dirCount,
+			"root":        path,
+		}).Debug("Added directories to watcher")
+	}
+
+	return err
 }
 
 // isMarkdownFile checks if the file is a markdown file

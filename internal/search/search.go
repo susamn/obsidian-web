@@ -1,10 +1,9 @@
 package search
 
 import (
-	"fmt"
-
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 // SearchByText performs full-text search across all indexed content
@@ -227,26 +226,36 @@ func SearchCombined(index bleve.Index, text string, tags []string, wikilinks []s
 
 // PrintResults displays search results in a formatted way
 func PrintResults(results *bleve.SearchResult) {
-	fmt.Printf("Total matches: %d (showing %d)\n", results.Total, len(results.Hits))
+	logger.WithFields(map[string]interface{}{
+		"total":   results.Total,
+		"showing": len(results.Hits),
+	}).Info("Search results")
+
 	for i, hit := range results.Hits {
-		fmt.Printf("%d. %s (score: %.4f)\n", i+1, hit.ID, hit.Score)
+		fields := map[string]interface{}{
+			"rank":  i + 1,
+			"id":    hit.ID,
+			"score": hit.Score,
+		}
+
 		if title, ok := hit.Fields["title"].(string); ok {
-			fmt.Printf("   Title: %s\n", title)
+			fields["title"] = title
 		}
 		if tags, ok := hit.Fields["tags"].([]interface{}); ok {
 			tagStrs := make([]string, len(tags))
 			for i, t := range tags {
 				tagStrs[i] = t.(string)
 			}
-			fmt.Printf("   Tags: %v\n", tagStrs)
+			fields["tags"] = tagStrs
 		}
 		if wikilinks, ok := hit.Fields["wikilinks"].([]interface{}); ok {
 			linkStrs := make([]string, len(wikilinks))
 			for i, l := range wikilinks {
 				linkStrs[i] = l.(string)
 			}
-			fmt.Printf("   Wikilinks: %v\n", linkStrs)
+			fields["wikilinks"] = linkStrs
 		}
-		fmt.Println()
+
+		logger.WithFields(fields).Info("Search result")
 	}
 }
