@@ -20,7 +20,12 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom'
+    environment: 'jsdom',
+    coverage: {
+      provider: 'v8', // or 'istanbul'
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/', 'src/main.js', 'src/router/index.js', 'src/stores/'],
+    }
   },
   optimizeDeps: {
     include: ['element-plus']
