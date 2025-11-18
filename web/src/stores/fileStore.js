@@ -8,6 +8,7 @@ export const useFileStore = defineStore('file', {
     treeData: [],
     childrenData: [],
     metadata: null,
+    selectedFileContent: null, // New state property for file content
     loading: false,
     error: null,
   }),
@@ -17,6 +18,21 @@ export const useFileStore = defineStore('file', {
     },
     setCurrentPath(path) {
       this.currentPath = path;
+    },
+    async fetchFileContent(vaultId, path) {
+      this.loading = true;
+      this.error = null;
+      try {
+        console.log('Fetching file content for vault:', vaultId, 'path:', path);
+        const response = await fileService.getFileContent(vaultId, path);
+        console.log('File content response:', response);
+        this.selectedFileContent = response.content;
+      } catch (err) {
+        console.error('Error fetching file content:', err);
+        this.error = err.message || 'Failed to fetch file content';
+      } finally {
+        this.loading = false;
+      }
     },
     async fetchTree(vaultId, path = '') {
       this.loading = true;

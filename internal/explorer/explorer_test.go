@@ -53,7 +53,7 @@ func TestNewExplorerService(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestNewExplorerService(t *testing.T) {
 func TestNewExplorerService_InvalidPath(t *testing.T) {
 	ctx := context.Background()
 
-	_, err := NewExplorerService(ctx, "test-vault", "/nonexistent/path")
+	_, err := NewExplorerService(ctx, "test-vault", "/nonexistent/path", nil)
 	if err == nil {
 		t.Fatal("Expected error for nonexistent path, got nil")
 	}
@@ -86,7 +86,7 @@ func TestGetTree_Root(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestGetChildren(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestGetChildren_Nested(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestGetMetadata(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestValidatePath_Traversal(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestValidatePath_Valid(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestCaching(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestInvalidateCache(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestEventHandling(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestRefreshPath(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -417,7 +417,7 @@ func TestClearCache(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestGetCacheStats(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
-	svc, err := NewExplorerService(ctx, "test-vault", tmpDir)
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create explorer service: %v", err)
 	}

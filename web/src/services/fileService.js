@@ -64,4 +64,17 @@ export default {
   refreshTree(vaultId, path = '') {
     return axios.post(`${BASE_URL}/refresh/${vaultId}`, null, { params: { path } });
   },
+  /**
+   * Fetches the content of a file.
+   * @param {string} vaultId - The ID of the vault.
+   * @param {string} path - The file path.
+   * @returns {Promise<object>} - A promise that resolves to the file content.
+   */
+  getFileContent(vaultId, path) {
+    return axios.get(`${BASE_URL.replace('/files', '')}/files/${vaultId}/${path}`)
+      .then(response => {
+        // API returns: { content: "...", path: "...", size: 123 }
+        return response.data;
+      });
+  },
 };

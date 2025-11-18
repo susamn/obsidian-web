@@ -31,27 +31,33 @@
           :vault-id="fileStore.vaultId"
           :expanded-nodes="expandedNodes"
           @toggle-expand="handleToggleExpand"
+          @file-selected="handleFileSelected"
         />
       </div>
     </aside>
     <main class="main-content">
-      <p>Main content will be here.</p>
+      <div v-if="fileStore.loading" class="loading-spinner">Loading file content...</div>
+      <div v-else-if="fileStore.error" class="error-message text-red-500">Error: {{ fileStore.error }}</div>
+      <div v-else-if="fileStore.selectedFileContent" class="markdown-content" v-html="renderedMarkdown"></div>
+      <div v-else class="no-content-message">Select a file to view its content.</div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
 import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
+import MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt();
 
 const route = useRoute();
 const fileStore = useFileStore();
 const vaultName = ref('');
 const expandedNodes = ref({});
-const sseConnectionStatus = ref('disconnected');
 
 const handleToggleExpand = async (node) => {
   if (node.metadata.is_directory) {
@@ -64,15 +70,22 @@ const handleToggleExpand = async (node) => {
       // Fetch children if not already fetched
       if (!node.children || node.children.length === 0) {
         await fileStore.fetchChildren(fileStore.vaultId, node.metadata.path);
-        // Assuming the API returns children for the given path,
-        // we need to find the node in treeData and update its children.
-        // This is a simplified approach; a more robust solution might involve
-        // normalizing the tree data in the store.
         updateNodeChildren(fileStore.treeData, node.metadata.path, fileStore.childrenData);
       }
     }
   }
 };
+
+const handleFileSelected = async (node) => {
+  if (!node.metadata.is_directory) {
+    await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.path);
+    fileStore.setCurrentPath(node.metadata.path); // Set current path for SSE updates
+  }
+};
+
+const renderedMarkdown = computed(() => {
+  return fileStore.selectedFileContent ? md.render(fileStore.selectedFileContent) : '';
+});
 
 const updateNodeChildren = (nodes, targetPath, newChildren) => {
   for (let i = 0; i < nodes.length; i++) {
@@ -118,7 +131,8 @@ const refreshNode = async (path = '') => {
 const sseCallbacks = {
   onConnected: (data) => {
     console.log('[VaultView] SSE connected:', data);
-    sseConnectionStatus.value = 'connected';
+    connected.value = true;
+    error.value = null;
   },
 
   onFileCreated: async (event) => {
@@ -129,11 +143,19 @@ const sseCallbacks = {
   onFileModified: async (event) => {
     console.log('[VaultView] File modified:', event.path);
     await refreshNode(event.path);
+    // If the modified file is currently selected, re-fetch its content
+    if (fileStore.currentPath === event.path) {
+      await fileStore.fetchFileContent(fileStore.vaultId, event.path);
+    }
   },
 
   onFileDeleted: async (event) => {
     console.log('[VaultView] File deleted:', event.path);
     await refreshNode(event.path);
+    // If the deleted file was currently selected, clear its content
+    if (fileStore.currentPath === event.path) {
+      fileStore.selectedFileContent = null;
+    }
   },
 
   onTreeRefresh: async (event) => {
@@ -143,7 +165,8 @@ const sseCallbacks = {
 
   onError: (err) => {
     console.error('[VaultView] SSE error:', err);
-    sseConnectionStatus.value = 'error';
+    error.value = err.message || 'SSE connection error';
+    connected.value = false;
   },
 };
 
@@ -162,6 +185,7 @@ watch(() => route.params.id, (newId, oldId) => {
     vaultName.value = `Vault ${newId}`;
     fileStore.fetchTree(newId);
     expandedNodes.value = {}; // Reset expanded nodes when vault changes
+    fileStore.selectedFileContent = null; // Clear selected file content
 
     // Connect to SSE for the new vault
     connect(newId);
@@ -190,6 +214,7 @@ onMounted(() => {
   background-color: var(--background-color-light);
   padding: 1rem;
   border-right: 1px solid var(--border-color);
+  overflow-y: auto; /* Enable scrolling for the sidebar */
 }
 
 .sidebar-header {
@@ -246,5 +271,109 @@ onMounted(() => {
 .main-content {
   flex-grow: 1;
   padding: 2rem;
+  overflow-y: auto; /* Enable scrolling for the main content */
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.loading-spinner, .error-message, .no-content-message {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.1rem;
+  color: var(--text-color-secondary);
+}
+
+.markdown-content {
+  /* Basic styling for rendered markdown */
+  line-height: 1.6;
+  max-width: 800px; /* Limit width for readability */
+  margin: 0 auto; /* Center the content */
+}
+
+.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.markdown-content h1 { font-size: 2em; }
+.markdown-content h2 { font-size: 1.75em; }
+.markdown-content h3 { font-size: 1.5em; }
+.markdown-content h4 { font-size: 1.25em; }
+.markdown-content h5 { font-size: 1em; }
+.markdown-content h6 { font-size: 0.85em; }
+
+.markdown-content p {
+  margin-bottom: 1em;
+}
+
+.markdown-content ul, .markdown-content ol {
+  margin-bottom: 1em;
+  padding-left: 2em;
+}
+
+.markdown-content code {
+  background-color: rgba(135,131,120,0.15);
+  border-radius: 3px;
+  padding: 0.2em 0.4em;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.85em;
+}
+
+.markdown-content pre {
+  background-color: #2d2d2d;
+  color: #f8f8f2;
+  padding: 1em;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin-bottom: 1em;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 1em;
+}
+
+.markdown-content a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid var(--border-color);
+  padding-left: 1em;
+  margin-left: 0;
+  color: var(--text-color-secondary);
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1em;
+}
+
+.markdown-content th, .markdown-content td {
+  border: 1px solid var(--border-color);
+  padding: 0.5em 0.8em;
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: var(--background-color-light);
+  font-weight: bold;
+}
+
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em 0;
 }
 </style>

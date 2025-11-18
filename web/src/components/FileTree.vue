@@ -1,7 +1,7 @@
 <template>
   <ul class="file-tree-list">
     <li v-for="node in nodes" :key="node.metadata.path" class="tree-node">
-      <div class="node-header" @click="toggleExpand(node)">
+      <div class="node-header" @click="node.metadata.is_directory ? toggleExpand(node) : selectFile(node)">
         <!-- Expand/Collapse indicator -->
         <span v-if="node.metadata.is_directory" class="expand-icon">
           <span v-if="expandedNodes[node.metadata.path]">▼</span>
@@ -59,6 +59,10 @@ const fileStore = useFileStore();
 
 const toggleExpand = async (node) => {
   emit('toggle-expand', node);
+};
+
+const selectFile = (node) => {
+  emit('file-selected', node);
 };
 
 /**

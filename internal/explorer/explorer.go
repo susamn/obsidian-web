@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/logger"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
@@ -23,6 +24,7 @@ const (
 
 // NodeMetadata represents metadata about a file or directory
 type NodeMetadata struct {
+	ID          string    `json:"id"`            // Unique identifier from database
 	Path        string    `json:"path"`          // Relative path from vault root
 	Name        string    `json:"name"`          // File/directory name
 	Type        NodeType  `json:"type"`          // file or directory
@@ -65,13 +67,16 @@ type ExplorerService struct {
 	// SSE broadcasting
 	sseBroadcaster SSEBroadcaster
 
+	// Database service for storing file metadata
+	dbService *db.DBService
+
 	// Configuration
 	maxCacheSize int           // Maximum number of cached nodes
 	cacheTTL     time.Duration // Time to live for cache entries
 }
 
 // NewExplorerService creates a new explorer service
-func NewExplorerService(ctx context.Context, vaultID, vaultPath string) (*ExplorerService, error) {
+func NewExplorerService(ctx context.Context, vaultID, vaultPath string, dbSvc *db.DBService) (*ExplorerService, error) {
 	if vaultPath == "" {
 		return nil, fmt.Errorf("vault path cannot be empty")
 	}
@@ -90,6 +95,7 @@ func NewExplorerService(ctx context.Context, vaultID, vaultPath string) (*Explor
 		vaultPath:    vaultPath,
 		cache:        make(map[string]*TreeNode),
 		eventChan:    make(chan syncpkg.FileChangeEvent, 100),
+		dbService:    dbSvc,
 		maxCacheSize: 1000,
 		cacheTTL:     5 * time.Minute,
 	}, nil
@@ -352,7 +358,17 @@ func (e *ExplorerService) getNodeMetadata(fullPath, relativePath string) (*NodeM
 
 	isDirectory := nodeType == NodeTypeDirectory
 
+	// Fetch ID from database if available
+	id := ""
+	if e.dbService != nil {
+		note, err := e.dbService.GetNoteByPath(relativePath)
+		if err == nil && note != nil {
+			id = note.ID
+		}
+	}
+
 	return &NodeMetadata{
+		ID:          id,
 		Path:        relativePath,
 		Name:        info.Name(),
 		Type:        nodeType,

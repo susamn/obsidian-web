@@ -8,6 +8,7 @@ import (
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/susamn/obsidian-web/internal/config"
+	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/explorer"
 	"github.com/susamn/obsidian-web/internal/indexing"
 	"github.com/susamn/obsidian-web/internal/logger"
@@ -61,6 +62,7 @@ type Vault struct {
 	indexService    *indexing.IndexService
 	searchService   *search.SearchService
 	explorerService *explorer.ExplorerService
+	dbService       *db.DBService
 
 	// State
 	status       VaultStatus
@@ -131,6 +133,13 @@ func NewVault(ctx context.Context, cfg *config.VaultConfig) (*Vault, error) {
 func (v *Vault) initializeServices() error {
 	var err error
 
+	dbPath := fmt.Sprintf("%s/vault_%s.db", v.vaultPath, v.config.ID)
+	// Create db service
+	v.dbService, err = db.NewDBService(v.ctx, &dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to create sync service: %w", err)
+	}
+
 	// Create sync service
 	v.syncService, err = syncpkg.NewSyncService(v.ctx, v.config.ID, &v.config.Storage)
 	if err != nil {
@@ -150,7 +159,7 @@ func (v *Vault) initializeServices() error {
 	v.indexService.RegisterIndexNotifier(v.searchService)
 
 	// Create explorer service
-	v.explorerService, err = explorer.NewExplorerService(v.ctx, v.config.ID, v.vaultPath)
+	v.explorerService, err = explorer.NewExplorerService(v.ctx, v.config.ID, v.vaultPath, v.dbService)
 	if err != nil {
 		return fmt.Errorf("failed to create explorer service: %w", err)
 	}
@@ -278,6 +287,7 @@ func (v *Vault) startEventRouter() {
 					return
 				}
 				v.trackFileOperation(event)
+				v.updateDatabase(event)
 				v.indexService.UpdateIndex(event)
 				v.explorerService.UpdateIndex(event)
 			}
@@ -411,6 +421,49 @@ func (v *Vault) trackFileOperation(event syncpkg.FileChangeEvent) {
 	v.recentOps = append([]FileOperation{fileOp}, v.recentOps...)
 	if len(v.recentOps) > v.maxRecentOps {
 		v.recentOps = v.recentOps[:v.maxRecentOps]
+	}
+}
+
+// updateDatabase syncs file changes to the database
+func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) {
+	if v.dbService == nil {
+		return
+	}
+
+	switch event.EventType {
+	case syncpkg.FileCreated, syncpkg.FileModified:
+		// Create or update note in database
+		note := &db.Note{
+			Title:    event.Path,
+			Path:     event.Path,
+			Created:  event.Timestamp,
+			Modified: event.Timestamp,
+		}
+
+		// Check if note already exists
+		existing, err := v.dbService.GetNoteByPath(event.Path)
+		if err == nil && existing != nil {
+			// Update existing note
+			note.ID = existing.ID
+			note.Created = existing.Created
+			if err := v.dbService.UpdateNote(note); err != nil {
+				logger.WithField("path", event.Path).WithField("error", err).Warn("Failed to update note in database")
+			}
+		} else {
+			// Create new note
+			if err := v.dbService.CreateNote(note); err != nil {
+				logger.WithField("path", event.Path).WithField("error", err).Warn("Failed to create note in database")
+			}
+		}
+
+	case syncpkg.FileDeleted:
+		// Delete note from database
+		note, err := v.dbService.GetNoteByPath(event.Path)
+		if err == nil && note != nil {
+			if err := v.dbService.DeleteNote(note.ID); err != nil {
+				logger.WithField("path", event.Path).WithField("error", err).Warn("Failed to delete note from database")
+			}
+		}
 	}
 }
 
