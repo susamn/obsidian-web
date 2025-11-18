@@ -64,6 +64,21 @@ export const useFileStore = defineStore('file', {
         this.loading = false;
       }
     },
+    async fetchChildrenByID(vaultId, nodeId) {
+      this.loading = true;
+      this.error = null;
+      try {
+        console.log('Fetching children by ID for vault:', vaultId, 'nodeId:', nodeId);
+        const response = await fileService.getChildrenByID(vaultId, nodeId);
+        console.log('Children by ID response:', response);
+        this.childrenData = response || [];
+      } catch (err) {
+        console.error('Error fetching children by ID:', err);
+        this.error = err.message || 'Failed to fetch children';
+      } finally {
+        this.loading = false;
+      }
+    },
     async fetchMetadata(vaultId, path) {
       this.loading = true;
       this.error = null;

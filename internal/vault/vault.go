@@ -3,6 +3,9 @@ package vault
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +25,7 @@ type VaultStatus int
 const (
 	VaultStatusInitializing VaultStatus = iota
 	VaultStatusActive
+	VaultStatusReindexing
 	VaultStatusStopped
 	VaultStatusError
 )
@@ -32,6 +36,8 @@ func (s VaultStatus) String() string {
 		return "initializing"
 	case VaultStatusActive:
 		return "active"
+	case VaultStatusReindexing:
+		return "reindexing"
 	case VaultStatusStopped:
 		return "stopped"
 	case VaultStatusError:
@@ -134,10 +140,10 @@ func (v *Vault) initializeServices() error {
 	var err error
 
 	dbPath := fmt.Sprintf("%s/vault_%s.db", v.vaultPath, v.config.ID)
-	// Create db service
+	// Create and start db service
 	v.dbService, err = db.NewDBService(v.ctx, &dbPath)
 	if err != nil {
-		return fmt.Errorf("failed to create sync service: %w", err)
+		return fmt.Errorf("failed to create db service: %w", err)
 	}
 
 	// Create sync service
@@ -176,6 +182,10 @@ func (v *Vault) Start() error {
 	}
 	v.startTime = time.Now()
 	v.mu.Unlock()
+
+	if err := v.dbService.Start(); err != nil {
+		return fmt.Errorf("failed to start db service: %w", err)
+	}
 
 	// Start index service
 	if err := v.indexService.Start(); err != nil {
@@ -325,6 +335,10 @@ func (v *Vault) Stop() error {
 		v.indexService.Stop()
 	}
 
+	if v.dbService != nil {
+		v.dbService.Stop()
+	}
+
 	v.setStatus(VaultStatusStopped)
 	return nil
 }
@@ -389,6 +403,13 @@ func (v *Vault) GetExplorerService() *explorer.ExplorerService {
 	return v.explorerService
 }
 
+// GetDBService returns the database service
+func (v *Vault) GetDBService() *db.DBService {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.dbService
+}
+
 // GetIndex returns the underlying Bleve index
 func (v *Vault) GetIndex() bleve.Index {
 	if v.indexService != nil {
@@ -430,41 +451,244 @@ func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) {
 		return
 	}
 
+	// Convert absolute path to relative path
+	relPath, err := filepath.Rel(v.vaultPath, event.Path)
+	if err != nil {
+		logger.WithField("path", event.Path).WithField("error", err).Warn("Failed to get relative path for database entry")
+		return
+	}
+
 	switch event.EventType {
 	case syncpkg.FileCreated, syncpkg.FileModified:
-		// Create or update note in database
-		note := &db.Note{
-			Title:    event.Path,
-			Path:     event.Path,
-			Created:  event.Timestamp,
-			Modified: event.Timestamp,
+		// Determine if it's a directory
+		isDir := false
+		if info, err := os.Stat(event.Path); err == nil {
+			isDir = info.IsDir()
 		}
 
-		// Check if note already exists
-		existing, err := v.dbService.GetNoteByPath(event.Path)
+		// Ensure parent directories exist in the database
+		var parentID *string
+		parentPath := filepath.Dir(relPath)
+		if parentPath != "." && parentPath != "" {
+			parentID = v.ensureParentDirsExist(parentPath)
+		}
+
+		// Create or update file entry in database
+		entry := &db.FileEntry{
+			ID:       generateID(), // Use UUID or similar
+			Name:     filepath.Base(event.Path),
+			IsDir:    isDir,
+			Created:  event.Timestamp,
+			Modified: event.Timestamp,
+			Path:     relPath,  // Store relative path
+			ParentID: parentID, // Set parent ID from hierarchy
+		}
+
+		// Check if entry already exists
+		existing, err := v.dbService.GetFileEntryByPath(relPath)
 		if err == nil && existing != nil {
-			// Update existing note
-			note.ID = existing.ID
-			note.Created = existing.Created
-			if err := v.dbService.UpdateNote(note); err != nil {
-				logger.WithField("path", event.Path).WithField("error", err).Warn("Failed to update note in database")
+			// Update existing entry
+			entry.ID = existing.ID
+			entry.Created = existing.Created
+			entry.ParentID = existing.ParentID // Keep existing parent ID if updating
+			if err := v.dbService.UpdateFileEntry(entry); err != nil {
+				logger.WithField("path", relPath).WithField("error", err).Warn("Failed to update entry in database")
 			}
 		} else {
-			// Create new note
-			if err := v.dbService.CreateNote(note); err != nil {
-				logger.WithField("path", event.Path).WithField("error", err).Warn("Failed to create note in database")
+			// Create new entry
+			if err := v.dbService.CreateFileEntry(entry); err != nil {
+				logger.WithField("path", relPath).WithField("error", err).Warn("Failed to create entry in database")
 			}
 		}
 
 	case syncpkg.FileDeleted:
-		// Delete note from database
-		note, err := v.dbService.GetNoteByPath(event.Path)
-		if err == nil && note != nil {
-			if err := v.dbService.DeleteNote(note.ID); err != nil {
-				logger.WithField("path", event.Path).WithField("error", err).Warn("Failed to delete note from database")
+		// Delete entry from database
+		entry, err := v.dbService.GetFileEntryByPath(relPath)
+		if err == nil && entry != nil {
+			if err := v.dbService.DeleteFileEntry(entry.ID); err != nil {
+				logger.WithField("path", relPath).WithField("error", err).Warn("Failed to delete entry from database")
 			}
 		}
 	}
+}
+
+// ensureParentDirsExist ensures all parent directories exist in the database and returns the ID of the immediate parent
+func (v *Vault) ensureParentDirsExist(parentPath string) *string {
+	// Ensure root directory exists first
+	rootEntry, err := v.dbService.GetFileEntryByPath("")
+	var currentParentID *string
+	if err != nil || rootEntry == nil {
+		// Root doesn't exist, create it
+		rootID := generateID()
+		rootEntry := &db.FileEntry{
+			ID:       rootID,
+			Name:     "vault",
+			ParentID: nil,
+			IsDir:    true,
+			Path:     "",
+			Created:  time.Now().UTC(),
+			Modified: time.Now().UTC(),
+		}
+		if err := v.dbService.CreateFileEntry(rootEntry); err != nil {
+			logger.WithField("error", err).Warn("Failed to create root directory in database")
+		} else {
+			currentParentID = &rootID
+		}
+	} else {
+		id := rootEntry.ID
+		currentParentID = &id
+	}
+
+	// Split the path into components
+	parts := strings.Split(filepath.Clean(parentPath), string(filepath.Separator))
+
+	currentPath := ""
+
+	// Create each directory in the hierarchy
+	for _, part := range parts {
+		if part == "" || part == "." {
+			continue
+		}
+
+		if currentPath == "" {
+			currentPath = part
+		} else {
+			currentPath = filepath.Join(currentPath, part)
+		}
+
+		// Check if this directory exists in the database
+		existing, err := v.dbService.GetFileEntryByPath(currentPath)
+		if err == nil && existing != nil {
+			// Directory already exists, update the parent ID for next iteration
+			id := existing.ID
+			currentParentID = &id
+			continue
+		}
+
+		// Directory doesn't exist, create it
+		dirEntry := &db.FileEntry{
+			ID:       generateID(),
+			Name:     part,
+			IsDir:    true,
+			ParentID: currentParentID,
+			Created:  time.Now().UTC(),
+			Modified: time.Now().UTC(),
+			Path:     currentPath,
+		}
+
+		if err := v.dbService.CreateFileEntry(dirEntry); err != nil {
+			logger.WithField("path", currentPath).WithField("error", err).Warn("Failed to create parent directory in database")
+			continue
+		}
+
+		// Update parent ID for next iteration
+		id := dirEntry.ID
+		currentParentID = &id
+	}
+
+	return currentParentID
+}
+
+// ForceReindex clears the database and reindexes all files
+func (v *Vault) ForceReindex() error {
+	v.mu.Lock()
+	v.status = VaultStatusReindexing
+	v.mu.Unlock()
+
+	defer func() {
+		v.mu.Lock()
+		v.status = VaultStatusActive
+		v.mu.Unlock()
+	}()
+
+	if v.dbService == nil {
+		return fmt.Errorf("database service not available")
+	}
+
+	// Clear all entries
+	if err := v.dbService.ClearAll(); err != nil {
+		return fmt.Errorf("failed to clear database: %w", err)
+	}
+
+	logger.WithField("vault_id", v.config.ID).Info("Database cleared, starting reindex")
+
+	// Create root directory entry
+	rootID := generateID()
+	rootEntry := &db.FileEntry{
+		ID:       rootID,
+		Name:     "vault",
+		ParentID: nil, // Root has no parent
+		IsDir:    true,
+		Path:     "", // Root has empty path
+		Created:  time.Now().UTC(),
+		Modified: time.Now().UTC(),
+	}
+	if err := v.dbService.CreateFileEntry(rootEntry); err != nil {
+		return fmt.Errorf("failed to create root entry: %w", err)
+	}
+
+	// Walk the vault directory and populate database
+	if err := v.walkAndPopulateDatabase(v.vaultPath, &rootID); err != nil {
+		return fmt.Errorf("failed to reindex: %w", err)
+	}
+
+	logger.WithField("vault_id", v.config.ID).Info("Reindex completed successfully")
+	return nil
+}
+
+// walkAndPopulateDatabase recursively walks the vault directory and populates the database
+func (v *Vault) walkAndPopulateDatabase(dirPath string, parentID *string) error {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return fmt.Errorf("failed to read directory %s: %w", dirPath, err)
+	}
+
+	for _, entry := range entries {
+		// Skip hidden files and directories
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		fullPath := filepath.Join(dirPath, entry.Name())
+		relPath, err := filepath.Rel(v.vaultPath, fullPath)
+		if err != nil {
+			logger.WithField("path", fullPath).WithField("error", err).Warn("Failed to get relative path")
+			continue
+		}
+
+		id := generateID()
+		fileEntry := &db.FileEntry{
+			ID:       id,
+			Name:     entry.Name(),
+			ParentID: parentID,
+			IsDir:    entry.IsDir(),
+			Path:     relPath,
+		}
+
+		// Set timestamps
+		info, _ := entry.Info()
+		if info != nil {
+			fileEntry.Modified = info.ModTime()
+			fileEntry.Created = info.ModTime() // No separate created time in most filesystems
+			if !entry.IsDir() {
+				fileEntry.Size = info.Size()
+			}
+		}
+
+		if err := v.dbService.CreateFileEntry(fileEntry); err != nil {
+			logger.WithField("path", relPath).WithField("error", err).Warn("Failed to create database entry")
+			continue
+		}
+
+		// Recursively process subdirectories
+		if entry.IsDir() {
+			if err := v.walkAndPopulateDatabase(fullPath, &id); err != nil {
+				logger.WithField("path", relPath).WithField("error", err).Warn("Failed to process subdirectory")
+			}
+		}
+	}
+
+	return nil
 }
 
 // GetStatus returns the current vault status
@@ -544,4 +768,21 @@ func getVaultPath(cfg *config.VaultConfig) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown storage type: %s", cfg.Storage.GetType())
 	}
+}
+
+// generateID generates a unique ID for a file entry
+func generateID() string {
+	// Simple UUID-like generation using timestamp + random
+	// In production, consider using github.com/google/uuid
+	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), generateRandomString(12))
+}
+
+// generateRandomString generates a random string of specified length
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[(time.Now().UnixNano()+int64(i))%int64(len(charset))]
+	}
+	return string(b)
 }

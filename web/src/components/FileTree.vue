@@ -1,17 +1,17 @@
 <template>
   <ul class="file-tree-list">
-    <li v-for="node in nodes" :key="node.metadata.path" class="tree-node">
+    <li v-for="node in nodes" :key="node.metadata.id" class="tree-node">
       <div class="node-header" @click="node.metadata.is_directory ? toggleExpand(node) : selectFile(node)">
         <!-- Expand/Collapse indicator -->
         <span v-if="node.metadata.is_directory" class="expand-icon">
-          <span v-if="expandedNodes[node.metadata.path]">▼</span>
+          <span v-if="expandedNodes[node.metadata.id]">▼</span>
           <span v-else>▶</span>
         </span>
         <span v-else class="expand-icon-placeholder"></span>
 
         <!-- File/Folder icon -->
         <span v-if="node.metadata.is_directory" class="icon folder-icon">
-          <i :class="['fas', expandedNodes[node.metadata.path] ? 'fa-folder-open' : 'fa-folder']"></i>
+          <i :class="['fas', expandedNodes[node.metadata.id] ? 'fa-folder-open' : 'fa-folder']"></i>
         </span>
         <span v-else class="icon file-icon">
           <i :class="getFileIcon(node.metadata)"></i>
@@ -22,7 +22,7 @@
       </div>
 
       <!-- Children (recursively) -->
-      <div v-if="node.metadata.is_directory && expandedNodes[node.metadata.path] && node.children" class="children">
+      <div v-if="node.metadata.is_directory && expandedNodes[node.metadata.id] && node.children" class="children">
         <FileTree
           :nodes="node.children"
           :vault-id="vaultId"

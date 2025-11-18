@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/susamn/obsidian-web/internal/db"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
@@ -468,5 +469,238 @@ func TestGetCacheStats(t *testing.T) {
 	stats = svc.GetCacheStats()
 	if stats["size"].(int) != 1 {
 		t.Errorf("Expected size 1 after caching, got %v", stats["size"])
+	}
+}
+
+// TestExplorerWithDB tests explorer service with database integration
+func TestExplorerWithDB(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create database service
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Create explorer service with DB
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	defer svc.Stop()
+
+	// First populate DB
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Now get tree and check IDs
+	node, err := svc.GetTree("file1.md")
+	if err != nil {
+		t.Fatalf("Failed to get tree: %v", err)
+	}
+
+	if node.Metadata.ID == "" {
+		t.Error("Expected ID to be populated from database for file1.md")
+	}
+}
+
+// TestGetMetadataWithID tests that metadata includes ID from database
+func TestGetMetadataWithID(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	defer svc.Stop()
+
+	// Get metadata
+	meta, err := svc.GetMetadata("file1.md")
+	if err != nil {
+		t.Fatalf("Failed to get metadata: %v", err)
+	}
+
+	if meta.ID == "" {
+		t.Error("Expected ID in metadata")
+	}
+
+	if meta.Name != "file1.md" {
+		t.Errorf("Expected name 'file1.md', got '%s'", meta.Name)
+	}
+}
+
+// TestChildrenHaveIDs tests that children include IDs
+func TestChildrenHaveIDs(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	defer svc.Stop()
+
+	// Get children
+	children, err := svc.GetChildren("")
+	if err != nil {
+		t.Fatalf("Failed to get children: %v", err)
+	}
+
+	if len(children) == 0 {
+		t.Fatal("Expected children")
+	}
+
+	// Check that each child has an ID
+	for _, child := range children {
+		if child.Metadata.ID == "" {
+			t.Errorf("Child %s has no ID", child.Metadata.Name)
+		}
+	}
+}
+
+// TestFileEventInvalidatesCache tests that file events invalidate cache
+func TestFileEventInvalidatesCacheWithDB(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	svc.Start()
+	defer svc.Stop()
+
+	// Cache root
+	_, err = svc.GetTree("")
+	if err != nil {
+		t.Fatalf("Failed to get tree: %v", err)
+	}
+
+	// Send a file created event
+	testFile := filepath.Join(tmpDir, "newfile.md")
+	event := syncpkg.FileChangeEvent{
+		VaultID:   "test-vault",
+		Path:      testFile,
+		EventType: syncpkg.FileCreated,
+		Timestamp: time.Now(),
+	}
+
+	svc.UpdateIndex(event)
+
+	// Give event processor time to process
+	time.Sleep(100 * time.Millisecond)
+
+	// Cache for root should be invalidated
+	svc.cacheMu.RLock()
+	_, exists := svc.cache[""]
+	svc.cacheMu.RUnlock()
+
+	if exists {
+		t.Error("Expected root cache to be invalidated after file creation")
+	}
+}
+
+// populateDBFromDirectory populates database from a directory structure
+func populateDBFromDirectory(t *testing.T, dbSvc *db.DBService, dirPath string, parentID *string) {
+	populateDBFromDirectoryWithBase(t, dbSvc, dirPath, parentID, dirPath)
+}
+
+// populateDBFromDirectoryWithBase populates database from a directory structure with a base path
+func populateDBFromDirectoryWithBase(t *testing.T, dbSvc *db.DBService, dirPath string, parentID *string, basePath string) {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		t.Fatalf("Failed to read directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		// Skip hidden files
+		if entry.Name()[0] == '.' {
+			continue
+		}
+
+		fullPath := filepath.Join(dirPath, entry.Name())
+		relPath, _ := filepath.Rel(basePath, fullPath)
+
+		// Create simple ID based on name
+		id := "id-" + entry.Name()
+
+		info, _ := entry.Info()
+		fileEntry := &db.FileEntry{
+			ID:       id,
+			Name:     entry.Name(),
+			ParentID: parentID,
+			IsDir:    entry.IsDir(),
+			Path:     relPath,
+			Created:  time.Now().UTC(),
+			Modified: time.Now().UTC(),
+		}
+
+		if !entry.IsDir() && info != nil {
+			fileEntry.Size = info.Size()
+		}
+
+		if err := dbSvc.CreateFileEntry(fileEntry); err != nil {
+			t.Fatalf("Failed to create db entry: %v", err)
+		}
+
+		// Recursively process subdirectories
+		if entry.IsDir() {
+			populateDBFromDirectoryWithBase(t, dbSvc, fullPath, &id, basePath)
+		}
 	}
 }

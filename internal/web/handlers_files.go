@@ -427,6 +427,167 @@ func (s *Server) handleRefreshTree(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetChildrenByID godoc
+// @Summary Get directory children by ID
+// @Description Get the direct children of a directory by node ID
+// @Tags files
+// @Produce json
+// @Param vault path string true "Vault ID"
+// @Param id path string true "Node ID (parent directory ID)"
+// @Success 200 {object} object "Array of child nodes"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/files/children-by-id/{vault}/{id} [get]
+func (s *Server) handleGetChildrenByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Extract vault ID and node ID from path
+	vaultID, nodeID, ok := s.parseVaultPath(r.URL.Path, "/api/v1/files/children-by-id/")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "Invalid path format")
+		return
+	}
+
+	// Get vault
+	v, ok := s.getVault(vaultID)
+	if !ok {
+		writeError(w, http.StatusNotFound, "Vault not found")
+		return
+	}
+
+	// Check vault is active
+	if !v.IsActive() {
+		writeError(w, http.StatusServiceUnavailable, "Vault not active")
+		return
+	}
+
+	// Get DB service
+	dbService := v.GetDBService()
+	if dbService == nil {
+		writeError(w, http.StatusServiceUnavailable, "Database service not available")
+		return
+	}
+
+	// Get children by parent ID from database
+	children, err := dbService.GetFileEntriesByParentID(&nodeID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Failed to get children: %v", err))
+		return
+	}
+
+	// Convert to explorer nodes for consistency
+	var nodes []map[string]interface{}
+	for _, entry := range children {
+		nodes = append(nodes, map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"id":           entry.ID,
+				"name":         entry.Name,
+				"is_directory": entry.IsDir,
+				"is_markdown":  strings.HasSuffix(entry.Name, ".md"),
+				"type":         map[bool]string{true: "directory", false: "file"}[entry.IsDir],
+			},
+		})
+	}
+
+	writeSuccess(w, map[string]interface{}{
+		"id":       nodeID,
+		"children": nodes,
+		"count":    len(nodes),
+	})
+}
+
+// handleGetTreeByID godoc
+// @Summary Get directory tree by ID
+// @Description Get the directory tree (lazy-loaded) for a node ID
+// @Tags files
+// @Produce json
+// @Param vault path string true "Vault ID"
+// @Param id path string true "Node ID (directory ID)"
+// @Success 200 {object} object "Tree node with metadata"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/files/tree-by-id/{vault}/{id} [get]
+func (s *Server) handleGetTreeByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Extract vault ID and node ID from path
+	vaultID, nodeID, ok := s.parseVaultPath(r.URL.Path, "/api/v1/files/tree-by-id/")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "Invalid path format")
+		return
+	}
+
+	// Get vault
+	v, ok := s.getVault(vaultID)
+	if !ok {
+		writeError(w, http.StatusNotFound, "Vault not found")
+		return
+	}
+
+	// Check vault is active
+	if !v.IsActive() {
+		writeError(w, http.StatusServiceUnavailable, "Vault not active")
+		return
+	}
+
+	// Get DB service
+	dbService := v.GetDBService()
+	if dbService == nil {
+		writeError(w, http.StatusServiceUnavailable, "Database service not available")
+		return
+	}
+
+	// Get node entry from database
+	nodeEntry, err := dbService.GetFileEntryByID(nodeID)
+	if err != nil || nodeEntry == nil {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("Node not found: %v", err))
+		return
+	}
+
+	// Get children
+	children, err := dbService.GetFileEntriesByParentID(&nodeID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Failed to get children: %v", err))
+		return
+	}
+
+	// Build node response
+	var childNodes []map[string]interface{}
+	for _, entry := range children {
+		childNodes = append(childNodes, map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"id":           entry.ID,
+				"name":         entry.Name,
+				"is_directory": entry.IsDir,
+				"is_markdown":  strings.HasSuffix(entry.Name, ".md"),
+				"type":         map[bool]string{true: "directory", false: "file"}[entry.IsDir],
+			},
+		})
+	}
+
+	writeSuccess(w, map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"id":           nodeEntry.ID,
+			"name":         nodeEntry.Name,
+			"is_directory": nodeEntry.IsDir,
+			"is_markdown":  strings.HasSuffix(nodeEntry.Name, ".md"),
+			"type":         map[bool]string{true: "directory", false: "file"}[nodeEntry.IsDir],
+		},
+		"children": childNodes,
+		"loaded":   true,
+	})
+}
+
 // extractVaultIDFromPath extracts vault ID from URL path with a given prefix
 func (s *Server) extractVaultIDFromPath(urlPath, prefix string) string {
 	path := strings.TrimPrefix(urlPath, prefix)

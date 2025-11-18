@@ -80,17 +80,23 @@ func (l *localSync) watchLoop(ctx context.Context, events chan<- FileChangeEvent
 				return
 			}
 
-			// Filter for markdown files only
-			if !l.isMarkdownFile(event.Name) {
+			// Check if this is a directory
+			info, statErr := os.Stat(event.Name)
+			isDir := statErr == nil && info.IsDir()
+
+			// Handle directory creation (need to watch new directories and emit events for all contents)
+			if event.Op&fsnotify.Create != 0 && isDir {
+				// New directory created, add it to watcher recursively
+				_ = l.addRecursive(event.Name)
+
+				// Emit FileCreated events for all markdown files inside the newly created directory
+				l.emitEventsForDirectory(ctx, event.Name, events, FileCreated)
 				continue
 			}
 
-			// Handle directory creation (need to watch new directories)
-			if event.Op&fsnotify.Create != 0 {
-				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-					// New directory created, add it to watcher recursively
-					_ = l.addRecursive(event.Name)
-				}
+			// Filter for markdown files only (after handling directories)
+			if !l.isMarkdownFile(event.Name) {
+				continue
 			}
 
 			// Convert fsnotify event to FileChangeEvent
@@ -155,6 +161,61 @@ func (l *localSync) addRecursive(path string) error {
 	}
 
 	return err
+}
+
+// emitEventsForDirectory walks a directory and emits events for all markdown files
+func (l *localSync) emitEventsForDirectory(ctx context.Context, dirPath string, events chan<- FileChangeEvent, eventType FileEventType) {
+	err := filepath.Walk(dirPath, func(walkPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip hidden files and directories
+		if l.isHiddenDir(walkPath) && walkPath != dirPath {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Only process markdown files, skip directories
+		if !info.IsDir() && l.isMarkdownFile(walkPath) {
+			fileEvent := &FileChangeEvent{
+				VaultID:   l.vaultID,
+				Path:      walkPath,
+				EventType: eventType,
+				Timestamp: time.Now(),
+			}
+
+			// Send event non-blocking
+			select {
+			case events <- *fileEvent:
+				logger.WithFields(map[string]interface{}{
+					"vault_id": l.vaultID,
+					"path":     walkPath,
+					"event":    eventType.String(),
+				}).Debug("Emitted event for file in newly created directory")
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				// Channel full, log and continue
+				logger.WithFields(map[string]interface{}{
+					"vault_id": l.vaultID,
+					"path":     walkPath,
+					"event":    eventType.String(),
+				}).Warn("Event channel full, dropping event for file in newly created directory")
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vault_id": l.vaultID,
+			"path":     dirPath,
+		}).WithError(err).Warn("Failed to emit events for directory contents")
+	}
 }
 
 // isMarkdownFile checks if the file is a markdown file

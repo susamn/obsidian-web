@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -20,6 +19,7 @@ type ServiceStatus int
 const (
 	StatusInitializing ServiceStatus = iota
 	StatusReady
+	StatusReindexing
 	StatusStopped
 	StatusError
 )
@@ -30,6 +30,8 @@ func (s ServiceStatus) String() string {
 		return "initializing"
 	case StatusReady:
 		return "ready"
+	case StatusReindexing:
+		return "reindexing"
 	case StatusStopped:
 		return "stopped"
 	case StatusError:
@@ -39,16 +41,19 @@ func (s ServiceStatus) String() string {
 	}
 }
 
-// Note represents a persisted note record
-type Note struct {
+// FileEntry represents a file or directory record
+type FileEntry struct {
 	ID       string    `json:"id"`
-	Title    string    `json:"title"`
-	Path     string    `json:"path"`
+	Name     string    `json:"name"`
+	ParentID *string   `json:"parent_id,omitempty"` // nil for root entries
+	IsDir    bool      `json:"is_dir"`
 	Created  time.Time `json:"created"`
 	Modified time.Time `json:"modified"`
+	Size     int64     `json:"size"` // 0 for directories
+	Path     string    `json:"-"`    // For internal use only, hidden from API
 }
 
-// DBService manages a sqlite database and provides CRUD helpers
+// DBService manages a sqlite database for file metadata
 type DBService struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -172,15 +177,20 @@ func (s *DBService) ensureSchema() error {
 	}
 
 	schema := `
-CREATE TABLE IF NOT EXISTS notes (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  title TEXT,
-  path TEXT,
-  created INTEGER,
-  modified INTEGER
+CREATE TABLE IF NOT EXISTS file_entries (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_id TEXT,
+  is_dir INTEGER NOT NULL,
+  created INTEGER NOT NULL,
+  modified INTEGER NOT NULL,
+  size INTEGER,
+  path TEXT NOT NULL UNIQUE,
+  FOREIGN KEY (parent_id) REFERENCES file_entries(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_notes_path ON notes(path);
+CREATE INDEX IF NOT EXISTS idx_parent_id ON file_entries(parent_id);
+CREATE INDEX IF NOT EXISTS idx_path ON file_entries(path);
 `
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
@@ -188,129 +198,185 @@ CREATE INDEX IF NOT EXISTS idx_notes_path ON notes(path);
 	return err
 }
 
-// helper: encode string slice to JSON string
-func encodeStrings(v []string) (string, error) {
-	if v == nil {
-		return "[]", nil
-	}
-	b, err := json.Marshal(v)
-	return string(b), err
-}
-
-// helper: decode JSON string to string slice
-func decodeStrings(in string) ([]string, error) {
-	if in == "" {
-		return nil, nil
-	}
-	var out []string
-	err := json.Unmarshal([]byte(in), &out)
-	return out, err
-}
-
-// CreateNote inserts a new note. `Modified` will be set if zero.
-func (s *DBService) CreateNote(n *Note) error {
+// CreateFileEntry inserts a new file or directory entry.
+func (s *DBService) CreateFileEntry(entry *FileEntry) error {
 	db := s.getDB()
 	if db == nil {
 		return errors.New("db not ready")
 	}
-	if n == nil {
-		return errors.New("nil note")
+	if entry == nil {
+		return errors.New("nil entry")
 	}
-	if n.Modified.IsZero() {
-		n.Modified = time.Now().UTC()
+	if entry.Modified.IsZero() {
+		entry.Modified = time.Now().UTC()
+	}
+	if entry.Created.IsZero() {
+		entry.Created = time.Now().UTC()
 	}
 
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO notes(title, path, created, modified) VALUES (?, ?, ?, ?)`,
-		n.Title, n.Path, n.Created.Unix(), n.Modified.Unix())
+		`INSERT INTO file_entries(id, name, parent_id, is_dir, created, modified, size, path)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		entry.ID, entry.Name, entry.ParentID, boolToInt(entry.IsDir),
+		entry.Created.Unix(), entry.Modified.Unix(), entry.Size, entry.Path)
 	if err != nil {
-		return fmt.Errorf("insert note: %w", err)
+		return fmt.Errorf("insert entry: %w", err)
 	}
 	return nil
 }
 
-// GetNoteByPath retrieves a note by path.
-func (s *DBService) GetNoteByPath(path string) (*Note, error) {
+// GetFileEntryByID retrieves a file entry by id.
+func (s *DBService) GetFileEntryByID(id string) (*FileEntry, error) {
 	db := s.getDB()
 	if db == nil {
 		return nil, errors.New("db not ready")
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
-	row := db.QueryRowContext(ctx, `SELECT id, title, path, created, modified FROM notes WHERE path = ?`, path)
+	row := db.QueryRowContext(ctx,
+		`SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE id = ?`, id)
 
 	var (
-		n         Note
+		entry     FileEntry
+		isDirInt  int
 		creatUnix sql.NullInt64
 		modUnix   sql.NullInt64
+		parentID  sql.NullString
 	)
-	if err := row.Scan(&n.ID, &n.Title, &n.Path, &creatUnix, &modUnix); err != nil {
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt,
+		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("scan note: %w", err)
+		return nil, fmt.Errorf("scan entry: %w", err)
 	}
+
+	if parentID.Valid {
+		entry.ParentID = &parentID.String
+	}
+	entry.IsDir = intToBool(isDirInt)
 	if creatUnix.Valid {
-		n.Created = time.Unix(creatUnix.Int64, 0).UTC()
+		entry.Created = time.Unix(creatUnix.Int64, 0).UTC()
 	}
 	if modUnix.Valid {
-		n.Modified = time.Unix(modUnix.Int64, 0).UTC()
+		entry.Modified = time.Unix(modUnix.Int64, 0).UTC()
 	}
-	return &n, nil
+	return &entry, nil
 }
 
-// GetNoteByID retrieves a note by id.
-func (s *DBService) GetNoteByID(id string) (*Note, error) {
+// GetFileEntryByPath retrieves a file entry by path.
+func (s *DBService) GetFileEntryByPath(path string) (*FileEntry, error) {
 	db := s.getDB()
 	if db == nil {
 		return nil, errors.New("db not ready")
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
-	row := db.QueryRowContext(ctx, `SELECT id, title, path, created, modified FROM notes WHERE id = ?`, id)
+	row := db.QueryRowContext(ctx,
+		`SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE path = ?`, path)
 
 	var (
-		n         Note
+		entry     FileEntry
+		isDirInt  int
 		creatUnix sql.NullInt64
 		modUnix   sql.NullInt64
+		parentID  sql.NullString
 	)
-	if err := row.Scan(&n.ID, &n.Title, &n.Path, &creatUnix, &modUnix); err != nil {
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt,
+		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("scan note: %w", err)
+		return nil, fmt.Errorf("scan entry: %w", err)
 	}
+
+	if parentID.Valid {
+		entry.ParentID = &parentID.String
+	}
+	entry.IsDir = intToBool(isDirInt)
 	if creatUnix.Valid {
-		n.Created = time.Unix(creatUnix.Int64, 0).UTC()
+		entry.Created = time.Unix(creatUnix.Int64, 0).UTC()
 	}
 	if modUnix.Valid {
-		n.Modified = time.Unix(modUnix.Int64, 0).UTC()
+		entry.Modified = time.Unix(modUnix.Int64, 0).UTC()
 	}
-	return &n, nil
+	return &entry, nil
 }
 
-// UpdateNote updates an existing note by id.
-func (s *DBService) UpdateNote(n *Note) error {
-	if n == nil {
-		return errors.New("nil note")
+// GetFileEntriesByParentID retrieves all entries in a directory.
+func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+
+	var query string
+	var args []interface{}
+	if parentID == nil {
+		query = `SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE parent_id IS NULL ORDER BY is_dir DESC, name ASC`
+	} else {
+		query = `SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE parent_id = ? ORDER BY is_dir DESC, name ASC`
+		args = []interface{}{*parentID}
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query entries: %w", err)
+	}
+	defer rows.Close()
+
+	var out []FileEntry
+	for rows.Next() {
+		var entry FileEntry
+		var isDirInt int
+		var creatUnix sql.NullInt64
+		var modUnix sql.NullInt64
+		var parentIDStr sql.NullString
+
+		if err := rows.Scan(&entry.ID, &entry.Name, &parentIDStr, &isDirInt,
+			&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
+			return nil, err
+		}
+
+		if parentIDStr.Valid {
+			entry.ParentID = &parentIDStr.String
+		}
+		entry.IsDir = intToBool(isDirInt)
+		if creatUnix.Valid {
+			entry.Created = time.Unix(creatUnix.Int64, 0).UTC()
+		}
+		if modUnix.Valid {
+			entry.Modified = time.Unix(modUnix.Int64, 0).UTC()
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+// UpdateFileEntry updates an existing entry by id.
+func (s *DBService) UpdateFileEntry(entry *FileEntry) error {
+	if entry == nil {
+		return errors.New("nil entry")
 	}
 	db := s.getDB()
 	if db == nil {
 		return errors.New("db not ready")
 	}
-	if n.Modified.IsZero() {
-		n.Modified = time.Now().UTC()
+	if entry.Modified.IsZero() {
+		entry.Modified = time.Now().UTC()
 	}
 
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	res, err := db.ExecContext(ctx,
-		`UPDATE notes SET title = ?, path = ?, modified = ? WHERE id = ?`,
-		n.Title, n.Path, n.Modified.Unix(), n.ID)
+		`UPDATE file_entries SET name = ?, parent_id = ?, modified = ?, size = ?, path = ? WHERE id = ?`,
+		entry.Name, entry.ParentID, entry.Modified.Unix(), entry.Size, entry.Path, entry.ID)
 	if err != nil {
-		return fmt.Errorf("update note: %w", err)
+		return fmt.Errorf("update entry: %w", err)
 	}
 	aff, _ := res.RowsAffected()
 	if aff == 0 {
@@ -319,17 +385,17 @@ func (s *DBService) UpdateNote(n *Note) error {
 	return nil
 }
 
-// DeleteNote removes a note by id.
-func (s *DBService) DeleteNote(id string) error {
+// DeleteFileEntry removes an entry by id.
+func (s *DBService) DeleteFileEntry(id string) error {
 	db := s.getDB()
 	if db == nil {
 		return errors.New("db not ready")
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
-	res, err := db.ExecContext(ctx, `DELETE FROM notes WHERE id = ?`, id)
+	res, err := db.ExecContext(ctx, `DELETE FROM file_entries WHERE id = ?`, id)
 	if err != nil {
-		return fmt.Errorf("delete note: %w", err)
+		return fmt.Errorf("delete entry: %w", err)
 	}
 	aff, _ := res.RowsAffected()
 	if aff == 0 {
@@ -338,39 +404,29 @@ func (s *DBService) DeleteNote(id string) error {
 	return nil
 }
 
-// ListNotes returns notes with optional paging.
-func (s *DBService) ListNotes(limit, offset int) ([]Note, error) {
+// ClearAll deletes all entries from the database.
+func (s *DBService) ClearAll() error {
 	db := s.getDB()
 	if db == nil {
-		return nil, errors.New("db not ready")
-	}
-	if limit <= 0 {
-		limit = 100
+		return errors.New("db not ready")
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
-	rows, err := db.QueryContext(ctx, `SELECT id, title, path, created, modified FROM notes ORDER BY modified DESC LIMIT ? OFFSET ?`, limit, offset)
+	_, err := db.ExecContext(ctx, `DELETE FROM file_entries`)
 	if err != nil {
-		return nil, fmt.Errorf("query notes: %w", err)
+		return fmt.Errorf("clear all: %w", err)
 	}
-	defer rows.Close()
+	return nil
+}
 
-	var out []Note
-	for rows.Next() {
-		var n Note
-		var creatUnix sql.NullInt64
-		var modUnix sql.NullInt64
-		if err := rows.Scan(&n.ID, &n.Title, &n.Path, &creatUnix, &modUnix); err != nil {
-			return nil, err
-		}
-
-		if creatUnix.Valid {
-			n.Modified = time.Unix(creatUnix.Int64, 0).UTC()
-		}
-		if modUnix.Valid {
-			n.Modified = time.Unix(modUnix.Int64, 0).UTC()
-		}
-		out = append(out, n)
+// Helper functions
+func boolToInt(b bool) int {
+	if b {
+		return 1
 	}
-	return out, nil
+	return 0
+}
+
+func intToBool(i int) bool {
+	return i != 0
 }

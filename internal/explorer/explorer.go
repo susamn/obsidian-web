@@ -25,7 +25,7 @@ const (
 // NodeMetadata represents metadata about a file or directory
 type NodeMetadata struct {
 	ID          string    `json:"id"`            // Unique identifier from database
-	Path        string    `json:"path"`          // Relative path from vault root
+	Path        string    `json:"-"`             // Relative path from vault root (internal only)
 	Name        string    `json:"name"`          // File/directory name
 	Type        NodeType  `json:"type"`          // file or directory
 	IsDirectory bool      `json:"is_directory"`  // True if directory (convenience field)
@@ -361,9 +361,9 @@ func (e *ExplorerService) getNodeMetadata(fullPath, relativePath string) (*NodeM
 	// Fetch ID from database if available
 	id := ""
 	if e.dbService != nil {
-		note, err := e.dbService.GetNoteByPath(relativePath)
-		if err == nil && note != nil {
-			id = note.ID
+		entry, err := e.dbService.GetFileEntryByPath(relativePath)
+		if err == nil && entry != nil {
+			id = entry.ID
 		}
 	}
 

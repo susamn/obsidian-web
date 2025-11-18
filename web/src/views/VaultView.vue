@@ -61,16 +61,29 @@ const expandedNodes = ref({});
 
 const handleToggleExpand = async (node) => {
   if (node.metadata.is_directory) {
-    if (expandedNodes.value[node.metadata.path]) {
+    if (expandedNodes.value[node.metadata.id]) {
       // Collapse
-      delete expandedNodes.value[node.metadata.path];
+      delete expandedNodes.value[node.metadata.id];
     } else {
       // Expand
-      expandedNodes.value[node.metadata.path] = true;
+      expandedNodes.value[node.metadata.id] = true;
       // Fetch children if not already fetched
-      if (!node.children || node.children.length === 0) {
-        await fileStore.fetchChildren(fileStore.vaultId, node.metadata.path);
-        updateNodeChildren(fileStore.treeData, node.metadata.path, fileStore.childrenData);
+      // Check if children haven't been loaded yet
+      if (!node.children) {
+        node.children = [];
+      }
+      if (node.children.length === 0) {
+        console.log('[VaultView] Fetching children for node:', node.metadata.id, node.metadata.name);
+        // Use ID-based API call if ID is available, otherwise fallback to path
+        if (node.metadata.id) {
+          await fileStore.fetchChildrenByID(fileStore.vaultId, node.metadata.id);
+        } else {
+          await fileStore.fetchChildren(fileStore.vaultId, node.metadata.path);
+        }
+        console.log('[VaultView] Received children count:', fileStore.childrenData.length);
+        updateNodeChildren(fileStore.treeData, node.metadata.id, fileStore.childrenData);
+        // Force update by creating new reference to treeData
+        fileStore.treeData = [...fileStore.treeData];
       }
     }
   }
@@ -87,14 +100,20 @@ const renderedMarkdown = computed(() => {
   return fileStore.selectedFileContent ? md.render(fileStore.selectedFileContent) : '';
 });
 
-const updateNodeChildren = (nodes, targetPath, newChildren) => {
+const updateNodeChildren = (nodes, targetId, newChildren) => {
   for (let i = 0; i < nodes.length; i++) {
-    if (nodes[i].metadata.path === targetPath) {
-      nodes[i].children = newChildren;
+    const node = nodes[i];
+
+    // Use ID-based comparison instead of path
+    if (node.metadata.id === targetId) {
+      console.log('[VaultView] Found matching node! Updating children count:', newChildren.length);
+      // Update children with new array
+      node.children = newChildren;
       return true;
     }
-    if (nodes[i].metadata.is_directory && nodes[i].children) {
-      if (updateNodeChildren(nodes[i].children, targetPath, newChildren)) {
+    // Recursively search in child nodes
+    if (node.metadata.is_directory && node.children && node.children.length > 0) {
+      if (updateNodeChildren(node.children, targetId, newChildren)) {
         return true;
       }
     }

@@ -39,6 +39,23 @@ export default {
   },
 
   /**
+   * Fetches the direct children of a directory by node ID.
+   * @param {string} vaultId - The ID of the vault.
+   * @param {string} nodeId - The node ID (parent directory ID).
+   * @returns {Promise<Array<object>>} - A promise that resolves to an array of child nodes.
+   */
+  getChildrenByID(vaultId, nodeId) {
+    return axios.get(`${BASE_URL}/children-by-id/${vaultId}/${nodeId}`)
+      .then(response => {
+        // API returns: { data: { id, children, count } }
+        if (response.data && response.data.data && response.data.data.children) {
+          return response.data.data.children;
+        }
+        return [];
+      });
+  },
+
+  /**
    * Fetches metadata for a file or directory.
    * @param {string} vaultId - The ID of the vault.
    * @param {string} path - The file or directory path.
