@@ -175,18 +175,14 @@ func (s *Server) handleGetFileByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read file
-	content, size, err := s.readVaultFile(v, filePath)
+	content, _, err := s.readVaultFileInBinary(v, filePath)
 	if err != nil {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("File not found: %v", err))
 		return
 	}
 
 	// Return file content
-	writeSuccess(w, FileResponse{
-		Path:    filePath,
-		Content: content,
-		Size:    size,
-	})
+	writeMarkdown(w, content)
 }
 
 // parseVaultPath extracts vault ID and file path from URL
@@ -253,6 +249,26 @@ func (s *Server) readVaultFile(v interface{ VaultID() string }, filePath string)
 	}
 
 	return string(data), info.Size(), nil
+}
+
+// readVaultFile reads a file from vault and returns content and size
+func (s *Server) readVaultFileInBinary(v interface{ VaultID() string }, filePath string) ([]byte, int64, error) {
+	fullPath := s.buildVaultFilePath(v, filePath)
+	if fullPath == "" {
+		return nil, 0, fmt.Errorf("vault path not found")
+	}
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return data, info.Size(), nil
 }
 
 // handleGetTree godoc

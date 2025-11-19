@@ -37,3 +37,9 @@ func writeError(w http.ResponseWriter, statusCode int, message string) {
 func writeSuccess(w http.ResponseWriter, data interface{}) {
 	writeJSON(w, http.StatusOK, SuccessResponse{Data: data})
 }
+
+func writeMarkdown(w http.ResponseWriter, data []byte) {
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
