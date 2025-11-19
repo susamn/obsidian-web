@@ -18,6 +18,7 @@ import (
 func TestVaultIntegration_BasicFlow(t *testing.T) {
 	vaultDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	// Create test files
 	createTestFile(t, vaultDir, "note1.md", "# Note 1\nContent")
@@ -28,6 +29,7 @@ func TestVaultIntegration_BasicFlow(t *testing.T) {
 		Name:      "Test Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "test.bleve"),
+		DBPath:    filepath.Join(dbDir, "test.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -116,12 +118,14 @@ func TestVaultIntegration_BasicFlow(t *testing.T) {
 func TestVaultIntegration_Backpressure(t *testing.T) {
 	vaultDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "backpressure-vault",
 		Name:      "Backpressure Test Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "test.bleve"),
+		DBPath:    filepath.Join(dbDir, "test.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -218,12 +222,14 @@ func TestVaultIntegration_Backpressure(t *testing.T) {
 func TestVaultIntegration_Concurrency(t *testing.T) {
 	vaultDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "concurrent-vault",
 		Name:      "Concurrency Test Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "test.bleve"),
+		DBPath:    filepath.Join(dbDir, "test.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -365,12 +371,14 @@ func TestVaultIntegration_Concurrency(t *testing.T) {
 func TestVaultIntegration_EventCoalescing(t *testing.T) {
 	vaultDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "coalesce-vault",
 		Name:      "Coalescing Test Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "test.bleve"),
+		DBPath:    filepath.Join(dbDir, "test.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -463,12 +471,14 @@ func TestVaultIntegration_EventCoalescing(t *testing.T) {
 func TestVaultIntegration_MetricsAccuracy(t *testing.T) {
 	vaultDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "metrics-vault",
 		Name:      "Metrics Test Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "test.bleve"),
+		DBPath:    filepath.Join(dbDir, "test.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -538,6 +548,7 @@ func TestVaultIntegration_MetricsAccuracy(t *testing.T) {
 func TestVaultIntegration_Lifecycle(t *testing.T) {
 	vaultDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	// Create initial files
 	createTestFile(t, vaultDir, "initial1.md", "# Initial 1")
@@ -548,6 +559,7 @@ func TestVaultIntegration_Lifecycle(t *testing.T) {
 		Name:      "Lifecycle Test Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "test.bleve"),
+		DBPath:    filepath.Join(dbDir, "test.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -623,12 +635,14 @@ func TestVaultIntegration_Lifecycle(t *testing.T) {
 func BenchmarkVault_UpdateIndex(b *testing.B) {
 	vaultDir := b.TempDir()
 	indexDir := b.TempDir()
+	dbDir := b.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "bench-vault",
 		Name:      "Bench Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "bench.bleve"),
+		DBPath:    filepath.Join(dbDir, "bench.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -664,12 +678,14 @@ func BenchmarkVault_UpdateIndex(b *testing.B) {
 func BenchmarkVault_GetMetrics(b *testing.B) {
 	vaultDir := b.TempDir()
 	indexDir := b.TempDir()
+	dbDir := b.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "bench-vault",
 		Name:      "Bench Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "bench.bleve"),
+		DBPath:    filepath.Join(dbDir, "bench.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -696,12 +712,14 @@ func BenchmarkVault_GetMetrics(b *testing.B) {
 func BenchmarkVault_Coalescing(b *testing.B) {
 	vaultDir := b.TempDir()
 	indexDir := b.TempDir()
+	dbDir := b.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "bench-vault",
 		Name:      "Bench Vault",
 		Enabled:   true,
 		IndexPath: filepath.Join(indexDir, "bench.bleve"),
+		DBPath:    filepath.Join(dbDir, "bench.db"),
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{

@@ -16,6 +16,7 @@ import (
 func setupTestVault(t *testing.T) (string, *config.VaultConfig) {
 	tmpDir := t.TempDir()
 	indexPath := filepath.Join(tmpDir, "index")
+	dbPath := filepath.Join(tmpDir, "db")
 
 	// Create directory structure
 	dirs := []string{
@@ -55,6 +56,7 @@ func setupTestVault(t *testing.T) (string, *config.VaultConfig) {
 		Name:      "Test Vault",
 		Enabled:   true,
 		IndexPath: indexPath,
+		DBPath:    dbPath,
 		Storage: config.StorageConfig{
 			Type:  "local",
 			Local: &config.LocalStorageConfig{Path: tmpDir},

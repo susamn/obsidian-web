@@ -13,12 +13,14 @@ func TestNewVault_ValidConfig(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbPath := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "test-vault",
 		Name:      "Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbPath + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -172,12 +174,14 @@ func TestVault_Lifecycle(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "lifecycle-vault",
 		Name:      "Lifecycle Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -247,12 +251,14 @@ func TestVault_StartTwice(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "double-start-vault",
 		Name:      "Double Start Test",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -283,12 +289,14 @@ func TestVault_WaitForReady_Timeout(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "timeout-vault",
 		Name:      "Timeout Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -314,12 +322,14 @@ func TestVault_WaitForReady_AfterStop(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "stopped-vault",
 		Name:      "Stopped Vault Test",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -348,12 +358,14 @@ func TestVault_GetMetrics(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "metrics-vault",
 		Name:      "Metrics Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -411,12 +423,14 @@ func TestVault_GetServices(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "services-vault",
 		Name:      "Services Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -571,12 +585,14 @@ func TestVault_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "cancel-vault",
 		Name:      "Context Cancel Test",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -611,12 +627,14 @@ func TestVault_ConcurrentAccess(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	indexDir := t.TempDir()
+	dbDir := t.TempDir()
 
 	cfg := &config.VaultConfig{
 		ID:        "concurrent-vault",
 		Name:      "Concurrent Access Test",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{

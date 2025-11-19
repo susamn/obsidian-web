@@ -354,6 +354,11 @@ func (c *Config) applyEnvOverrides() {
 			c.Vaults[0].IndexPath = indexPath
 		}
 	}
+	if dbPath := os.Getenv("OBSIDIAN_WEB_VAULT_DB_PATH"); dbPath != "" {
+		if len(c.Vaults) > 0 {
+			c.Vaults[0].DBPath = dbPath
+		}
+	}
 
 	// S3/MinIO credentials from standard AWS env vars
 	if accessKey := os.Getenv("AWS_ACCESS_KEY_ID"); accessKey != "" {

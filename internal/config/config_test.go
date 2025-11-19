@@ -21,11 +21,6 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("Expected default read timeout 30s, got %v", cfg.Server.ReadTimeout)
 	}
 
-	// Database defaults
-	if cfg.Database.Path == "" {
-		t.Error("Database path should not be empty")
-	}
-
 	// Logging defaults
 	if cfg.Logging.Level != "info" {
 		t.Errorf("Expected default log level 'info', got '%s'", cfg.Logging.Level)
@@ -62,9 +57,6 @@ server:
   read_timeout: 60s
   write_timeout: 60s
 
-database:
-  path: "/tmp/test.db"
-
 logging:
   level: "debug"
   format: "json"
@@ -78,6 +70,7 @@ vaults:
       local:
         path: "/tmp/vault"
     index_path: "/tmp/indexes/test"
+    db_path: "/tmp/db/vault.db"
     enabled: true
     default: true
 
@@ -112,10 +105,6 @@ indexing:
 	}
 	if cfg.Server.ReadTimeout != 60*time.Second {
 		t.Errorf("Expected read timeout 60s, got %v", cfg.Server.ReadTimeout)
-	}
-
-	if cfg.Database.Path != "/tmp/test.db" {
-		t.Errorf("Expected database path '/tmp/test.db', got '%s'", cfg.Database.Path)
 	}
 
 	if cfg.Logging.Level != "debug" {
@@ -166,6 +155,7 @@ vaults:
       local:
         path: "./vault"
     index_path: "./indexes/default"
+    db_path: "./db/default.db"
     enabled: true
     default: true
 
@@ -189,6 +179,7 @@ indexing:
 	os.Setenv("OBSIDIAN_WEB_LOG_FORMAT", "json")
 	os.Setenv("OBSIDIAN_WEB_VAULT_PATH", "/custom/vault")
 	os.Setenv("OBSIDIAN_WEB_INDEX_PATH", "/custom/index")
+	os.Setenv("OBSIDIAN_WEB_VAULT_DB_PATH", "/custom/db")
 	os.Setenv("OBSIDIAN_WEB_SEARCH_DEFAULT_LIMIT", "30")
 
 	defer func() {
@@ -199,6 +190,7 @@ indexing:
 		os.Unsetenv("OBSIDIAN_WEB_LOG_FORMAT")
 		os.Unsetenv("OBSIDIAN_WEB_VAULT_PATH")
 		os.Unsetenv("OBSIDIAN_WEB_INDEX_PATH")
+		os.Unsetenv("OBSIDIAN_WEB_VAULT_DB_PATH")
 		os.Unsetenv("OBSIDIAN_WEB_SEARCH_DEFAULT_LIMIT")
 	}()
 
@@ -214,9 +206,6 @@ indexing:
 	}
 	if cfg.Server.Port != 9999 {
 		t.Errorf("Env override failed: expected port 9999, got %d", cfg.Server.Port)
-	}
-	if cfg.Database.Path != "/custom/db.db" {
-		t.Errorf("Env override failed: expected db path '/custom/db.db', got '%s'", cfg.Database.Path)
 	}
 	if cfg.Logging.Level != "debug" {
 		t.Errorf("Env override failed: expected log level 'debug', got '%s'", cfg.Logging.Level)
@@ -234,6 +223,9 @@ indexing:
 	}
 	if cfg.Vaults[0].IndexPath != "/custom/index" {
 		t.Errorf("Env override failed: expected index path '/custom/index', got '%s'", cfg.Vaults[0].IndexPath)
+	}
+	if cfg.Vaults[0].DBPath != "/custom/db" {
+		t.Errorf("Env override failed: expected db path '/custom/db', got '%s'", cfg.Vaults[0].DBPath)
 	}
 	if cfg.Search.DefaultLimit != 30 {
 		t.Errorf("Env override failed: expected default limit 30, got %d", cfg.Search.DefaultLimit)
@@ -255,11 +247,10 @@ func TestValidation(t *testing.T) {
 		{
 			name: "invalid port - too low",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 0},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 0},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -270,11 +261,10 @@ func TestValidation(t *testing.T) {
 		{
 			name: "invalid port - too high",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 99999},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 99999},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -285,26 +275,24 @@ func TestValidation(t *testing.T) {
 		{
 			name: "empty database path",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: ""},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", DBPath: "", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
 			},
 			wantError: true,
-			errorMsg:  "database.path cannot be empty",
+			errorMsg:  "db_path cannot be empty",
 		},
 		{
 			name: "invalid log level",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "invalid", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "invalid", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -316,7 +304,6 @@ func TestValidation(t *testing.T) {
 			name: "no vaults configured",
 			config: &Config{
 				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
 				Logging:  LoggingConfig{Level: "info", Format: "text"},
 				Vaults:   []VaultConfig{},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
@@ -328,11 +315,10 @@ func TestValidation(t *testing.T) {
 		{
 			name: "no default vault",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", Default: false, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp"}}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: false, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -343,12 +329,11 @@ func TestValidation(t *testing.T) {
 		{
 			name: "duplicate vault IDs",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp1"}}, IndexPath: "/tmp/idx1", Default: true, Enabled: true},
-					{ID: "test", Name: "Test2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp2"}}, IndexPath: "/tmp/idx2", Default: false, Enabled: true},
+					{ID: "test", Name: "Test1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp1"}}, IndexPath: "/tmp/idx1", DBPath: "/tmp/db1", Default: true, Enabled: true},
+					{ID: "test", Name: "Test2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp2"}}, IndexPath: "/tmp/idx2", DBPath: "/tmp/db2", Default: false, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -359,11 +344,10 @@ func TestValidation(t *testing.T) {
 		{
 			name: "S3 storage missing bucket",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "s3", S3: &S3StorageConfig{Region: "us-east-1"}}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "s3", S3: &S3StorageConfig{Region: "us-east-1"}}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -374,11 +358,10 @@ func TestValidation(t *testing.T) {
 		{
 			name: "S3 storage missing region",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "s3", S3: &S3StorageConfig{Bucket: "my-bucket"}}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "s3", S3: &S3StorageConfig{Bucket: "my-bucket"}}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -389,11 +372,10 @@ func TestValidation(t *testing.T) {
 		{
 			name: "MinIO storage missing endpoint",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "minio", MinIO: &MinIOStorageConfig{Bucket: "my-bucket"}}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "minio", MinIO: &MinIOStorageConfig{Bucket: "my-bucket"}}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -404,11 +386,10 @@ func TestValidation(t *testing.T) {
 		{
 			name: "invalid storage type",
 			config: &Config{
-				Server:   ServerConfig{Host: "localhost", Port: 8080},
-				Database: DatabaseConfig{Path: "/tmp/db"},
-				Logging:  LoggingConfig{Level: "info", Format: "text"},
+				Server:  ServerConfig{Host: "localhost", Port: 8080},
+				Logging: LoggingConfig{Level: "info", Format: "text"},
 				Vaults: []VaultConfig{
-					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "invalid"}, IndexPath: "/tmp/idx", Default: true, Enabled: true},
+					{ID: "test", Name: "Test", Storage: StorageConfig{Type: "invalid"}, IndexPath: "/tmp/idx", DBPath: "/tmp/db", Default: true, Enabled: true},
 				},
 				Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 				Indexing: IndexingConfig{BatchSize: 100},
@@ -438,12 +419,11 @@ func TestValidation(t *testing.T) {
 
 func TestGetVaultByID(t *testing.T) {
 	cfg := &Config{
-		Server:   ServerConfig{Host: "localhost", Port: 8080},
-		Database: DatabaseConfig{Path: "/tmp/db"},
-		Logging:  LoggingConfig{Level: "info", Format: "text"},
+		Server:  ServerConfig{Host: "localhost", Port: 8080},
+		Logging: LoggingConfig{Level: "info", Format: "text"},
 		Vaults: []VaultConfig{
-			{ID: "vault1", Name: "Vault 1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v1"}}, IndexPath: "/tmp/idx1", Default: true, Enabled: true},
-			{ID: "vault2", Name: "Vault 2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v2"}}, IndexPath: "/tmp/idx2", Default: false, Enabled: true},
+			{ID: "vault1", Name: "Vault 1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v1"}}, IndexPath: "/tmp/idx1", DBPath: "/tmp/db1", Default: true, Enabled: true},
+			{ID: "vault2", Name: "Vault 2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v2"}}, IndexPath: "/tmp/idx2", DBPath: "/tmp/db2", Default: false, Enabled: true},
 		},
 		Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 		Indexing: IndexingConfig{BatchSize: 100},
@@ -467,12 +447,11 @@ func TestGetVaultByID(t *testing.T) {
 
 func TestGetDefaultVault(t *testing.T) {
 	cfg := &Config{
-		Server:   ServerConfig{Host: "localhost", Port: 8080},
-		Database: DatabaseConfig{Path: "/tmp/db"},
-		Logging:  LoggingConfig{Level: "info", Format: "text"},
+		Server:  ServerConfig{Host: "localhost", Port: 8080},
+		Logging: LoggingConfig{Level: "info", Format: "text"},
 		Vaults: []VaultConfig{
-			{ID: "vault1", Name: "Vault 1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v1"}}, IndexPath: "/tmp/idx1", Default: false, Enabled: true},
-			{ID: "vault2", Name: "Vault 2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v2"}}, IndexPath: "/tmp/idx2", Default: true, Enabled: true},
+			{ID: "vault1", Name: "Vault 1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v1"}}, IndexPath: "/tmp/idx1", DBPath: "/tmp/db1", Default: false, Enabled: true},
+			{ID: "vault2", Name: "Vault 2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v2"}}, IndexPath: "/tmp/idx2", DBPath: "/tmp/db2", Default: true, Enabled: true},
 		},
 		Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 		Indexing: IndexingConfig{BatchSize: 100},
@@ -489,13 +468,12 @@ func TestGetDefaultVault(t *testing.T) {
 
 func TestListEnabledVaults(t *testing.T) {
 	cfg := &Config{
-		Server:   ServerConfig{Host: "localhost", Port: 8080},
-		Database: DatabaseConfig{Path: "/tmp/db"},
-		Logging:  LoggingConfig{Level: "info", Format: "text"},
+		Server:  ServerConfig{Host: "localhost", Port: 8080},
+		Logging: LoggingConfig{Level: "info", Format: "text"},
 		Vaults: []VaultConfig{
-			{ID: "vault1", Name: "Vault 1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v1"}}, IndexPath: "/tmp/idx1", Default: true, Enabled: true},
-			{ID: "vault2", Name: "Vault 2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v2"}}, IndexPath: "/tmp/idx2", Default: false, Enabled: false},
-			{ID: "vault3", Name: "Vault 3", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v3"}}, IndexPath: "/tmp/idx3", Default: false, Enabled: true},
+			{ID: "vault1", Name: "Vault 1", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v1"}}, IndexPath: "/tmp/idx1", DBPath: "/tmp/db1", Default: true, Enabled: true},
+			{ID: "vault2", Name: "Vault 2", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v2"}}, IndexPath: "/tmp/idx2", DBPath: "/tmp/db2", Default: false, Enabled: false},
+			{ID: "vault3", Name: "Vault 3", Storage: StorageConfig{Type: "local", Local: &LocalStorageConfig{Path: "/tmp/v3"}}, IndexPath: "/tmp/idx3", DBPath: "/tmp/db3", Default: false, Enabled: true},
 		},
 		Search:   SearchConfig{DefaultLimit: 20, MaxLimit: 100},
 		Indexing: IndexingConfig{BatchSize: 100},
@@ -514,10 +492,7 @@ func TestEnsureDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	cfg := &Config{
-		Server: ServerConfig{Host: "localhost", Port: 8080},
-		Database: DatabaseConfig{
-			Path: filepath.Join(tmpDir, "data", "app.db"),
-		},
+		Server:  ServerConfig{Host: "localhost", Port: 8080},
 		Logging: LoggingConfig{Level: "info", Format: "text"},
 		Vaults: []VaultConfig{
 			{
@@ -530,6 +505,7 @@ func TestEnsureDirectories(t *testing.T) {
 					},
 				},
 				IndexPath: filepath.Join(tmpDir, "indexes", "test"),
+				DBPath:    filepath.Join(tmpDir, "data", "test.db"),
 				Default:   true,
 				Enabled:   true,
 			},
@@ -550,6 +526,9 @@ func TestEnsureDirectories(t *testing.T) {
 		t.Error("Vault directory was not created")
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, "indexes", "test")); os.IsNotExist(err) {
+		t.Error("Index directory was not created")
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, "data", "test.db")); os.IsNotExist(err) {
 		t.Error("Index directory was not created")
 	}
 }
