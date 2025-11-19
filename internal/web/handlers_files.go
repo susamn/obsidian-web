@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/susamn/obsidian-web/internal/logger"
 )
 
 // FileResponse represents a file's content
@@ -585,6 +587,60 @@ func (s *Server) handleGetTreeByID(w http.ResponseWriter, r *http.Request) {
 		},
 		"children": childNodes,
 		"loaded":   true,
+	})
+}
+
+// handleForceReindex godoc
+// @Summary Force reindex vault
+// @Description Force reindex the entire vault, clearing and rebuilding the database
+// @Tags files
+// @Produce json
+// @Param vault path string true "Vault ID"
+// @Success 200 {object} object "Reindex started message"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/files/reindex/{vault} [post]
+func (s *Server) handleForceReindex(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Extract vault ID from path
+	vaultID := s.extractVaultIDFromPath(r.URL.Path, "/api/v1/files/reindex/")
+	if vaultID == "" {
+		writeError(w, http.StatusBadRequest, "Vault ID required")
+		return
+	}
+
+	// Get vault
+	v, ok := s.getVault(vaultID)
+	if !ok {
+		writeError(w, http.StatusNotFound, "Vault not found")
+		return
+	}
+
+	// Check vault is active
+	if !v.IsActive() {
+		writeError(w, http.StatusServiceUnavailable, "Vault not active")
+		return
+	}
+
+	// Start reindex in a goroutine to avoid blocking the response
+	go func() {
+		if err := v.ForceReindex(); err != nil {
+			logger.WithFields(map[string]interface{}{
+				"vault_id": vaultID,
+				"error":    err,
+			}).Error("Force reindex failed")
+		}
+	}()
+
+	writeSuccess(w, map[string]interface{}{
+		"message":  "Reindex started",
+		"vault_id": vaultID,
 	})
 }
 
