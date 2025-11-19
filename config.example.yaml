@@ -29,13 +29,6 @@ server:
   # Static files directory (for web UI assets)
   static_dir: "./static"
 
-# SQLite Database Configuration
-database:
-  # Path to SQLite database file
-  # For local dev, this will default to ~/.config/obsidian-web/app.db
-  # For Docker, use /data/app.db (volume mounted)
-  path: "./data/app.db"
-
 # Logging Configuration
 logging:
   # Log level: debug, info, warn, error
@@ -63,11 +56,12 @@ vaults:
       local:
         # Path to your Obsidian vault directory
         # Change this to point to your actual vault!
-        path: "./data/vault"
+        path: "./data/vaults/default/store"
 
     # Path where the search index will be stored
     # For local dev, defaults to ~/.config/obsidian-web/indexes/default
-    index_path: "./data/indexes/default"
+    index_path: "./data/vaults/default/index"
+    db_path: "./data/vaults/default/db"
 
     # Enable/disable this vault
     enabled: true

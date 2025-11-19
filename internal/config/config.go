@@ -13,7 +13,6 @@ import (
 // Config represents the complete application configuration
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
 	Logging  LoggingConfig  `yaml:"logging"`
 	Vaults   []VaultConfig  `yaml:"vaults"`
 	Search   SearchConfig   `yaml:"search"`
@@ -27,11 +26,6 @@ type ServerConfig struct {
 	ReadTimeout  time.Duration `yaml:"read_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 	StaticDir    string        `yaml:"static_dir"`
-}
-
-// DatabaseConfig holds SQLite database configuration
-type DatabaseConfig struct {
-	Path string `yaml:"path"`
 }
 
 // LoggingConfig holds logging configuration
@@ -57,6 +51,7 @@ type VaultConfig struct {
 	Name      string        `yaml:"name"`
 	Storage   StorageConfig `yaml:"storage"`
 	IndexPath string        `yaml:"index_path"`
+	DBPath    string        `yaml:"db_path"`
 	Enabled   bool          `yaml:"enabled"`
 	Default   bool          `yaml:"default"`
 }
@@ -246,22 +241,20 @@ func LoadConfig(configPath string) (*Config, error) {
 	if homeDir != "" {
 		configDir := filepath.Join(homeDir, ".config", "obsidian-web")
 
-		// If database path is default, use home config directory
-		if cfg.Database.Path == "./data/app.db" || cfg.Database.Path == "" {
-			cfg.Database.Path = filepath.Join(configDir, "app.db")
-		}
-
 		// Update vault paths if they are relative defaults
 		for i := range cfg.Vaults {
 			if cfg.Vaults[i].Storage.GetType() == LocalStorage {
 				localCfg := cfg.Vaults[i].Storage.GetLocalConfig()
-				if localCfg != nil && (localCfg.Path == "./data/vault" || localCfg.Path == "") {
-					localCfg.Path = filepath.Join(configDir, "vault")
+				if localCfg != nil && (localCfg.Path == "./data/vaults/default/store" || localCfg.Path == "") {
+					localCfg.Path = filepath.Join(configDir, "vaults/default/store")
 				}
 			}
 
-			if cfg.Vaults[i].IndexPath == "" || cfg.Vaults[i].IndexPath == "./data/indexes/default" {
-				cfg.Vaults[i].IndexPath = filepath.Join(configDir, "indexes", cfg.Vaults[i].ID)
+			if cfg.Vaults[i].IndexPath == "" || cfg.Vaults[i].IndexPath == "./data/vaults/default/index" {
+				cfg.Vaults[i].IndexPath = filepath.Join(configDir, "vaults/default/index", cfg.Vaults[i].ID)
+			}
+			if cfg.Vaults[i].DBPath == "" || cfg.Vaults[i].DBPath == "./data/vaults/default/db" {
+				cfg.Vaults[i].DBPath = filepath.Join(configDir, "vaults/default/db", cfg.Vaults[i].ID)
 			}
 		}
 	}
@@ -312,11 +305,6 @@ func (c *Config) applyEnvOverrides() {
 		if d, err := time.ParseDuration(timeout); err == nil {
 			c.Server.WriteTimeout = d
 		}
-	}
-
-	// Database overrides
-	if dbPath := os.Getenv("OBSIDIAN_WEB_DATABASE_PATH"); dbPath != "" {
-		c.Database.Path = dbPath
 	}
 
 	// Logging overrides
@@ -411,9 +399,6 @@ func DefaultConfig() *Config {
 			ReadTimeout:  30 * time.Second,
 			WriteTimeout: 30 * time.Second,
 		},
-		Database: DatabaseConfig{
-			Path: "./data/app.db",
-		},
 		Logging: LoggingConfig{
 			Level:  "info",
 			Format: "text",
@@ -426,10 +411,11 @@ func DefaultConfig() *Config {
 				Storage: StorageConfig{
 					Type: "local",
 					Local: &LocalStorageConfig{
-						Path: "./data/vault",
+						Path: "./data/vaults/default/store",
 					},
 				},
-				IndexPath: "./data/indexes/default",
+				IndexPath: "./data/vaults/default/index",
+				DBPath:    "./data/vaults/default/db",
 				Enabled:   true,
 				Default:   true,
 			},
@@ -464,11 +450,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server.write_timeout cannot be negative")
 	}
 
-	// Database validation
-	if c.Database.Path == "" {
-		return fmt.Errorf("database.path cannot be empty")
-	}
-
 	// Logging validation
 	validLogLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 	if !validLogLevels[c.Logging.Level] {
@@ -500,6 +481,9 @@ func (c *Config) Validate() error {
 		}
 		if vault.IndexPath == "" {
 			return fmt.Errorf("vaults[%d].index_path cannot be empty", i)
+		}
+		if vault.DBPath == "" {
+			return fmt.Errorf("vaults[%d].db_path cannot be empty", i)
 		}
 
 		// Storage validation
@@ -605,11 +589,6 @@ func (c *Config) ListEnabledVaults() []VaultConfig {
 
 // EnsureDirectories creates necessary directories if they don't exist
 func (c *Config) EnsureDirectories() error {
-	// Create database directory
-	dbDir := filepath.Dir(c.Database.Path)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		return fmt.Errorf("failed to create database directory %s: %w", dbDir, err)
-	}
 
 	// Create vault directories and index directories
 	for _, vault := range c.Vaults {
@@ -627,6 +606,10 @@ func (c *Config) EnsureDirectories() error {
 			}
 		}
 
+		// Create db directory
+		if err := os.MkdirAll(vault.DBPath, 0755); err != nil {
+			return fmt.Errorf("failed to create db directory %s: %w", vault.DBPath, err)
+		}
 		// Create index directory
 		if err := os.MkdirAll(vault.IndexPath, 0755); err != nil {
 			return fmt.Errorf("failed to create index directory %s: %w", vault.IndexPath, err)

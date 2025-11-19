@@ -139,7 +139,7 @@ func NewVault(ctx context.Context, cfg *config.VaultConfig) (*Vault, error) {
 func (v *Vault) initializeServices() error {
 	var err error
 
-	dbPath := fmt.Sprintf("%s/vault_%s.db", v.vaultPath, v.config.ID)
+	dbPath := fmt.Sprintf("%s/vault_%s.db", v.config.DBPath, v.config.ID)
 	// Create and start db service
 	v.dbService, err = db.NewDBService(v.ctx, &dbPath)
 	if err != nil {
@@ -470,7 +470,16 @@ func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) {
 		var parentID *string
 		parentPath := filepath.Dir(relPath)
 		if parentPath != "." && parentPath != "" {
+			// Item is nested, ensure parent directories exist
 			parentID = v.ensureParentDirsExist(parentPath)
+		} else {
+			// Item is at root level, set parent to root node ID
+			rootEntry, err := v.dbService.GetFileEntryByPath("")
+			if err == nil && rootEntry != nil {
+				// Root exists, use its ID as parent
+				parentID = &rootEntry.ID
+			}
+			// If root doesn't exist, parentID remains nil (which is correct for root-level items)
 		}
 
 		// Create or update file entry in database
@@ -530,7 +539,15 @@ func (v *Vault) ensureParentDirsExist(parentPath string) *string {
 			Modified: time.Now().UTC(),
 		}
 		if err := v.dbService.CreateFileEntry(rootEntry); err != nil {
-			logger.WithField("error", err).Warn("Failed to create root directory in database")
+			// Check if it's a duplicate key error - might have been created by another goroutine
+			if err.Error() != "UNIQUE constraint failed: file_entries.path" {
+				logger.WithField("error", err).Warn("Failed to create root directory in database")
+			}
+			// Try to fetch it again in case it was created by another goroutine
+			if rootEntry2, err := v.dbService.GetFileEntryByPath(""); err == nil && rootEntry2 != nil {
+				id := rootEntry2.ID
+				currentParentID = &id
+			}
 		} else {
 			currentParentID = &rootID
 		}
@@ -653,6 +670,11 @@ func (v *Vault) walkAndPopulateDatabase(dirPath string, parentID *string) error 
 		relPath, err := filepath.Rel(v.vaultPath, fullPath)
 		if err != nil {
 			logger.WithField("path", fullPath).WithField("error", err).Warn("Failed to get relative path")
+			continue
+		}
+
+		// For files, only index markdown files
+		if !entry.IsDir() && !strings.HasSuffix(strings.ToLower(entry.Name()), ".md") {
 			continue
 		}
 

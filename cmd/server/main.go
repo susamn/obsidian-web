@@ -45,7 +45,6 @@ func main() {
 	// Display loaded configuration
 	logger.Info("\n=== Obsidian Web Configuration ===")
 	logger.Infof("Server: %s:%d", cfg.Server.Host, cfg.Server.Port)
-	logger.Infof("Database: %s", cfg.Database.Path)
 	logger.Infof("Log Level: %s", cfg.Logging.Level)
 
 	// Display configured vaults
