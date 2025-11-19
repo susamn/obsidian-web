@@ -569,15 +569,22 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 
 	// Broadcast SSE event with rich metadata if broadcaster is available
 	if e.sseBroadcaster != nil && sseEventType != "" {
-		// Try to use enhanced broadcaster with data if available
-		if broadWithData, ok := e.sseBroadcaster.(SSEBroadcasterWithData); ok {
-			// Build FileEventData for the enhanced broadcast
-			fileData := e.buildFileEventDataSSE(relPath, parentPath, event.Path, event.EventType)
-			broadWithData.BroadcastFileEventWithData(e.vaultID, relPath, sse.EventType(sseEventType), fileData)
-		} else {
-			// Fall back to basic broadcast
-			e.sseBroadcaster.BroadcastFileEvent(e.vaultID, relPath, sseEventType)
+		// Build the event data as a map that can be sent with the event
+		eventData := map[string]interface{}{
+			"path":       relPath,
+			"event_type": sseEventType,
 		}
+
+		// Add file metadata if available
+		if event.Path != "" {
+			fileData := e.buildFileEventDataSSE(relPath, parentPath, event.Path, event.EventType)
+			if fileData != nil {
+				eventData["file_data"] = fileData
+			}
+		}
+
+		// Broadcast the event
+		e.sseBroadcaster.BroadcastFileEvent(e.vaultID, relPath, sseEventType)
 	}
 }
 

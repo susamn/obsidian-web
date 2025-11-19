@@ -80,6 +80,7 @@ const vaultName = ref('');
 const expandedNodes = ref({});
 const connected = ref(false);
 const error = ref(null);
+const currentFileId = ref(null); // Track the ID of the currently selected file
 
 const handleToggleExpand = async (node) => {
   if (node.metadata.is_directory) {
@@ -127,6 +128,7 @@ const handleFileSelected = async (node) => {
     // Fetch file content using the node ID (more reliable than path)
     await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
     fileStore.setCurrentPath(node.metadata.path); // Set current path for SSE updates
+    currentFileId.value = node.metadata.id; // Track the file ID for SSE updates
     console.log('[VaultView] Selected file:', node.metadata.name, 'ID:', node.metadata.id, 'Path:', node.metadata.path);
   }
 };
@@ -155,6 +157,34 @@ const updateNodeChildren = (nodes, targetId, newChildren) => {
     // Recursively search in child nodes
     if (node.metadata.is_directory && node.children && node.children.length > 0) {
       if (updateNodeChildren(node.children, targetId, newChildren)) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
+const updateNodeChildrenByPath = (nodes, targetPath, newChildren) => {
+  // For root path, update the root nodes directly
+  if (targetPath === '') {
+    console.log('[VaultView] Updating root children, count:', newChildren.length);
+    nodes.splice(0, nodes.length, ...newChildren);
+    return true;
+  }
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+
+    // Use path-based comparison
+    if (node.metadata.path === targetPath) {
+      console.log('[VaultView] Found matching node by path! Updating children count:', newChildren.length);
+      // Update children with new array
+      node.children = newChildren;
+      return true;
+    }
+    // Recursively search in child nodes
+    if (node.metadata.is_directory && node.children && node.children.length > 0) {
+      if (updateNodeChildrenByPath(node.children, targetPath, newChildren)) {
         return true;
       }
     }
@@ -277,7 +307,7 @@ const sseCallbacks = {
     const parentPath = lastSlash === -1 ? '' : event.path.substring(0, lastSlash);
 
     await fileStore.fetchChildren(fileStore.vaultId, parentPath);
-    updateNodeChildren(fileStore.treeData, parentPath, fileStore.childrenData);
+    updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
 
     // Register new children
     if (fileStore.childrenData.length > 0) {
@@ -304,9 +334,9 @@ const sseCallbacks = {
     console.log('[VaultView] File modified event:', event);
 
     // If the modified file is currently selected, re-fetch its content
-    if (fileStore.currentPath === event.path) {
+    if (fileStore.currentPath === event.path && currentFileId.value) {
       console.log('[VaultView] Refetching content for selected file:', event.path);
-      await fileStore.fetchFileContent(fileStore.vaultId, event.path);
+      await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value);
     }
   },
 
@@ -383,6 +413,7 @@ watch(() => route.params.id, (newId, oldId) => {
     fileStore.fetchTree(newId);
     expandedNodes.value = {}; // Reset expanded nodes when vault changes
     fileStore.selectedFileContent = null; // Clear selected file content
+    currentFileId.value = null; // Clear selected file ID when vault changes
 
     // Mark root as walked when tree is loaded
     treeWalkerStore.markRootWalked(newId);

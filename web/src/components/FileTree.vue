@@ -28,6 +28,7 @@
           :vault-id="vaultId"
           :expanded-nodes="expandedNodes"
           @toggle-expand="toggleExpand"
+          @file-selected="selectFile"
         />
       </div>
     </li>
