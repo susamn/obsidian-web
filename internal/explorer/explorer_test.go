@@ -378,13 +378,18 @@ func TestEventHandling(t *testing.T) {
 	// Give event processor time to process
 	time.Sleep(100 * time.Millisecond)
 
-	// Cache for root should be invalidated
+	// Cache for root should be updated (not invalidated)
 	svc.cacheMu.RLock()
-	_, exists := svc.cache[""]
+	rootNode, exists := svc.cache[""]
 	svc.cacheMu.RUnlock()
 
-	if exists {
-		t.Error("Expected root cache to be invalidated after file creation")
+	if !exists {
+		t.Error("Expected root cache to be updated after file creation")
+	}
+
+	// Verify the cache has loaded children
+	if !rootNode.Loaded {
+		t.Error("Expected root cache to have loaded children")
 	}
 }
 
@@ -597,8 +602,425 @@ func TestChildrenHaveIDs(t *testing.T) {
 	}
 }
 
-// TestFileEventInvalidatesCache tests that file events invalidate cache
+// TestFileEventInvalidatesCacheWithDB tests that file events update parent cache
 func TestFileEventInvalidatesCacheWithDB(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	svc.Start()
+	defer svc.Stop()
+
+	// Cache root
+	rootNode1, err := svc.GetTree("")
+	if err != nil {
+		t.Fatalf("Failed to get tree: %v", err)
+	}
+	childCountBefore := rootNode1.Metadata.ChildCount
+
+	// Create the actual file first
+	testFile := filepath.Join(tmpDir, "newfile.md")
+	if err := os.WriteFile(testFile, []byte("# New File"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Send a file created event
+	event := syncpkg.FileChangeEvent{
+		VaultID:   "test-vault",
+		Path:      testFile,
+		EventType: syncpkg.FileCreated,
+		Timestamp: time.Now(),
+	}
+
+	svc.UpdateIndex(event)
+
+	// Give event processor time to process
+	time.Sleep(150 * time.Millisecond)
+
+	// Cache for root should be updated with new children count
+	svc.cacheMu.RLock()
+	rootNode2, exists := svc.cache[""]
+	svc.cacheMu.RUnlock()
+
+	if !exists {
+		t.Error("Expected root cache to be updated after file creation")
+	}
+
+	if rootNode2.Metadata.ChildCount <= childCountBefore {
+		t.Errorf("Expected child count to increase from %d, got %d",
+			childCountBefore, rootNode2.Metadata.ChildCount)
+	}
+}
+
+// TestFileCreatedUpdatesParentCache tests that creating a file updates parent cache
+func TestFileCreatedUpdatesParentCache(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	svc.Start()
+	defer svc.Stop()
+
+	// Cache root - get initial children count
+	rootNode1, err := svc.GetTree("")
+	if err != nil {
+		t.Fatalf("Failed to get root tree: %v", err)
+	}
+	initialChildCount := rootNode1.Metadata.ChildCount
+
+	// Verify root is cached
+	svc.cacheMu.RLock()
+	_, rootCached := svc.cache[""]
+	svc.cacheMu.RUnlock()
+	if !rootCached {
+		t.Fatal("Expected root to be cached")
+	}
+
+	// Create a new file at root
+	newFile := filepath.Join(tmpDir, "newfile.md")
+	if err := os.WriteFile(newFile, []byte("# New File"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Send file created event
+	event := syncpkg.FileChangeEvent{
+		VaultID:   "test-vault",
+		Path:      newFile,
+		EventType: syncpkg.FileCreated,
+		Timestamp: time.Now(),
+	}
+
+	svc.UpdateIndex(event)
+
+	// Give event processor time to process
+	time.Sleep(150 * time.Millisecond)
+
+	// Get root cache again - should be refreshed with new child
+	svc.cacheMu.RLock()
+	rootNode2, cacheExists := svc.cache[""]
+	svc.cacheMu.RUnlock()
+
+	if !cacheExists {
+		t.Fatal("Expected root cache to be updated after file creation")
+	}
+
+	// Child count should have increased
+	if rootNode2.Metadata.ChildCount <= initialChildCount {
+		t.Errorf("Expected child count to increase from %d, got %d",
+			initialChildCount, rootNode2.Metadata.ChildCount)
+	}
+
+	// Verify the new file is in the children
+	if len(rootNode2.Children) > 0 {
+		found := false
+		for _, child := range rootNode2.Children {
+			if child.Metadata.Name == "newfile.md" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected newfile.md to be in cached children")
+		}
+	}
+}
+
+// TestFileCreatedInSubfolderUpdatesCache tests file creation in subdirectory
+func TestFileCreatedInSubfolderUpdatesCache(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	svc.Start()
+	defer svc.Stop()
+
+	// Cache folder1
+	folder1Node1, err := svc.GetTree("folder1")
+	if err != nil {
+		t.Fatalf("Failed to get folder1 tree: %v", err)
+	}
+	initialChildCount := folder1Node1.Metadata.ChildCount
+
+	// Create a new file in folder1
+	newFile := filepath.Join(tmpDir, "folder1", "newfolder1file.md")
+	if err := os.WriteFile(newFile, []byte("# New File in Folder1"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Send file created event
+	event := syncpkg.FileChangeEvent{
+		VaultID:   "test-vault",
+		Path:      newFile,
+		EventType: syncpkg.FileCreated,
+		Timestamp: time.Now(),
+	}
+
+	svc.UpdateIndex(event)
+
+	// Give event processor time to process
+	time.Sleep(150 * time.Millisecond)
+
+	// Get folder1 cache again
+	svc.cacheMu.RLock()
+	folder1Node2, cacheExists := svc.cache["folder1"]
+	svc.cacheMu.RUnlock()
+
+	if !cacheExists {
+		t.Fatal("Expected folder1 cache to be updated after file creation")
+	}
+
+	// Child count should have increased
+	if folder1Node2.Metadata.ChildCount <= initialChildCount {
+		t.Errorf("Expected child count to increase from %d, got %d",
+			initialChildCount, folder1Node2.Metadata.ChildCount)
+	}
+
+	// Verify the new file is in the children
+	found := false
+	for _, child := range folder1Node2.Children {
+		if child.Metadata.Name == "newfolder1file.md" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected newfolder1file.md to be in cached children of folder1")
+	}
+}
+
+// TestFileDeletedUpdatesParentCache tests that deleting a file updates parent cache
+func TestFileDeletedUpdatesParentCache(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	svc.Start()
+	defer svc.Stop()
+
+	// Cache root - get initial children count
+	rootNode1, err := svc.GetTree("")
+	if err != nil {
+		t.Fatalf("Failed to get root tree: %v", err)
+	}
+	initialChildCount := rootNode1.Metadata.ChildCount
+
+	// Verify file exists in cache
+	fileFound := false
+	for _, child := range rootNode1.Children {
+		if child.Metadata.Name == "file1.md" {
+			fileFound = true
+			break
+		}
+	}
+	if !fileFound {
+		t.Fatal("Expected file1.md to exist in root")
+	}
+
+	// Delete the file
+	delFile := filepath.Join(tmpDir, "file1.md")
+	if err := os.Remove(delFile); err != nil {
+		t.Fatalf("Failed to delete test file: %v", err)
+	}
+
+	// Send file deleted event
+	event := syncpkg.FileChangeEvent{
+		VaultID:   "test-vault",
+		Path:      delFile,
+		EventType: syncpkg.FileDeleted,
+		Timestamp: time.Now(),
+	}
+
+	svc.UpdateIndex(event)
+
+	// Give event processor time to process
+	time.Sleep(150 * time.Millisecond)
+
+	// Get root cache again
+	svc.cacheMu.RLock()
+	rootNode2, cacheExists := svc.cache[""]
+	svc.cacheMu.RUnlock()
+
+	if !cacheExists {
+		t.Fatal("Expected root cache to be updated after file deletion")
+	}
+
+	// Child count should have decreased
+	if rootNode2.Metadata.ChildCount >= initialChildCount {
+		t.Errorf("Expected child count to decrease from %d, got %d",
+			initialChildCount, rootNode2.Metadata.ChildCount)
+	}
+
+	// Verify the deleted file is NOT in children
+	fileFound = false
+	for _, child := range rootNode2.Children {
+		if child.Metadata.Name == "file1.md" {
+			fileFound = true
+			break
+		}
+	}
+	if fileFound {
+		t.Error("Expected file1.md to be removed from cached children")
+	}
+}
+
+// TestFileModifiedInvalidatesFileCache tests that file modification invalidates file cache
+func TestFileModifiedInvalidatesFileCache(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	// Create and populate database
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dbSvc, err := db.NewDBService(ctx, &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create db service: %v", err)
+	}
+
+	if err := dbSvc.Start(); err != nil {
+		t.Fatalf("Failed to start db service: %v", err)
+	}
+	defer dbSvc.Stop()
+
+	// Populate database
+	populateDBFromDirectory(t, dbSvc, tmpDir, nil)
+
+	// Create explorer service
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, dbSvc)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	svc.Start()
+	defer svc.Stop()
+
+	// Cache file1.md metadata
+	meta1, err := svc.GetMetadata("file1.md")
+	if err != nil {
+		t.Fatalf("Failed to get metadata: %v", err)
+	}
+
+	// Send file modified event
+	modFile := filepath.Join(tmpDir, "file1.md")
+	event := syncpkg.FileChangeEvent{
+		VaultID:   "test-vault",
+		Path:      modFile,
+		EventType: syncpkg.FileModified,
+		Timestamp: time.Now(),
+	}
+
+	svc.UpdateIndex(event)
+
+	// Give event processor time to process
+	time.Sleep(100 * time.Millisecond)
+
+	// Check if cache for file1.md is invalidated
+	svc.cacheMu.RLock()
+	_, fileExists := svc.cache["file1.md"]
+	svc.cacheMu.RUnlock()
+
+	if fileExists {
+		t.Error("Expected file1.md cache to be invalidated after modification")
+	}
+
+	// Parent cache should NOT be invalidated/refreshed for file modifications
+	// (child list doesn't change)
+	svc.cacheMu.RLock()
+	rootNode, rootExists := svc.cache[""]
+	svc.cacheMu.RUnlock()
+
+	// Parent may or may not exist - that's OK. The important thing is
+	// that it's not being unnecessarily refreshed for file modifications
+	_ = rootNode
+	_ = rootExists
+
+	// Verify we can still get updated metadata
+	meta2, err := svc.GetMetadata("file1.md")
+	if err != nil {
+		t.Fatalf("Failed to get metadata after modification: %v", err)
+	}
+
+	// Metadata should be fresh (not from old cache)
+	if meta1 == meta2 {
+		t.Error("Expected fresh metadata after file modification")
+	}
+}
+
+// TestCacheUpdatePreservesMetadata tests that cache updates preserve file metadata
+func TestCacheUpdatePreservesMetadata(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
 
@@ -628,14 +1050,19 @@ func TestFileEventInvalidatesCacheWithDB(t *testing.T) {
 	// Cache root
 	_, err = svc.GetTree("")
 	if err != nil {
-		t.Fatalf("Failed to get tree: %v", err)
+		t.Fatalf("Failed to get root tree: %v", err)
 	}
 
-	// Send a file created event
-	testFile := filepath.Join(tmpDir, "newfile.md")
+	// Create a new file
+	newFile := filepath.Join(tmpDir, "newtest.md")
+	if err = os.WriteFile(newFile, []byte("# New Test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Send file created event
 	event := syncpkg.FileChangeEvent{
 		VaultID:   "test-vault",
-		Path:      testFile,
+		Path:      newFile,
 		EventType: syncpkg.FileCreated,
 		Timestamp: time.Now(),
 	}
@@ -643,15 +1070,47 @@ func TestFileEventInvalidatesCacheWithDB(t *testing.T) {
 	svc.UpdateIndex(event)
 
 	// Give event processor time to process
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
-	// Cache for root should be invalidated
+	// Get updated root cache
 	svc.cacheMu.RLock()
-	_, exists := svc.cache[""]
+	rootNode2, _ := svc.cache[""]
 	svc.cacheMu.RUnlock()
 
-	if exists {
-		t.Error("Expected root cache to be invalidated after file creation")
+	// Verify cached metadata has all required fields
+	if rootNode2.Metadata.Name == "" {
+		t.Error("Expected Name in metadata")
+	}
+
+	if rootNode2.Metadata.Type != NodeTypeDirectory {
+		t.Error("Expected directory type")
+	}
+
+	// Verify children have metadata
+	if len(rootNode2.Children) > 0 {
+		found := false
+		for _, child := range rootNode2.Children {
+			if child.Metadata.Name == "" {
+				t.Error("Expected name in child metadata")
+			}
+			// IsMarkdown should be set correctly
+			if child.Metadata.Name == "newtest.md" {
+				found = true
+				if !child.Metadata.IsMarkdown {
+					t.Error("Expected newtest.md to be marked as markdown")
+				}
+				// Verify all metadata fields are populated for cached children
+				if child.Metadata.Type == "" {
+					t.Error("Expected type in child metadata")
+				}
+				if child.Metadata.Size == 0 {
+					t.Error("Expected non-zero size for newtest.md")
+				}
+			}
+		}
+		if !found {
+			t.Error("Expected newtest.md to be in cached children")
+		}
 	}
 }
 

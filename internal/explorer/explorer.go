@@ -501,7 +501,7 @@ func (e *ExplorerService) processEvents() {
 	}
 }
 
-// handleFileEvent processes a single file change event
+// handleFileEvent processes a single file change event and updates cache
 func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 	// Convert absolute path to relative path
 	relPath, err := filepath.Rel(e.vaultPath, event.Path)
@@ -520,21 +520,37 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 
 	switch event.EventType {
 	case syncpkg.FileCreated:
-		// Invalidate the node itself and its parent
-		e.invalidateCache(relPath)
-		e.invalidateParent(relPath)
+		// Invalidate parent (child list changed)
+		parentPath := filepath.Dir(relPath)
+		if parentPath == "." {
+			parentPath = ""
+		}
+		e.invalidateCache(parentPath)
+		// Refresh parent cache with new child
+		if parent, err := e.GetTree(parentPath); err == nil && parent != nil {
+			e.updateCache(parentPath, parent)
+		}
 		sseEventType = "file_created"
 
 	case syncpkg.FileModified:
-		// Invalidate the node itself and its parent
+		// Invalidate the node itself
 		e.invalidateCache(relPath)
-		e.invalidateParent(relPath)
+		// Parent doesn't change for modified files
 		sseEventType = "file_modified"
 
 	case syncpkg.FileDeleted:
-		// Invalidate the node and its parent
+		// Invalidate the node itself
 		e.invalidateCache(relPath)
-		e.invalidateParent(relPath)
+		// Invalidate parent (child list changed)
+		parentPath := filepath.Dir(relPath)
+		if parentPath == "." {
+			parentPath = ""
+		}
+		e.invalidateCache(parentPath)
+		// Refresh parent cache
+		if parent, err := e.GetTree(parentPath); err == nil && parent != nil {
+			e.updateCache(parentPath, parent)
+		}
 		sseEventType = "file_deleted"
 	}
 
