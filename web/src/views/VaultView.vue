@@ -36,34 +36,57 @@
       </div>
     </aside>
     <main class="main-content">
-      <div v-if="fileStore.loading" class="loading-spinner">Loading file content...</div>
-      <div v-else-if="fileStore.error" class="error-message text-red-500">Error: {{ fileStore.error }}</div>
-      <div v-else-if="fileStore.selectedFileContent" class="markdown-content" v-html="renderedMarkdown"></div>
-      <div v-else class="no-content-message">Select a file to view its content.</div>
+      <div v-if="fileStore.loading" class="loading-spinner">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Loading file content...</p>
+      </div>
+      <div v-else-if="fileStore.error" class="error-message">
+        <i class="fas fa-exclamation-circle"></i>
+        <p>Error: {{ fileStore.error }}</p>
+      </div>
+      <div v-else-if="fileStore.selectedFileContent" class="file-viewer">
+        <div class="file-header">
+          <h3 class="file-title">{{ currentFileName }}</h3>
+          <div class="file-meta">
+            <span class="file-path">{{ fileStore.currentPath }}</span>
+          </div>
+        </div>
+        <div class="markdown-content" v-html="renderedMarkdown"></div>
+      </div>
+      <div v-else class="no-content-message">
+        <i class="fas fa-file"></i>
+        <p>Select a file to view its content.</p>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
+import { useTreeWalkerStore } from '../stores/treeWalkerStore';
 import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
+import { entryAnimation, exitAnimation } from '../utils/animationUtils';
 import MarkdownIt from 'markdown-it';
 
 const md = new MarkdownIt();
 
 const route = useRoute();
 const fileStore = useFileStore();
+const treeWalkerStore = useTreeWalkerStore();
 const vaultName = ref('');
 const expandedNodes = ref({});
+const connected = ref(false);
+const error = ref(null);
 
 const handleToggleExpand = async (node) => {
   if (node.metadata.is_directory) {
     if (expandedNodes.value[node.metadata.id]) {
       // Collapse
       delete expandedNodes.value[node.metadata.id];
+      console.log('[VaultView] Collapsed node:', node.metadata.name);
     } else {
       // Expand
       expandedNodes.value[node.metadata.id] = true;
@@ -82,6 +105,16 @@ const handleToggleExpand = async (node) => {
         }
         console.log('[VaultView] Received children count:', fileStore.childrenData.length);
         updateNodeChildren(fileStore.treeData, node.metadata.id, fileStore.childrenData);
+
+        // Register children in tree walker
+        if (fileStore.childrenData.length > 0) {
+          treeWalkerStore.registerNodes(fileStore.vaultId, fileStore.childrenData);
+        }
+
+        // Mark path as walked
+        treeWalkerStore.markPathWalked(fileStore.vaultId, node.metadata.path);
+        console.log('[VaultView] Marked path as walked:', node.metadata.path);
+
         // Force update by creating new reference to treeData
         fileStore.treeData = [...fileStore.treeData];
       }
@@ -91,10 +124,18 @@ const handleToggleExpand = async (node) => {
 
 const handleFileSelected = async (node) => {
   if (!node.metadata.is_directory) {
-    await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.path);
+    // Fetch file content using the node ID (more reliable than path)
+    await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
     fileStore.setCurrentPath(node.metadata.path); // Set current path for SSE updates
+    console.log('[VaultView] Selected file:', node.metadata.name, 'ID:', node.metadata.id, 'Path:', node.metadata.path);
   }
 };
+
+const currentFileName = computed(() => {
+  if (!fileStore.currentPath) return 'No file selected';
+  const lastSlash = fileStore.currentPath.lastIndexOf('/');
+  return lastSlash === -1 ? fileStore.currentPath : fileStore.currentPath.substring(lastSlash + 1);
+});
 
 const renderedMarkdown = computed(() => {
   return fileStore.selectedFileContent ? md.render(fileStore.selectedFileContent) : '';
@@ -146,7 +187,73 @@ const refreshNode = async (path = '') => {
   }
 };
 
-// SSE event handlers
+/**
+ * Smart SSE event handler that only updates UI for walked paths
+ * This prevents unnecessary updates to unexpanded folders
+ */
+const shouldUpdateUI = (eventPath) => {
+  // Parse the event path to get parent and filename
+  const lastSlash = eventPath.lastIndexOf('/');
+  const parentPath = lastSlash === -1 ? '' : eventPath.substring(0, lastSlash);
+
+  // Always update if parent is walked (expanded)
+  const parentWalked = treeWalkerStore.isPathWalked(fileStore.vaultId, parentPath);
+  console.log(`[VaultView] Event path: ${eventPath}, Parent: ${parentPath}, Parent walked: ${parentWalked}`);
+
+  return parentWalked;
+};
+
+/**
+ * Find a node in the tree by path
+ */
+const findNodeByPath = (nodes, targetPath) => {
+  if (!nodes) return null;
+
+  for (const node of nodes) {
+    if (node.metadata.path === targetPath) {
+      return node;
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findNodeByPath(node.children, targetPath);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+/**
+ * Find parent directory node in the tree
+ */
+const findParentNode = (nodes, parentPath) => {
+  if (parentPath === '') {
+    // Root's children are the main nodes
+    return { children: nodes };
+  }
+  return findNodeByPath(nodes, parentPath);
+};
+
+/**
+ * Find and remove a child node from parent by path
+ */
+const removeChildFromParent = (nodes, targetPath) => {
+  const lastSlash = targetPath.lastIndexOf('/');
+  const parentPath = lastSlash === -1 ? '' : targetPath.substring(0, lastSlash);
+  const fileName = targetPath.substring(lastSlash + 1);
+
+  const parent = findParentNode(nodes, parentPath);
+  if (!parent || !parent.children) return false;
+
+  const index = parent.children.findIndex(
+    (child) => child.metadata.name === fileName
+  );
+  if (index !== -1) {
+    parent.children.splice(index, 1);
+    return true;
+  }
+  return false;
+};
+
+// SSE event handlers with smart path-based updates
 const sseCallbacks = {
   onConnected: (data) => {
     console.log('[VaultView] SSE connected:', data);
@@ -155,31 +262,97 @@ const sseCallbacks = {
   },
 
   onFileCreated: async (event) => {
-    console.log('[VaultView] File created:', event.path);
-    await refreshNode(event.path);
+    console.log('[VaultView] File created event:', event);
+
+    // Only update UI if parent folder is walked
+    if (!shouldUpdateUI(event.path)) {
+      console.log('[VaultView] Parent not walked, skipping UI update for:', event.path);
+      return;
+    }
+
+    console.log('[VaultView] Updating UI for created file:', event.path);
+
+    // Refresh the parent node to get updated children list
+    const lastSlash = event.path.lastIndexOf('/');
+    const parentPath = lastSlash === -1 ? '' : event.path.substring(0, lastSlash);
+
+    await fileStore.fetchChildren(fileStore.vaultId, parentPath);
+    updateNodeChildren(fileStore.treeData, parentPath, fileStore.childrenData);
+
+    // Register new children
+    if (fileStore.childrenData.length > 0) {
+      treeWalkerStore.registerNodes(fileStore.vaultId, fileStore.childrenData);
+    }
+
+    // Trigger animation on new items
+    nextTick(() => {
+      const newItems = document.querySelectorAll(
+        `.tree-node-${event.file_data?.name || 'new'}`
+      );
+      newItems.forEach((item) => {
+        entryAnimation(item, 300).catch(() => {
+          // Animation might fail, that's ok
+        });
+      });
+    });
+
+    // Force Vue update
+    fileStore.treeData = [...fileStore.treeData];
   },
 
   onFileModified: async (event) => {
-    console.log('[VaultView] File modified:', event.path);
-    await refreshNode(event.path);
+    console.log('[VaultView] File modified event:', event);
+
     // If the modified file is currently selected, re-fetch its content
     if (fileStore.currentPath === event.path) {
+      console.log('[VaultView] Refetching content for selected file:', event.path);
       await fileStore.fetchFileContent(fileStore.vaultId, event.path);
     }
   },
 
   onFileDeleted: async (event) => {
-    console.log('[VaultView] File deleted:', event.path);
-    await refreshNode(event.path);
+    console.log('[VaultView] File deleted event:', event);
+
+    // Only update UI if parent folder is walked
+    if (!shouldUpdateUI(event.path)) {
+      console.log('[VaultView] Parent not walked, skipping UI update for deleted:', event.path);
+      return;
+    }
+
+    console.log('[VaultView] Removing deleted file from UI:', event.path);
+
     // If the deleted file was currently selected, clear its content
     if (fileStore.currentPath === event.path) {
       fileStore.selectedFileContent = null;
+    }
+
+    // Remove from tree
+    if (removeChildFromParent(fileStore.treeData, event.path)) {
+      console.log('[VaultView] Successfully removed node from tree');
+
+      // Trigger animation on removed items
+      nextTick(() => {
+        const removedItems = document.querySelectorAll(
+          `.tree-node-deleted-${event.file_data?.name || 'removed'}`
+        );
+        removedItems.forEach((item) => {
+          exitAnimation(item, 300).catch(() => {
+            // Animation might fail, that's ok
+          });
+        });
+      });
+
+      // Force Vue update
+      fileStore.treeData = [...fileStore.treeData];
     }
   },
 
   onTreeRefresh: async (event) => {
     console.log('[VaultView] Tree refresh requested:', event.path);
-    await refreshNode(event.path);
+    // For tree refresh, only update if parent is walked
+    if (shouldUpdateUI(event.path)) {
+      await refreshNode(event.path);
+    }
   },
 
   onError: (err) => {
@@ -190,14 +363,19 @@ const sseCallbacks = {
 };
 
 // Initialize SSE connection (vaultId will be passed when calling connect())
-const { connected, error, connect, disconnect, reconnect } = useSSE(sseCallbacks);
+const sseHooks = useSSE(sseCallbacks);
+const sseConnect = sseHooks.connect;
+const sseDisconnect = sseHooks.disconnect;
+const sseReconnect = sseHooks.reconnect;
 
 // Watch for changes in the route params, specifically the 'id' for the vault
 watch(() => route.params.id, (newId, oldId) => {
   if (newId) {
     // Disconnect old SSE connection if vault changes
     if (oldId && oldId !== newId) {
-      disconnect();
+      sseDisconnect();
+      // Clear tree walker for old vault
+      treeWalkerStore.clearVault(oldId);
     }
 
     fileStore.setVaultId(newId);
@@ -206,8 +384,13 @@ watch(() => route.params.id, (newId, oldId) => {
     expandedNodes.value = {}; // Reset expanded nodes when vault changes
     fileStore.selectedFileContent = null; // Clear selected file content
 
+    // Mark root as walked when tree is loaded
+    treeWalkerStore.markRootWalked(newId);
+    // Register root nodes
+    treeWalkerStore.registerNodes(newId, fileStore.treeData);
+
     // Connect to SSE for the new vault
-    connect(newId);
+    sseConnect(newId);
   }
 }, { immediate: true }); // Immediate: true to run the watcher on initial component mount
 
@@ -217,7 +400,12 @@ onMounted(() => {
     fileStore.setVaultId(route.params.id);
     vaultName.value = `Vault ${route.params.id}`;
     fileStore.fetchTree(route.params.id);
-    connect(route.params.id);
+
+    // Mark root as walked and register nodes
+    treeWalkerStore.markRootWalked(route.params.id);
+    treeWalkerStore.registerNodes(route.params.id, fileStore.treeData);
+
+    sseConnect(route.params.id);
   }
 });
 </script>
@@ -296,10 +484,55 @@ onMounted(() => {
 }
 
 .loading-spinner, .error-message, .no-content-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 2rem;
   font-size: 1.1rem;
   color: var(--text-color-secondary);
+  min-height: 300px;
+  gap: 1rem;
+}
+
+.loading-spinner i, .error-message i, .no-content-message i {
+  font-size: 3rem;
+  opacity: 0.5;
+}
+
+.file-viewer {
+  background-color: white;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.file-header {
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+}
+
+.file-title {
+  font-size: 1.8rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--primary-color);
+  word-break: break-word;
+}
+
+.file-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: var(--text-color-secondary);
+}
+
+.file-path {
+  font-family: monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
 }
 
 .markdown-content {

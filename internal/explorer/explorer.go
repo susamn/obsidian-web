@@ -11,6 +11,7 @@ import (
 
 	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/logger"
+	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
@@ -47,6 +48,13 @@ type TreeNode struct {
 // SSEBroadcaster defines the interface for SSE broadcasting
 type SSEBroadcaster interface {
 	BroadcastFileEvent(vaultID, path string, eventType interface{})
+}
+
+// SSEBroadcasterWithData is an interface for SSE broadcasting with rich metadata
+// The concrete sse.Manager implements both BroadcastFileEvent and BroadcastFileEventWithData
+type SSEBroadcasterWithData interface {
+	BroadcastFileEvent(vaultID, path string, eventType interface{})
+	BroadcastFileEventWithData(vaultID, path string, eventType sse.EventType, fileData *sse.FileEventData)
 }
 
 // ExplorerService provides lazy-loaded directory tree exploration with caching
@@ -516,12 +524,13 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		"event_type": event.EventType,
 	}).Debug("Processing file event")
 
-	var sseEventType interface{}
+	var sseEventType string
+	var parentPath string
 
 	switch event.EventType {
 	case syncpkg.FileCreated:
 		// Invalidate parent (child list changed)
-		parentPath := filepath.Dir(relPath)
+		parentPath = filepath.Dir(relPath)
 		if parentPath == "." {
 			parentPath = ""
 		}
@@ -535,14 +544,18 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 	case syncpkg.FileModified:
 		// Invalidate the node itself
 		e.invalidateCache(relPath)
-		// Parent doesn't change for modified files
+		// Get parent path for UI update
+		parentPath = filepath.Dir(relPath)
+		if parentPath == "." {
+			parentPath = ""
+		}
 		sseEventType = "file_modified"
 
 	case syncpkg.FileDeleted:
 		// Invalidate the node itself
 		e.invalidateCache(relPath)
 		// Invalidate parent (child list changed)
-		parentPath := filepath.Dir(relPath)
+		parentPath = filepath.Dir(relPath)
 		if parentPath == "." {
 			parentPath = ""
 		}
@@ -554,10 +567,72 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		sseEventType = "file_deleted"
 	}
 
-	// Broadcast SSE event if broadcaster is available
-	if e.sseBroadcaster != nil && sseEventType != nil {
-		e.sseBroadcaster.BroadcastFileEvent(e.vaultID, relPath, sseEventType)
+	// Broadcast SSE event with rich metadata if broadcaster is available
+	if e.sseBroadcaster != nil && sseEventType != "" {
+		// Try to use enhanced broadcaster with data if available
+		if broadWithData, ok := e.sseBroadcaster.(SSEBroadcasterWithData); ok {
+			// Build FileEventData for the enhanced broadcast
+			fileData := e.buildFileEventDataSSE(relPath, parentPath, event.Path, event.EventType)
+			broadWithData.BroadcastFileEventWithData(e.vaultID, relPath, sse.EventType(sseEventType), fileData)
+		} else {
+			// Fall back to basic broadcast
+			e.sseBroadcaster.BroadcastFileEvent(e.vaultID, relPath, sseEventType)
+		}
 	}
+}
+
+// buildFileEventData constructs rich metadata for SSE events (legacy interface{} version)
+func (e *ExplorerService) buildFileEventData(relativePath, parentPath, fullPath string) interface{} {
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		// File may have been deleted, return minimal data
+		return map[string]interface{}{
+			"name":        filepath.Base(relativePath),
+			"parent_path": parentPath,
+		}
+	}
+
+	isMarkdown := false
+	if !info.IsDir() {
+		isMarkdown = strings.HasSuffix(strings.ToLower(info.Name()), ".md")
+	}
+
+	return map[string]interface{}{
+		"name":        info.Name(),
+		"is_dir":      info.IsDir(),
+		"is_markdown": isMarkdown,
+		"parent_path": parentPath,
+		"size":        info.Size(),
+		"mod_time":    info.ModTime().Unix(),
+	}
+}
+
+// buildFileEventDataSSE constructs rich metadata for SSE events (SSE type version)
+func (e *ExplorerService) buildFileEventDataSSE(relativePath, parentPath, fullPath string, eventType syncpkg.FileEventType) *sse.FileEventData {
+	fileData := &sse.FileEventData{
+		Name:       filepath.Base(relativePath),
+		ParentPath: parentPath,
+	}
+
+	// For deleted files, we may not be able to stat them
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		// File was deleted or doesn't exist, return minimal data
+		fileData.IsDir = false
+		fileData.Size = 0
+		fileData.ModTime = 0
+		return fileData
+	}
+
+	fileData.IsDir = info.IsDir()
+	fileData.Size = info.Size()
+	fileData.ModTime = info.ModTime().Unix()
+
+	if !info.IsDir() {
+		fileData.IsMarkdown = strings.HasSuffix(strings.ToLower(info.Name()), ".md")
+	}
+
+	return fileData
 }
 
 // RefreshPath manually refreshes a directory subtree

@@ -21,13 +21,24 @@ const (
 	EventPing         EventType = "ping"
 )
 
+// FileEventData contains metadata about a file event for targeted UI updates
+type FileEventData struct {
+	Name       string `json:"name,omitempty"`        // File/directory name
+	IsDir      bool   `json:"is_dir,omitempty"`      // Whether it's a directory
+	IsMarkdown bool   `json:"is_markdown,omitempty"` // Whether it's a markdown file
+	ParentPath string `json:"parent_path,omitempty"` // Path of parent directory
+	Size       int64  `json:"size,omitempty"`        // File size in bytes
+	ModTime    int64  `json:"mod_time,omitempty"`    // Last modification time (Unix timestamp)
+}
+
 // Event represents an SSE event to be sent to clients
 type Event struct {
 	Type      EventType              `json:"type"`
 	VaultID   string                 `json:"vault_id"`
 	Path      string                 `json:"path,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
-	Data      map[string]interface{} `json:"data,omitempty"`
+	Data      map[string]interface{} `json:"data,omitempty"`      // Legacy: generic data map
+	FileData  *FileEventData         `json:"file_data,omitempty"` // Rich file event metadata for UI updates
 }
 
 // Client represents a connected SSE client
@@ -87,6 +98,12 @@ func (m *Manager) Start() {
 // Stop stops the SSE manager
 func (m *Manager) Stop() {
 	m.cancel()
+
+	// Wait for run goroutine to finish before closing channels
+	// This ensures all pending messages are processed
+	m.wg.Wait()
+
+	// Now safe to close channels
 	close(m.register)
 	close(m.unregister)
 	close(m.broadcast)
@@ -99,7 +116,6 @@ func (m *Manager) Stop() {
 	}
 	m.clientsMu.Unlock()
 
-	m.wg.Wait()
 	logger.Info("SSE manager stopped")
 }
 
@@ -190,12 +206,24 @@ func (m *Manager) broadcastEvent(event Event) {
 
 	// Send to all clients for this vault
 	for _, client := range vaultClients {
+		// Check if client is still active before sending
+		select {
+		case <-client.Ctx.Done():
+			// Client has been cancelled, skip
+			continue
+		default:
+			// Client is still active, try to send
+		}
+
 		select {
 		case client.Messages <- event:
 			// Sent successfully
 		case <-time.After(100 * time.Millisecond):
 			// Client channel full or blocked, skip
 			logger.WithField("client_id", client.ID).Warn("SSE client message channel full")
+		case <-client.Ctx.Done():
+			// Client disconnected while waiting
+			continue
 		}
 	}
 }
@@ -278,6 +306,31 @@ func (m *Manager) BroadcastFileEvent(vaultID, path string, eventType interface{}
 		VaultID:   vaultID,
 		Path:      path,
 		Timestamp: time.Now(),
+	}
+
+	select {
+	case m.broadcast <- event:
+		// Broadcast queued
+	case <-m.ctx.Done():
+		// Manager stopped
+	default:
+		// Broadcast channel full, log warning
+		logger.WithFields(map[string]interface{}{
+			"vault_id":   vaultID,
+			"event_type": eventType,
+			"path":       path,
+		}).Warn("SSE broadcast channel full")
+	}
+}
+
+// BroadcastFileEventWithData broadcasts a file change event with rich metadata
+func (m *Manager) BroadcastFileEventWithData(vaultID, path string, eventType EventType, fileData *FileEventData) {
+	event := Event{
+		Type:      eventType,
+		VaultID:   vaultID,
+		Path:      path,
+		Timestamp: time.Now(),
+		FileData:  fileData,
 	}
 
 	select {
