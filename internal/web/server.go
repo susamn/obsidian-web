@@ -62,6 +62,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// API routes - ID-based endpoints must come before path-based ones
 	mux.HandleFunc("/api/v1/files/tree-by-id/", s.handleGetTreeByID)
 	mux.HandleFunc("/api/v1/files/children-by-id/", s.handleGetChildrenByID)
+	mux.HandleFunc("/api/v1/files/by-id/", s.handleGetFileByID)
 	mux.HandleFunc("/api/v1/files/reindex/", s.handleForceReindex)
 	mux.HandleFunc("/api/v1/files/tree/", s.handleGetTree)
 	mux.HandleFunc("/api/v1/files/children/", s.handleGetChildren)

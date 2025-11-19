@@ -82,15 +82,20 @@ export default {
     return axios.post(`${BASE_URL}/refresh/${vaultId}`, null, { params: { path } });
   },
   /**
-   * Fetches the content of a file.
+   * Fetches the content of a file by its node ID.
    * @param {string} vaultId - The ID of the vault.
-   * @param {string} path - The file path.
+   * @param {string} fileId - The file node ID from the database.
    * @returns {Promise<object>} - A promise that resolves to the file content.
    */
-  getFileContent(vaultId, path) {
-    return axios.get(`${BASE_URL.replace('/files', '')}/files/${vaultId}/${path}`)
+  getFileContent(vaultId, fileId) {
+    // Use the by-id endpoint: /api/v1/files/by-id/{vault}/{id}
+    const url = `${BASE_URL}/by-id/${vaultId}/${fileId}`;
+    return axios.get(url)
       .then(response => {
-        // API returns: { content: "...", path: "...", size: 123 }
+        // API returns: { data: { content: "...", path: "...", size: 123 } }
+        if (response.data && response.data.data) {
+          return response.data.data;
+        }
         return response.data;
       });
   },

@@ -305,6 +305,18 @@ func (s *DBService) GetFileEntryByPath(path string) (*FileEntry, error) {
 	return &entry, nil
 }
 
+// GetFilePathByID retrieves the path of a file entry by its ID.
+func (s *DBService) GetFilePathByID(id string) (string, error) {
+	entry, err := s.GetFileEntryByID(id)
+	if err != nil {
+		return "", err
+	}
+	if entry == nil {
+		return "", errors.New("file entry not found")
+	}
+	return entry.Path, nil
+}
+
 // GetFileEntriesByParentID retrieves all entries in a directory.
 func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, error) {
 	db := s.getDB()

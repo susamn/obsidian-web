@@ -117,6 +117,78 @@ func (s *Server) handleGetRaw(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, fullPath)
 }
 
+// handleGetFileByID godoc
+// @Summary Get a file from a vault by node ID
+// @Description Get the content of a file from a vault using its node ID
+// @Tags files
+// @Produce json
+// @Param vault path string true "Vault ID"
+// @Param id path string true "Node ID"
+// @Success 200 {object} FileResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/files/by-id/{vault}/{id} [get]
+func (s *Server) handleGetFileByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Parse vault and ID from URL
+	vaultID, nodeID, ok := s.parseVaultPath(r.URL.Path, "/api/v1/files/by-id/")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "Invalid path format")
+		return
+	}
+
+	// Get vault
+	v, ok := s.getVault(vaultID)
+	if !ok {
+		writeError(w, http.StatusNotFound, "Vault not found")
+		return
+	}
+
+	// Check vault is active
+	if !v.IsActive() {
+		writeError(w, http.StatusServiceUnavailable, "Vault not active")
+		return
+	}
+
+	// Get the DBService to find the file path by ID
+	dbService := v.GetDBService()
+	if dbService == nil {
+		writeError(w, http.StatusInternalServerError, "Database service not available")
+		return
+	}
+
+	// Find file path by ID
+	filePath, err := dbService.GetFilePathByID(nodeID)
+	if err != nil {
+		logger.WithError(err).WithFields(map[string]interface{}{
+			"vault_id": vaultID,
+			"node_id":  nodeID,
+		}).Warn("Failed to find file path by ID")
+		writeError(w, http.StatusNotFound, "File not found")
+		return
+	}
+
+	// Read file
+	content, size, err := s.readVaultFile(v, filePath)
+	if err != nil {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("File not found: %v", err))
+		return
+	}
+
+	// Return file content
+	writeSuccess(w, FileResponse{
+		Path:    filePath,
+		Content: content,
+		Size:    size,
+	})
+}
+
 // parseVaultPath extracts vault ID and file path from URL
 func (s *Server) parseVaultPath(urlPath, prefix string) (vaultID, filePath string, ok bool) {
 	// Remove prefix

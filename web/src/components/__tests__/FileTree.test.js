@@ -60,31 +60,34 @@ describe('FileTree', () => {
   });
 
   it('renders expanded folder children', async () => {
-    const expandedNodes = {
-      'folder1': true,
+    const folderNode = {
+      metadata: {
+        id: 'folder1-id',
+        path: 'folder1',
+        name: 'folder1',
+        is_directory: true,
+        is_markdown: false,
+      },
+      children: [
+        {
+          metadata: {
+            id: 'child-file-id',
+            path: 'folder1/child-file.txt',
+            name: 'child-file.txt',
+            is_directory: false,
+            is_markdown: false,
+          },
+        },
+      ],
     };
+
+    const expandedNodes = {
+      'folder1-id': true,
+    };
+
     const wrapper = mount(FileTree, {
       props: {
-        nodes: [
-          {
-            metadata: {
-              path: 'folder1',
-              name: 'folder1',
-              is_directory: true,
-              is_markdown: false,
-            },
-            children: [
-              {
-                metadata: {
-                  path: 'folder1/child-file.txt',
-                  name: 'child-file.txt',
-                  is_directory: false,
-                  is_markdown: false,
-                },
-              },
-            ],
-          },
-        ],
+        nodes: [folderNode],
         vaultId: 'test-vault',
         expandedNodes: expandedNodes,
       },
