@@ -31,6 +31,11 @@ export default {
         { id: 'catppuccin', name: 'Catppuccin' },
         { id: 'solarized-dark', name: 'Solarized Dark' },
         { id: 'solarized-light', name: 'Solarized Light' },
+        { id: 'one-dark', name: 'One Dark' },
+        { id: 'monokai', name: 'Monokai' },
+        { id: 'gruvbox-dark', name: 'Gruvbox Dark' },
+        { id: 'nord-inspired', name: 'Nord Inspired' },
+        { id: 'tokyo-night', name: 'Tokyo Night' },
       ],
     };
   },
