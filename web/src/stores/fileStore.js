@@ -19,14 +19,13 @@ export const useFileStore = defineStore('file', {
     setCurrentPath(path) {
       this.currentPath = path;
     },
-    async fetchFileContent(vaultId, path) {
+    async fetchFileContent(vaultId, fileId) {
       this.loading = true;
       this.error = null;
       try {
-        console.log('Fetching file content for vault:', vaultId, 'path:', path);
-        const response = await fileService.getFileContent(vaultId, path);
-        console.log('File content response:', response);
-        this.selectedFileContent = response.content;
+        const response = await fileService.getFileContent(vaultId, fileId);
+        // API returns raw text/markdown content directly
+        this.selectedFileContent = response;
       } catch (err) {
         console.error('Error fetching file content:', err);
         this.error = err.message || 'Failed to fetch file content';

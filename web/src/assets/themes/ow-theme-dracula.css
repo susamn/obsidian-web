@@ -4,4 +4,20 @@
   --text-color: #f8f8f2;
   --primary-color: #bd93f9;
   --border-color: #6272a4;
+
+  /* Markdown-specific variables */
+  --md-code-bg: #21222c;
+  --md-code-text: #ff79c6;
+  --md-code-border: #44475a;
+  --md-pre-bg: #21222c;
+  --md-pre-border: #44475a;
+  --md-blockquote-border: #bd93f9;
+  --md-blockquote-text: #b0b0b0;
+  --md-link-color: #8be9fd;
+  --md-link-hover: #b0e0ff;
+  --md-heading-color: #bd93f9;
+  --md-inline-code-bg: rgba(189, 147, 249, 0.1);
+  --md-table-border: #44475a;
+  --md-table-header-bg: #44475a;
+  --md-hr-color: #44475a;
 }

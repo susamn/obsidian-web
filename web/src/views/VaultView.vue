@@ -48,7 +48,7 @@
         <div class="file-header">
           <h3 class="file-title">{{ currentFileName }}</h3>
           <div class="file-meta">
-            <span class="file-path">{{ fileStore.currentPath }}</span>
+            <span class="file-path">{{ fileStore.currentPath || '(path not available)' }}</span>
           </div>
         </div>
         <div class="markdown-content" v-html="renderedMarkdown"></div>
@@ -127,9 +127,9 @@ const handleFileSelected = async (node) => {
   if (!node.metadata.is_directory) {
     // Fetch file content using the node ID (more reliable than path)
     await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
-    fileStore.setCurrentPath(node.metadata.path); // Set current path for SSE updates
+    // Use path if available, otherwise use filename
+    fileStore.setCurrentPath(node.metadata.path || node.metadata.name);
     currentFileId.value = node.metadata.id; // Track the file ID for SSE updates
-    console.log('[VaultView] Selected file:', node.metadata.name, 'ID:', node.metadata.id, 'Path:', node.metadata.path);
   }
 };
 
@@ -398,6 +398,7 @@ const sseConnect = sseHooks.connect;
 const sseDisconnect = sseHooks.disconnect;
 const sseReconnect = sseHooks.reconnect;
 
+
 // Watch for changes in the route params, specifically the 'id' for the vault
 watch(() => route.params.id, (newId, oldId) => {
   if (newId) {
@@ -567,13 +568,15 @@ onMounted(() => {
 }
 
 .markdown-content {
-  /* Basic styling for rendered markdown */
+  color: var(--text-color);
+  background-color: var(--background-color);
   line-height: 1.6;
-  max-width: 800px; /* Limit width for readability */
-  margin: 0 auto; /* Center the content */
+  max-width: 800px;
+  margin: 0 auto;
 }
 
 .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+  color: var(--md-heading-color);
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   font-weight: bold;
@@ -597,7 +600,8 @@ onMounted(() => {
 }
 
 .markdown-content code {
-  background-color: rgba(135,131,120,0.15);
+  background-color: var(--md-inline-code-bg);
+  color: var(--md-code-text);
   border-radius: 3px;
   padding: 0.2em 0.4em;
   font-family: 'Fira Code', 'Consolas', monospace;
@@ -605,8 +609,9 @@ onMounted(() => {
 }
 
 .markdown-content pre {
-  background-color: #2d2d2d;
-  color: #f8f8f2;
+  background-color: var(--md-pre-bg);
+  border: 1px solid var(--md-pre-border);
+  color: var(--md-code-text);
   padding: 1em;
   border-radius: 5px;
   overflow-x: auto;
@@ -615,25 +620,26 @@ onMounted(() => {
 
 .markdown-content pre code {
   background-color: transparent;
+  color: var(--md-code-text);
   padding: 0;
-  color: inherit;
   font-size: 1em;
 }
 
 .markdown-content a {
-  color: var(--primary-color);
+  color: var(--md-link-color);
   text-decoration: none;
 }
 
 .markdown-content a:hover {
+  color: var(--md-link-hover);
   text-decoration: underline;
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid var(--border-color);
+  border-left: 4px solid var(--md-blockquote-border);
   padding-left: 1em;
   margin-left: 0;
-  color: var(--text-color-secondary);
+  color: var(--md-blockquote-text);
 }
 
 .markdown-content table {
@@ -643,13 +649,13 @@ onMounted(() => {
 }
 
 .markdown-content th, .markdown-content td {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--md-table-border);
   padding: 0.5em 0.8em;
   text-align: left;
 }
 
 .markdown-content th {
-  background-color: var(--background-color-light);
+  background-color: var(--md-table-header-bg);
   font-weight: bold;
 }
 
@@ -658,5 +664,11 @@ onMounted(() => {
   height: auto;
   display: block;
   margin: 1em 0;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--md-hr-color);
+  margin: 1.5em 0;
 }
 </style>
