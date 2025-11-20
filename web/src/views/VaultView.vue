@@ -45,13 +45,43 @@
         <p>Error: {{ fileStore.error }}</p>
       </div>
       <div v-else-if="fileStore.selectedFileContent" class="file-viewer">
-        <div class="file-header">
-          <h3 class="file-title">{{ currentFileName }}</h3>
-          <div class="file-meta">
-            <span class="file-path">{{ fileStore.currentPath || '(path not available)' }}</span>
+        <!-- Breadcrumb and Header -->
+        <div class="file-header-section">
+          <div class="breadcrumb">
+            <span v-for="(part, index) in breadcrumbParts" :key="index" class="breadcrumb-item">
+              <span v-if="index > 0" class="breadcrumb-separator">/</span>
+              <span>{{ part }}</span>
+            </span>
           </div>
+          <h1 class="file-title">{{ currentFileName }}</h1>
         </div>
-        <div class="markdown-content" v-html="renderedMarkdown"></div>
+
+        <!-- Outline Toggle Button -->
+        <button class="outline-toggle" @click="showOutline = !showOutline" title="Toggle outline">
+          <i class="fas fa-list"></i>
+        </button>
+
+        <!-- Outline Panel -->
+        <div v-if="showOutline" class="outline-panel">
+          <div class="outline-header">Outline</div>
+          <div v-if="markdownResult.headings.length === 0" class="outline-empty">No headings</div>
+          <nav v-else class="outline-list">
+            <a
+              v-for="heading in markdownResult.headings"
+              :key="heading.id"
+              :href="`#${heading.id}`"
+              :class="['outline-item', `outline-level-${heading.level}`]"
+              @click.prevent="scrollToHeading(heading.id)"
+            >
+              {{ heading.text }}
+            </a>
+          </nav>
+        </div>
+
+        <!-- Rendered Markdown Content with Collapsible Sections -->
+        <div class="markdown-content-wrapper">
+          <div class="markdown-content" ref="markdownContentRef" v-html="renderedMarkdown"></div>
+        </div>
       </div>
       <div v-else class="no-content-message">
         <i class="fas fa-file"></i>
@@ -69,9 +99,7 @@ import { useTreeWalkerStore } from '../stores/treeWalkerStore';
 import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
 import { entryAnimation, exitAnimation } from '../utils/animationUtils';
-import MarkdownIt from 'markdown-it';
-
-const md = new MarkdownIt();
+import { renderObsidianMarkdown } from '../utils/obsidianMarkdownRenderer';
 
 const route = useRoute();
 const fileStore = useFileStore();
@@ -81,6 +109,19 @@ const expandedNodes = ref({});
 const connected = ref(false);
 const error = ref(null);
 const currentFileId = ref(null); // Track the ID of the currently selected file
+const showOutline = ref(false);
+const markdownContentRef = ref(null);
+const collapsibleSections = ref({});
+
+// Markdown rendering state
+const markdownResult = ref({
+  html: '',
+  tags: [],
+  frontmatter: {},
+  headings: [],
+  wikilinks: [],
+  stats: { words: 0, chars: 0, readingTime: 0 }
+});
 
 const handleToggleExpand = async (node) => {
   if (node.metadata.is_directory) {
@@ -139,9 +180,35 @@ const currentFileName = computed(() => {
   return lastSlash === -1 ? fileStore.currentPath : fileStore.currentPath.substring(lastSlash + 1);
 });
 
-const renderedMarkdown = computed(() => {
-  return fileStore.selectedFileContent ? md.render(fileStore.selectedFileContent) : '';
+const breadcrumbParts = computed(() => {
+  if (!fileStore.currentPath) return [];
+  return fileStore.currentPath.split('/');
 });
+
+const renderedMarkdown = computed(() => {
+  if (!fileStore.selectedFileContent) {
+    markdownResult.value = {
+      html: '',
+      tags: [],
+      frontmatter: {},
+      headings: [],
+      wikilinks: [],
+      stats: { words: 0, chars: 0, readingTime: 0 }
+    };
+    return '';
+  }
+
+  // Render markdown with Obsidian features
+  markdownResult.value = renderObsidianMarkdown(fileStore.selectedFileContent);
+
+  // Make collapsible sections after rendering
+  nextTick(() => {
+    makeHeadingsCollapsible();
+  });
+
+  return markdownResult.value.html;
+});
+
 
 const updateNodeChildren = (nodes, targetId, newChildren) => {
   for (let i = 0; i < nodes.length; i++) {
@@ -281,6 +348,117 @@ const removeChildFromParent = (nodes, targetPath) => {
     return true;
   }
   return false;
+};
+
+// Handler for wikilink clicks
+const handleWikilinkClick = (event) => {
+  const target = event.target;
+
+  if (target.classList.contains('md-wikilink')) {
+    event.preventDefault();
+    const pageName = target.getAttribute('data-page');
+
+    // TODO: Implement navigation to linked page
+    // Example: searchAndNavigateToFile(pageName)
+    console.log('Navigate to wikilink:', pageName);
+  }
+};
+
+// Handler for tag clicks
+const handleTagClick = (event) => {
+  const target = event.target;
+
+  if (target.classList.contains('md-tag') || target.classList.contains('tag-chip')) {
+    const tag = target.getAttribute('data-tag');
+
+    // TODO: Implement tag filtering or search
+    // Example: filterFilesByTag(tag)
+    console.log('Filter by tag:', tag);
+  }
+};
+
+// Scroll to heading by ID
+const scrollToHeading = (headingId) => {
+  nextTick(() => {
+    const element = document.getElementById(headingId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+};
+
+// Make headings collapsible
+const makeHeadingsCollapsible = () => {
+  if (!markdownContentRef.value) return;
+
+  nextTick(() => {
+    const headings = markdownContentRef.value.querySelectorAll('h2, h3, h4, h5, h6');
+
+    headings.forEach((heading) => {
+      // Add toggle button to heading
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'heading-toggle';
+      toggleBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+      toggleBtn.setAttribute('aria-expanded', 'true');
+      heading.insertBefore(toggleBtn, heading.firstChild);
+
+      // Collect all elements until next heading of same or higher level
+      const headingLevel = parseInt(heading.tagName[1]);
+      const contentElements = [];
+      let nextElement = heading.nextElementSibling;
+
+      while (nextElement) {
+        if (nextElement.tagName && /^H[1-6]$/.test(nextElement.tagName)) {
+          const nextLevel = parseInt(nextElement.tagName[1]);
+          if (nextLevel <= headingLevel) break;
+        }
+        contentElements.push(nextElement);
+        nextElement = nextElement.nextElementSibling;
+      }
+
+      // Create wrapper for collapsible content
+      const contentWrapper = document.createElement('div');
+      contentWrapper.className = 'collapsible-content';
+      contentWrapper.style.display = 'block';
+
+      contentElements.forEach((el) => {
+        contentWrapper.appendChild(el.cloneNode(true));
+      });
+
+      heading.parentNode.insertBefore(contentWrapper, heading.nextSibling);
+
+      // Toggle handler
+      toggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isExpanded = contentWrapper.style.display !== 'none';
+        contentWrapper.style.display = isExpanded ? 'none' : 'block';
+        toggleBtn.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+        toggleBtn.classList.toggle('collapsed', isExpanded);
+      });
+    });
+
+    // Remove original content elements to avoid duplicates
+    headings.forEach((heading) => {
+      const headingLevel = parseInt(heading.tagName[1]);
+      let nextElement = heading.nextElementSibling;
+
+      while (nextElement) {
+        if (nextElement.tagName && /^H[1-6]$/.test(nextElement.tagName)) {
+          const nextLevel = parseInt(nextElement.tagName[1]);
+          if (nextLevel <= headingLevel) break;
+        }
+        const toRemove = nextElement;
+        nextElement = nextElement.nextElementSibling;
+
+        // Only remove if not already in a collapsible-content wrapper
+        if (!toRemove.classList.contains('collapsible-content') &&
+            toRemove.parentNode &&
+            !toRemove.parentNode.classList.contains('collapsible-content')) {
+          toRemove.remove();
+        }
+      }
+    });
+  });
 };
 
 // SSE event handlers with smart path-based updates
@@ -439,6 +617,14 @@ onMounted(() => {
 
     sseConnect(route.params.id);
   }
+
+  // Add event listeners for interactive markdown elements
+  const mainContent = document.querySelector('.main-content');
+
+  if (mainContent) {
+    mainContent.addEventListener('click', handleWikilinkClick);
+    mainContent.addEventListener('click', handleTagClick);
+  }
 });
 </script>
 
@@ -534,69 +720,211 @@ onMounted(() => {
 }
 
 .file-viewer {
-  background-color: white;
-  border-radius: 8px;
-  padding: 2rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: var(--background-color);
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 
-.file-header {
-  border-bottom: 2px solid var(--border-color);
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
+.file-header-section {
+  padding: 1.5rem 2rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.breadcrumb {
+  font-size: 0.85rem;
+  color: var(--text-color-secondary);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.breadcrumb-separator {
+  color: var(--border-color);
 }
 
 .file-title {
-  font-size: 1.8rem;
-  margin: 0 0 0.5rem 0;
-  color: var(--primary-color);
-  word-break: break-word;
+  font-size: 2em;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0.5rem 0 1rem 0;
+  padding: 0;
 }
 
-.file-meta {
-  display: flex;
-  gap: 1rem;
+.outline-toggle {
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
   font-size: 0.9rem;
-  color: var(--text-color-secondary);
+  transition: all 0.2s ease;
+  z-index: 100;
 }
 
-.file-path {
-  font-family: monospace;
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 0.25rem 0.5rem;
+.outline-toggle:hover {
+  background-color: var(--background-color-light);
+}
+
+.outline-panel {
+  position: absolute;
+  top: 3.5rem;
+  right: 2rem;
+  background-color: var(--background-color-light);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  width: 250px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 99;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.outline-header {
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.outline-empty {
+  padding: 1rem;
+  color: var(--text-color-secondary);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.outline-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+}
+
+.outline-item {
+  padding: 0.5rem 0.75rem;
+  color: var(--md-link-color);
+  text-decoration: none;
+  font-size: 0.85rem;
   border-radius: 3px;
+  transition: all 0.2s ease;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+
+.outline-item:hover {
+  background-color: var(--background-color);
+  color: var(--md-link-hover);
+}
+
+.outline-level-2 {
+  padding-left: 1rem;
+}
+
+.outline-level-3 {
+  padding-left: 1.5rem;
+}
+
+.outline-level-4 {
+  padding-left: 2rem;
+}
+
+.outline-level-5 {
+  padding-left: 2.5rem;
+}
+
+.outline-level-6 {
+  padding-left: 3rem;
+}
+
+.markdown-content-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
 }
 
 .markdown-content {
   color: var(--text-color);
   background-color: var(--background-color);
   line-height: 1.6;
-  max-width: 800px;
-  margin: 0 auto;
+  padding: 2rem;
+  margin: 0;
+  text-align: left;
+  border: 1px solid var(--border-color);
+  border-top: none;
 }
 
 .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
   color: var(--md-heading-color);
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
   font-weight: bold;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.markdown-content h1 { font-size: 2em; }
-.markdown-content h2 { font-size: 1.75em; }
-.markdown-content h3 { font-size: 1.5em; }
-.markdown-content h4 { font-size: 1.25em; }
-.markdown-content h5 { font-size: 1em; }
-.markdown-content h6 { font-size: 0.85em; }
+.heading-toggle {
+  background: none;
+  border: none;
+  color: var(--md-heading-color);
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  font-size: 0.8em;
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.heading-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+
+.heading-toggle:hover {
+  opacity: 0.7;
+}
+
+.collapsible-content {
+  transition: max-height 0.2s ease;
+}
+
+.markdown-content h1 { font-size: 1.8em; }
+.markdown-content h2 { font-size: 1.6em; }
+.markdown-content h3 { font-size: 1.4em; }
+.markdown-content h4 { font-size: 1.2em; }
+.markdown-content h5 { font-size: 1.1em; }
+.markdown-content h6 { font-size: 1em; }
 
 .markdown-content p {
-  margin-bottom: 1em;
+  margin-bottom: 0.5em;
+  margin-top: 0;
 }
 
 .markdown-content ul, .markdown-content ol {
-  margin-bottom: 1em;
-  padding-left: 2em;
+  margin-bottom: 0.5em;
+  margin-top: 0;
+  padding-left: 1.5em;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25em;
 }
 
 .markdown-content code {
@@ -670,5 +998,61 @@ onMounted(() => {
   border: none;
   border-top: 1px solid var(--md-hr-color);
   margin: 1.5em 0;
+}
+
+/* Simple markdown rendering - clean and minimal like Obsidian */
+
+.markdown-content blockquote {
+  border-left: 4px solid var(--md-blockquote-border);
+  padding-left: 1em;
+  margin: 0.5em 0;
+  color: var(--md-blockquote-text);
+}
+
+.markdown-content code {
+  background-color: var(--md-inline-code-bg);
+  color: var(--md-code-text);
+  border-radius: 3px;
+  padding: 0.2em 0.4em;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9em;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  color: var(--md-code-text);
+  padding: 0;
+  font-size: 1em;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+
+.markdown-content th, .markdown-content td {
+  border: 1px solid var(--md-table-border);
+  padding: 0.5em 0.8em;
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: var(--md-table-header-bg);
+  font-weight: bold;
+}
+
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.5em auto;
+  border-radius: 4px;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--md-hr-color);
+  margin: 1em 0;
 }
 </style>
