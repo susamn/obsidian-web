@@ -183,11 +183,122 @@ export const getAllTags = (frontmatterTags = [], inlineTags = []) => {
 // ============================================================================
 
 /**
+ * Inline math parsing rule $...$
+ *
+ * @private
+ */
+const mathInlineRule = (state, silent) => {
+  const start = state.pos;
+  const max = state.posMax;
+
+  if (state.src.charCodeAt(start) !== 0x24 /* $ */) {
+    return false;
+  }
+
+  let pos = start + 1;
+  while (pos < max) {
+    if (state.src.charCodeAt(pos) === 0x24 /* $ */) {
+      const content = state.src.slice(start + 1, pos);
+      if (content.length > 0) {
+        if (!silent) {
+          const token = state.push('math_inline', '', 0);
+          token.content = content;
+          token.markup = '$';
+        }
+        state.pos = pos + 1;
+        return true;
+      }
+      break;
+    }
+    if (state.src.charCodeAt(pos) === 0x5C /* \ */) {
+      pos += 2;
+    } else {
+      pos++;
+    }
+  }
+
+  return false;
+};
+
+/**
+ * Block math parsing rule $$...$$
+ *
+ * @private
+ */
+const mathBlockRule = (state, startLine, endLine, silent) => {
+  const pos = state.bMarks[startLine] + state.tShift[startLine];
+  const maximum = state.eMarks[startLine];
+
+  if (pos + 2 > maximum) return false;
+  if (state.src.charCodeAt(pos) !== 0x24 /* $ */) return false;
+  if (state.src.charCodeAt(pos + 1) !== 0x24 /* $ */) return false;
+
+  let firstLine = state.src.slice(pos + 2, maximum);
+
+  if (firstLine.includes('$$')) {
+    // Single line math block
+    const token = state.push('math_block', 'div', 0);
+    token.content = firstLine.slice(0, firstLine.indexOf('$$'));
+    token.markup = '$$';
+    token.map = [startLine, startLine + 1];
+    state.line = startLine + 1;
+    return true;
+  }
+
+  let nextLine = startLine;
+  let auto = false;
+
+  while (nextLine < endLine) {
+    nextLine++;
+    if (nextLine >= endLine) break;
+
+    pos = state.bMarks[nextLine] + state.tShift[nextLine];
+    maximum = state.eMarks[nextLine];
+
+    if (pos < maximum && state.src.charCodeAt(pos) === 0x24 /* $ */) {
+      if (state.src.charCodeAt(pos + 1) === 0x24 /* $ */) {
+        auto = true;
+        break;
+      }
+    }
+  }
+
+  const oldParent = state.parentType;
+  const oldLineMax = state.lineMax;
+  state.parentType = 'math';
+
+  const firstLineContent = firstLine;
+  const lastLine = auto ? state.src.slice(state.bMarks[nextLine], state.eMarks[nextLine]) : '';
+
+  if (auto) {
+    const content = state.getLines(startLine + 1, nextLine, state.tShift[startLine + 1], true)
+      .trim()
+      .slice(0, -2);
+
+    const token = state.push('math_block', 'div', 0);
+    token.content = firstLineContent + '\n' + content;
+    token.markup = '$$';
+    token.map = [startLine, nextLine + 1];
+  }
+
+  state.parentType = oldParent;
+  state.line = nextLine + 1;
+
+  return true;
+};
+
+/**
  * Adds custom rendering rules for Obsidian-like features
  *
  * @private
  */
 const addCustomRules = (md) => {
+  // Custom rule for inline math $...$
+  md.inline.ruler.before('text', 'math_inline', mathInlineRule);
+
+  // Custom rule for block math $$...$$
+  md.block.ruler.before('fence', 'math_block', mathBlockRule);
+
   // Custom rule for wikilinks [[link]]
   md.inline.ruler.before('link', 'wikilink', wikilinkRule);
 
@@ -318,6 +429,52 @@ const blockRefRule = (state, silent) => {
 };
 
 /**
+ * Extract YouTube ID from various YouTube URL formats
+ *
+ * @private
+ */
+const extractYouTubeId = (url) => {
+  const patterns = [
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+    /(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Callout/Admonition type configuration
+ * Maps callout types to icons and CSS classes
+ */
+const CALLOUT_TYPES = {
+  note: { icon: '📝', class: 'md-callout-note', label: 'Note' },
+  abstract: { icon: '📋', class: 'md-callout-abstract', label: 'Abstract' },
+  summary: { icon: '📋', class: 'md-callout-summary', label: 'Summary' },
+  tldr: { icon: '📋', class: 'md-callout-tldr', label: 'TLDR' },
+  info: { icon: 'ℹ️', class: 'md-callout-info', label: 'Info' },
+  tip: { icon: '💡', class: 'md-callout-tip', label: 'Tip' },
+  hint: { icon: '💡', class: 'md-callout-hint', label: 'Hint' },
+  important: { icon: '❗', class: 'md-callout-important', label: 'Important' },
+  warning: { icon: '⚠️', class: 'md-callout-warning', label: 'Warning' },
+  caution: { icon: '⚠️', class: 'md-callout-caution', label: 'Caution' },
+  attention: { icon: '⚠️', class: 'md-callout-attention', label: 'Attention' },
+  danger: { icon: '🔥', class: 'md-callout-danger', label: 'Danger' },
+  error: { icon: '❌', class: 'md-callout-error', label: 'Error' },
+  failure: { icon: '❌', class: 'md-callout-failure', label: 'Failure' },
+  bug: { icon: '🐛', class: 'md-callout-bug', label: 'Bug' },
+  example: { icon: '📊', class: 'md-callout-example', label: 'Example' },
+  quote: { icon: '💬', class: 'md-callout-quote', label: 'Quote' }
+};
+
+/**
  * Enhance default markdown-it renderers with custom CSS classes
  *
  * @private
@@ -325,6 +482,8 @@ const blockRefRule = (state, silent) => {
 const enhanceDefaultRenderers = (md) => {
   // Store original renderers
   const defaultHeadingOpen = md.renderer.rules.heading_open;
+  const defaultBlockquoteOpen = md.renderer.rules.blockquote_open;
+  const defaultBlockquoteClose = md.renderer.rules.blockquote_close;
 
   // Custom renderer for wikilinks
   md.renderer.rules.wikilink = (tokens, idx) => {
@@ -368,14 +527,74 @@ const enhanceDefaultRenderers = (md) => {
       : self.renderToken(tokens, idx, options);
   };
 
-  // Enhance code blocks with language indicator
+  // Enhanced blockquote renderer for callouts
+  md.renderer.rules.blockquote_open = (tokens, idx) => {
+    const token = tokens[idx];
+    const nextToken = tokens[idx + 1];
+
+    // Check if this is a callout (> [!TYPE] Title format)
+    if (nextToken && nextToken.type === 'paragraph_open') {
+      const contentToken = tokens[idx + 2];
+      if (contentToken && contentToken.type === 'inline') {
+        const match = contentToken.content.match(/^\[!(\w+)\]\s*(.*)$/);
+        if (match) {
+          const type = match[1].toLowerCase();
+          const title = match[2];
+          const calloutConfig = CALLOUT_TYPES[type] || CALLOUT_TYPES.note;
+
+          token.meta = token.meta || {};
+          token.meta.isCallout = true;
+          token.meta.calloutType = type;
+          token.meta.calloutTitle = title;
+          token.meta.calloutConfig = calloutConfig;
+        }
+      }
+    }
+
+    if (token.meta && token.meta.isCallout) {
+      const { icon, class: calloutClass, label } = token.meta.calloutConfig;
+      const title = token.meta.calloutTitle || token.meta.calloutConfig.label;
+
+      return `<div class="md-callout ${calloutClass}">
+        <div class="md-callout-header">
+          <span class="md-callout-icon">${icon}</span>
+          <span class="md-callout-title">${escapeHtml(title)}</span>
+        </div>
+        <div class="md-callout-content">`;
+    }
+
+    return '<blockquote class="md-blockquote">';
+  };
+
+  md.renderer.rules.blockquote_close = (tokens, idx) => {
+    const openToken = tokens.find((t, i) => i < idx && t.nesting === 1 && t.type === 'blockquote_open');
+
+    if (openToken && openToken.meta && openToken.meta.isCallout) {
+      return '</div></div>';
+    }
+
+    return '</blockquote>';
+  };
+
+  // Enhance code blocks with language indicator and better styling
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const token = tokens[idx];
     const lang = token.info ? token.info.trim() : '';
     const langClass = lang ? `language-${escapeHtml(lang)}` : '';
-    const code = escapeHtml(token.content);
+    const code = token.content;
 
-    return `<pre class="${langClass}"><code>${code}</code></pre>`;
+    return `<div class="md-code-block-wrapper">
+      ${lang ? `<div class="md-code-lang">${escapeHtml(lang)}</div>` : ''}
+      <pre class="md-code-block ${langClass}"><code>${code}</code></pre>
+    </div>`;
+  };
+
+  // Enhance inline code
+  const defaultCodeInline = md.renderer.rules.code_inline;
+  md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+    const token = tokens[idx];
+    const code = escapeHtml(token.content);
+    return `<code class="md-inline-code">${code}</code>`;
   };
 
   // Enhance table with wrapper for responsive scrolling
@@ -385,6 +604,37 @@ const enhanceDefaultRenderers = (md) => {
 
   md.renderer.rules.table_close = () => {
     return '</table></div>';
+  };
+
+  // Enhance list rendering
+  md.renderer.rules.bullet_list_open = (tokens, idx) => {
+    const token = tokens[idx];
+    const level = getListLevel(tokens, idx);
+    return `<ul class="md-list md-list-level-${level}">`;
+  };
+
+  md.renderer.rules.ordered_list_open = (tokens, idx) => {
+    const token = tokens[idx];
+    const level = getListLevel(tokens, idx);
+    const start = token.attrGet('start') || '1';
+    return `<ol class="md-list md-ordered-list md-list-level-${level}" start="${start}">`;
+  };
+
+  // Enhanced emphasis (italic) with better styling
+  md.renderer.rules.em_open = () => `<em class="md-emphasis">`;
+  md.renderer.rules.strong_open = () => `<strong class="md-strong">`;
+
+  // Math renderers
+  md.renderer.rules.math_inline = (tokens, idx) => {
+    const token = tokens[idx];
+    const content = escapeHtml(token.content);
+    return `<span class="md-math-inline" data-math="${content}"><script type="math/tex">${content}</script></span>`;
+  };
+
+  md.renderer.rules.math_block = (tokens, idx) => {
+    const token = tokens[idx];
+    const content = escapeHtml(token.content);
+    return `<div class="md-math-block"><script type="math/tex; mode=display">${content}</script></div>`;
   };
 };
 
@@ -479,7 +729,11 @@ export const renderObsidianMarkdown = (rawContent) => {
   const { frontmatter, content, tags: frontmatterTags } = extractFrontmatter(rawContent);
   const inlineTags = extractInlineTags(content);
   const allTags = getAllTags(frontmatterTags, inlineTags);
-  const html = md.render(content);
+  let html = md.render(content);
+
+  // Post-process HTML to detect and embed YouTube videos
+  html = embedYouTubeVideos(html);
+
   const headings = extractHeadings(content);
   const wikilinks = extractWikilinks(content);
   const stats = calculateStats(content);
@@ -494,9 +748,56 @@ export const renderObsidianMarkdown = (rawContent) => {
   };
 };
 
+/**
+ * Post-processes HTML to detect YouTube links and replace with embedded players
+ *
+ * @private
+ */
+const embedYouTubeVideos = (html) => {
+  // Match YouTube links in href attributes and replace with embedded player
+  const youtubeRegex = /<a[^>]+href=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["'][^>]*>[^<]*<\/a>/gi;
+
+  return html.replace(youtubeRegex, (match, url) => {
+    const videoId = extractYouTubeId(url);
+
+    if (videoId) {
+      return `<div class="md-youtube-embed">
+        <iframe
+          width="100%"
+          height="400"
+          src="https://www.youtube.com/embed/${escapeHtml(videoId)}"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>`;
+    }
+
+    return match;
+  });
+};
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+/**
+ * Determines the nesting level of a list
+ *
+ * @private
+ */
+const getListLevel = (tokens, idx) => {
+  let level = 1;
+  for (let i = idx - 1; i >= 0; i--) {
+    const token = tokens[i];
+    if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') {
+      level++;
+    } else if (token.type === 'bullet_list_close' || token.type === 'ordered_list_close') {
+      level--;
+    }
+  }
+  return Math.min(level, 3); // Cap at level 3 for CSS classes
+};
 
 /**
  * Converts text to URL-friendly slug
