@@ -26,7 +26,7 @@ const (
 // NodeMetadata represents metadata about a file or directory
 type NodeMetadata struct {
 	ID          string    `json:"id"`            // Unique identifier from database
-	Path        string    `json:"-"`             // Relative path from vault root (internal only)
+	Path        string    `json:"path"`          // Relative path from vault root (read-only, NEVER used as input)
 	Name        string    `json:"name"`          // File/directory name
 	Type        NodeType  `json:"type"`          // file or directory
 	IsDirectory bool      `json:"is_directory"`  // True if directory (convenience field)

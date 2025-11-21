@@ -85,17 +85,22 @@ export default {
    * Fetches the content of a file by its node ID.
    * @param {string} vaultId - The ID of the vault.
    * @param {string} fileId - The file node ID from the database.
-   * @returns {Promise<string>} - A promise that resolves to the raw markdown/text content.
+   * @returns {Promise<Object>} - A promise that resolves to an object with content, path, id, and name.
    */
   getFileContent(vaultId, fileId) {
     // Use the by-id endpoint: /api/v1/files/by-id/{vault}/{id}
+    // SECURITY: This endpoint only accepts ID, never paths. Path is returned read-only for UI navigation.
     const url = `${BASE_URL}/by-id/${vaultId}/${fileId}`;
     return axios.get(url, {
-      responseType: 'text'  // Explicitly expect text response
+      responseType: 'json'  // Expect JSON response with content and metadata
     })
       .then(response => {
-        // API returns raw text/markdown content directly
-        return response.data;
+        // API returns { data: { content, path, id, name } }
+        // path is READ-ONLY and used for UI navigation only
+        if (response.data && response.data.data) {
+          return response.data.data;
+        }
+        return null;
       });
   },
 };

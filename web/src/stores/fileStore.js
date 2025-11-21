@@ -24,11 +24,18 @@ export const useFileStore = defineStore('file', {
       this.error = null;
       try {
         const response = await fileService.getFileContent(vaultId, fileId);
-        // API returns raw text/markdown content directly
-        this.selectedFileContent = response;
+        // API returns object with { content, path, id, name }
+        // Store just the content for rendering
+        if (response) {
+          this.selectedFileContent = response.content;
+          // Return full response for caller to use metadata (like path)
+          return response;
+        }
+        return null;
       } catch (err) {
         console.error('Error fetching file content:', err);
         this.error = err.message || 'Failed to fetch file content';
+        return null;
       } finally {
         this.loading = false;
       }

@@ -280,10 +280,192 @@ func TestExtractVaultID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := server.extractVaultID(tt.urlPath, tt.prefix)
+			result := server.extractVaultIDFromPath(tt.urlPath, tt.prefix)
 			if result != tt.expected {
 				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
 			}
 		})
 	}
+}
+
+func TestHandleGetFileByID(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+	indexDir := t.TempDir()
+	dbDir := t.TempDir()
+
+	// Create a test file in a nested directory
+	nestedDir := filepath.Join(tempDir, "folder", "subfolder")
+	if err := os.MkdirAll(nestedDir, 0755); err != nil {
+		t.Fatalf("Failed to create nested directory: %v", err)
+	}
+
+	testFile := filepath.Join(nestedDir, "test.md")
+	testContent := "# Test Note\n\nThis is a nested test file."
+	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	vaultCfg := &config.VaultConfig{
+		ID:        "test-vault",
+		Name:      "Test Vault",
+		Enabled:   true,
+		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir,
+		Storage: config.StorageConfig{
+			Type: "local",
+			Local: &config.LocalStorageConfig{
+				Path: tempDir,
+			},
+		},
+	}
+
+	v, err := vault.NewVault(ctx, vaultCfg)
+	if err != nil {
+		t.Fatalf("Failed to create vault: %v", err)
+	}
+
+	// Start vault
+	if err := v.Start(); err != nil {
+		t.Fatalf("Failed to start vault: %v", err)
+	}
+	defer v.Stop()
+
+	// Wait for vault to be ready
+	if err := v.WaitForReady(5 * 1000000000); err != nil {
+		t.Fatalf("Vault not ready: %v", err)
+	}
+
+	// Force reindex to populate database
+	if err := v.ForceReindex(); err != nil {
+		t.Fatalf("Failed to reindex vault: %v", err)
+	}
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Host: "localhost",
+			Port: 8080,
+		},
+		Vaults: []config.VaultConfig{*vaultCfg},
+	}
+
+	vaults := map[string]*vault.Vault{
+		"test-vault": v,
+	}
+
+	server := NewServer(ctx, cfg, vaults)
+
+	// Get the DB service to find a file entry
+	dbService := v.GetDBService()
+	if dbService == nil {
+		t.Fatal("DB service not available")
+	}
+
+	// Fetch the file entry by path to get its ID
+	fileEntry, err := dbService.GetFileEntryByPath("folder/subfolder/test.md")
+	if err != nil || fileEntry == nil {
+		t.Fatalf("Failed to find test file in database: %v", err)
+	}
+
+	// Test successful file retrieval by ID
+	t.Run("Success - get file by ID with metadata", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/files/by-id/test-vault/"+fileEntry.ID, nil)
+		w := httptest.NewRecorder()
+
+		server.handleGetFileByID(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+			return
+		}
+
+		// Parse JSON response
+		body := w.Body.String()
+
+		// Check that response contains expected fields
+		if !contains(body, "\"content\":") {
+			t.Error("Response missing 'content' field")
+		}
+		if !contains(body, "\"path\":") {
+			t.Error("Response missing 'path' field")
+		}
+		if !contains(body, "\"id\":") {
+			t.Error("Response missing 'id' field")
+		}
+		if !contains(body, "\"name\":") {
+			t.Error("Response missing 'name' field")
+		}
+
+		// Check that path is the relative path (read-only)
+		if !contains(body, "folder/subfolder/test.md") {
+			t.Error("Response does not contain correct relative path")
+		}
+
+		// Check that content is included
+		if !contains(body, "Test Note") {
+			t.Error("Response does not contain file content")
+		}
+	})
+
+	// Test non-existent file ID
+	t.Run("Failure - non-existent file ID", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/files/by-id/test-vault/non-existent-id", nil)
+		w := httptest.NewRecorder()
+
+		server.handleGetFileByID(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected status 404, got %d", w.Code)
+		}
+	})
+
+	// Test non-existent vault
+	t.Run("Failure - non-existent vault", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/files/by-id/nonexistent-vault/"+fileEntry.ID, nil)
+		w := httptest.NewRecorder()
+
+		server.handleGetFileByID(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected status 404, got %d", w.Code)
+		}
+	})
+
+	// Test method not allowed
+	t.Run("Failure - method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/files/by-id/test-vault/"+fileEntry.ID, nil)
+		w := httptest.NewRecorder()
+
+		server.handleGetFileByID(w, req)
+
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("Expected status 405, got %d", w.Code)
+		}
+	})
+
+	// Test invalid path format
+	t.Run("Failure - invalid path format", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/files/by-id/", nil)
+		w := httptest.NewRecorder()
+
+		server.handleGetFileByID(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+	})
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

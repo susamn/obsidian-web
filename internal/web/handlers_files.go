@@ -119,12 +119,12 @@ func (s *Server) handleGetRaw(w http.ResponseWriter, r *http.Request) {
 
 // handleGetFileByID godoc
 // @Summary Get a file from a vault by node ID
-// @Description Get the content of a file from a vault using its node ID
+// @Description Get the content of a file from a vault using its node ID. Returns file content along with metadata including relative path (read-only).
 // @Tags files
 // @Produce json
 // @Param vault path string true "Vault ID"
 // @Param id path string true "Node ID"
-// @Success 200 {object} FileResponse
+// @Success 200 {object} object{content=string,path=string,id=string,name=string}
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Failure 405 {object} ErrorResponse
@@ -163,26 +163,36 @@ func (s *Server) handleGetFileByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find file path by ID
-	filePath, err := dbService.GetFilePathByID(nodeID)
+	// Get file entry by ID (contains both path and metadata)
+	fileEntry, err := dbService.GetFileEntryByID(nodeID)
 	if err != nil {
 		logger.WithError(err).WithFields(map[string]interface{}{
 			"vault_id": vaultID,
 			"node_id":  nodeID,
-		}).Warn("Failed to find file path by ID")
+		}).Warn("Failed to find file by ID")
 		writeError(w, http.StatusNotFound, "File not found")
 		return
 	}
 
-	// Read file
-	content, _, err := s.readVaultFileInBinary(v, filePath)
+	if fileEntry == nil {
+		writeError(w, http.StatusNotFound, "File not found")
+		return
+	}
+
+	// Read file content
+	content, _, err := s.readVaultFileInBinary(v, fileEntry.Path)
 	if err != nil {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("File not found: %v", err))
 		return
 	}
 
-	// Return file content
-	writeMarkdown(w, content)
+	// Return file content with metadata (path is read-only, never used as input)
+	writeSuccess(w, map[string]interface{}{
+		"content": string(content),
+		"path":    fileEntry.Path, // Relative path for UI navigation only
+		"id":      fileEntry.ID,
+		"name":    fileEntry.Name,
+	})
 }
 
 // parseVaultPath extracts vault ID and file path from URL

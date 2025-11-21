@@ -1,6 +1,11 @@
 <template>
   <ul class="file-tree-list">
-    <li v-for="node in nodes" :key="node.metadata.id" class="tree-node">
+    <li
+      v-for="node in nodes"
+      :key="node.metadata.id"
+      :data-node-id="node.metadata.id"
+      class="tree-node"
+    >
       <div class="node-header" @click="node.metadata.is_directory ? toggleExpand(node) : selectFile(node)">
         <!-- Expand/Collapse indicator -->
         <span v-if="node.metadata.is_directory" class="expand-icon">

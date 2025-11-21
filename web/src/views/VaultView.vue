@@ -78,6 +78,7 @@ import { ref, onMounted, watch, computed, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
 import { useTreeWalkerStore } from '../stores/treeWalkerStore';
+import { usePersistentTreeStore } from '../stores/persistentTreeStore';
 import { useRendererStore } from '../stores/rendererStore';
 import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
@@ -89,6 +90,7 @@ import { entryAnimation, exitAnimation } from '../utils/animationUtils';
 const route = useRoute();
 const fileStore = useFileStore();
 const treeWalkerStore = useTreeWalkerStore();
+const persistentTreeStore = usePersistentTreeStore();
 const rendererStore = useRendererStore();
 
 // Load renderer preference on component setup
@@ -124,6 +126,9 @@ const handleToggleExpand = async (node) => {
       // Collapse
       delete expandedNodes.value[node.metadata.id];
       console.log('[VaultView] Collapsed node:', node.metadata.name);
+
+      // Update persistent tree
+      persistentTreeStore.collapseNode(fileStore.vaultId, node.metadata.id);
     } else {
       // Expand
       expandedNodes.value[node.metadata.id] = true;
@@ -152,8 +157,14 @@ const handleToggleExpand = async (node) => {
         treeWalkerStore.markPathWalked(fileStore.vaultId, node.metadata.path);
         console.log('[VaultView] Marked path as walked:', node.metadata.path);
 
+        // Update persistent tree with new children and mark as expanded
+        persistentTreeStore.expandNode(fileStore.vaultId, node.metadata.id, fileStore.childrenData);
+
         // Force update by creating new reference to treeData
         fileStore.treeData = [...fileStore.treeData];
+      } else {
+        // Children already loaded, just mark as expanded
+        persistentTreeStore.expandNode(fileStore.vaultId, node.metadata.id);
       }
     }
   }
@@ -170,13 +181,68 @@ const handleFileSelected = async (node) => {
     // Only fetch file content for browser and SSR renderers
     // Structured renderer fetches its own data
     if (!rendererStore.isStructuredRenderer) {
-      await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
+
+      // Update the path from server response if available (contains relative path)
+      // This path is READ-ONLY and used for UI navigation only
+      if (fileData && fileData.path) {
+        fileStore.setCurrentPath(fileData.path);
+      }
     } else {
       // For structured renderer, just set a placeholder to show the component
       fileStore.selectedFileContent = 'loading';
     }
   }
 };
+
+/**
+ * Navigate to a file by its path (for deep linking from wikilinks)
+ * This will expand all parent folders and select the file (Obsidian-style)
+ * @param {string} filePath - The relative path of the file (READ-ONLY, from server)
+ */
+const navigateToFile = async (filePath) => {
+  console.log('[VaultView] Navigating to file:', filePath);
+
+  // Helper function to fetch children by ID
+  const fetchChildrenByIdFn = async (vaultId, nodeId) => {
+    await fileStore.fetchChildrenByID(vaultId, nodeId);
+    return fileStore.childrenData;
+  };
+
+  try {
+    // Expand all parent folders
+    const expandedNodeIds = await persistentTreeStore.navigateToPath(
+      fileStore.vaultId,
+      filePath,
+      fetchChildrenByIdFn
+    );
+
+    // Update UI expanded state
+    expandedNodeIds.forEach((nodeId) => {
+      expandedNodes.value[nodeId] = true;
+    });
+
+    // Force update to reflect expanded state
+    fileStore.treeData = [...fileStore.treeData];
+
+    // Find and select the file node
+    const fileNode = persistentTreeStore.findNodeByPath(fileStore.vaultId, filePath);
+    if (fileNode) {
+      await handleFileSelected(fileNode);
+      console.log('[VaultView] Successfully navigated to file:', filePath);
+    } else {
+      console.warn('[VaultView] File node not found after navigation:', filePath);
+    }
+  } catch (error) {
+    console.error('[VaultView] Failed to navigate to file:', filePath, error);
+  }
+};
+
+// Expose navigateToFile for external use (e.g., from wikilink clicks)
+// This can be called from the markdown renderer when a wikilink is clicked
+defineExpose({
+  navigateToFile,
+});
 
 const currentFileName = computed(() => {
   if (!fileStore.currentPath) return 'No file selected';
@@ -351,32 +417,72 @@ const sseCallbacks = {
 
     console.log('[VaultView] Updating UI for created file:', event.path);
 
-    // Refresh the parent node to get updated children list
+    // Get the file name from path
     const lastSlash = event.path.lastIndexOf('/');
+    const fileName = event.path.substring(lastSlash + 1);
     const parentPath = lastSlash === -1 ? '' : event.path.substring(0, lastSlash);
 
+    // Store old children for comparison
+    const parentNode = findParentNode(fileStore.treeData, parentPath);
+    const oldChildrenIds = new Set(
+      (parentNode?.children || []).map(child => child.metadata.id)
+    );
+
+    // Refresh the parent node to get updated children list
     await fileStore.fetchChildren(fileStore.vaultId, parentPath);
     updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
+
+    // Update persistent tree
+    persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
 
     // Register new children
     if (fileStore.childrenData.length > 0) {
       treeWalkerStore.registerNodes(fileStore.vaultId, fileStore.childrenData);
     }
 
-    // Trigger animation on new items
-    nextTick(() => {
-      const newItems = document.querySelectorAll(
-        `.tree-node-${event.file_data?.name || 'new'}`
-      );
-      newItems.forEach((item) => {
-        entryAnimation(item, 300).catch(() => {
-          // Animation might fail, that's ok
-        });
-      });
-    });
-
-    // Force Vue update
+    // Force Vue update first to render the new element
     fileStore.treeData = [...fileStore.treeData];
+
+    // Find the newly added node and animate it
+    nextTick(() => {
+      // Give Vue a moment to render the new element
+      setTimeout(() => {
+        // Find the new child that wasn't in the old list
+        const newChild = fileStore.childrenData.find(
+          child => !oldChildrenIds.has(child.metadata.id)
+        );
+
+        if (newChild && newChild.metadata.id) {
+          // Find the DOM element
+          const element = document.querySelector(`[data-node-id="${newChild.metadata.id}"]`);
+
+          if (element) {
+            console.log('[VaultView] Animating new file:', fileName);
+            // Start with opacity 0 and translate
+            element.style.opacity = '0';
+            element.style.transform = 'translateY(-10px)';
+
+            // Force reflow
+            void element.offsetHeight;
+
+            // Animate in
+            requestAnimationFrame(() => {
+              element.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+              element.style.opacity = '1';
+              element.style.transform = 'translateY(0)';
+
+              // Clean up after animation
+              setTimeout(() => {
+                element.style.transition = '';
+                element.style.transform = '';
+              }, 350);
+            });
+          } else {
+            console.warn('[VaultView] Could not find element for new file:', newChild.metadata.name);
+          }
+        }
+      }, 50);
+    });
   },
 
   onFileModified: async (event) => {
@@ -405,21 +511,35 @@ const sseCallbacks = {
       fileStore.selectedFileContent = null;
     }
 
-    // Remove from tree
+    // Find the node to be deleted to get its ID for animation
+    const nodeToDelete = findNodeByPath(fileStore.treeData, event.path);
+    const nodeId = nodeToDelete?.metadata?.id;
+
+    // Animate the element out before removing it
+    if (nodeId) {
+      const element = document.querySelector(`[data-node-id="${nodeId}"]`);
+
+      if (element) {
+        console.log('[VaultView] Animating deletion of file:', event.path);
+
+        // Animate out with fade and slide
+        element.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+        element.style.opacity = '0';
+        element.style.transform = 'translateX(-10px)';
+
+        // Wait for animation to complete before removing from DOM
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } else {
+        console.warn('[VaultView] Could not find element to animate deletion:', event.path);
+      }
+    }
+
+    // Now remove from tree
     if (removeChildFromParent(fileStore.treeData, event.path)) {
       console.log('[VaultView] Successfully removed node from tree');
 
-      // Trigger animation on removed items
-      nextTick(() => {
-        const removedItems = document.querySelectorAll(
-          `.tree-node-deleted-${event.file_data?.name || 'removed'}`
-        );
-        removedItems.forEach((item) => {
-          exitAnimation(item, 300).catch(() => {
-            // Animation might fail, that's ok
-          });
-        });
-      });
+      // Update persistent tree
+      persistentTreeStore.removeNode(fileStore.vaultId, event.path);
 
       // Force Vue update
       fileStore.treeData = [...fileStore.treeData];
@@ -449,7 +569,7 @@ const sseReconnect = sseHooks.reconnect;
 
 
 // Watch for changes in the route params, specifically the 'id' for the vault
-watch(() => route.params.id, (newId, oldId) => {
+watch(() => route.params.id, async (newId, oldId) => {
   if (newId) {
     // Disconnect old SSE connection if vault changes
     if (oldId && oldId !== newId) {
@@ -460,8 +580,32 @@ watch(() => route.params.id, (newId, oldId) => {
 
     fileStore.setVaultId(newId);
     vaultName.value = `Vault ${newId}`;
-    fileStore.fetchTree(newId);
-    expandedNodes.value = {}; // Reset expanded nodes when vault changes
+
+    // Try to restore tree from persistent storage first
+    const savedTree = persistentTreeStore.getTree(newId);
+    if (savedTree && savedTree.length > 0) {
+      console.log('[VaultView] Restoring tree from persistent storage');
+      fileStore.treeData = savedTree;
+
+      // Restore expanded state
+      const expandedIds = persistentTreeStore.getExpandedNodeIds(newId);
+      expandedIds.forEach((id) => {
+        expandedNodes.value[id] = true;
+      });
+    } else {
+      // No saved tree, fetch from server
+      console.log('[VaultView] No saved tree, fetching from server');
+      await fileStore.fetchTree(newId);
+
+      // Initialize persistent tree with fetched data
+      persistentTreeStore.initializeTree(newId, fileStore.treeData);
+    }
+
+    // Reset expanded nodes when vault changes if no saved state
+    if (!savedTree || savedTree.length === 0) {
+      expandedNodes.value = {};
+    }
+
     fileStore.selectedFileContent = null; // Clear selected file content
     currentFileId.value = null; // Clear selected file ID when vault changes
 
@@ -476,11 +620,22 @@ watch(() => route.params.id, (newId, oldId) => {
 }, { immediate: true }); // Immediate: true to run the watcher on initial component mount
 
 onMounted(() => {
+  // Restore persistent tree state from localStorage on mount
+  persistentTreeStore.restoreFromStorage();
+
   // Initial fetch if not already done by watcher (e.g., direct navigation)
   if (!fileStore.vaultId && route.params.id) {
     fileStore.setVaultId(route.params.id);
     vaultName.value = `Vault ${route.params.id}`;
-    fileStore.fetchTree(route.params.id);
+
+    // Check for saved tree
+    const savedTree = persistentTreeStore.getTree(route.params.id);
+    if (savedTree && savedTree.length > 0) {
+      fileStore.treeData = savedTree;
+    } else {
+      fileStore.fetchTree(route.params.id);
+      persistentTreeStore.initializeTree(route.params.id, fileStore.treeData);
+    }
 
     // Mark root as walked and register nodes
     treeWalkerStore.markRootWalked(route.params.id);
