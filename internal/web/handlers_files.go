@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/logger"
 )
 
@@ -740,6 +741,130 @@ func (s *Server) handleForceReindex(w http.ResponseWriter, r *http.Request) {
 		"message":  "Reindex started",
 		"vault_id": vaultID,
 	})
+}
+
+// handleGetAsset godoc
+// @Summary Get asset file by ID
+// @Description Serves a raw asset file (image, pdf, etc.) by file ID
+// @Tags assets
+// @Produce octet-stream
+// @Param vault path string true "Vault ID"
+// @Param id path string true "File ID"
+// @Success 200 {string} string "Raw file content"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/assets/{vault}/{id} [get]
+func (s *Server) handleGetAsset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Parse vault and file ID from URL
+	vaultID, fileID, ok := s.parseVaultPath(r.URL.Path, "/api/v1/assets/")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "Invalid path format")
+		return
+	}
+
+	// Get vault
+	v, ok := s.getVault(vaultID)
+	if !ok {
+		writeError(w, http.StatusNotFound, "Vault not found")
+		return
+	}
+
+	// Check vault is active
+	if !v.IsActive() {
+		writeError(w, http.StatusServiceUnavailable, "Vault not active")
+		return
+	}
+
+	// Get the DBService to find the file path by ID
+	dbService := v.GetDBService()
+	if dbService == nil {
+		writeError(w, http.StatusInternalServerError, "Database service not available")
+		return
+	}
+
+	// Get file entry by ID
+	fileEntry, err := dbService.GetFileEntryByID(fileID)
+	if err != nil {
+		logger.WithError(err).WithFields(map[string]interface{}{
+			"vault_id": vaultID,
+			"file_id":  fileID,
+		}).Warn("Failed to find asset by ID")
+		writeError(w, http.StatusNotFound, "Asset not found")
+		return
+	}
+
+	if fileEntry == nil || fileEntry.IsDir {
+		writeError(w, http.StatusNotFound, "Asset not found or is a directory")
+		return
+	}
+
+	// Get file type information for proper MIME type
+	var mimeType string
+	if fileEntry.FileTypeID != nil {
+		// Query the file_types table for MIME type
+		fileType, err := dbService.GetFileTypeByID(*fileEntry.FileTypeID)
+		if err == nil && fileType != nil {
+			// Map file type to MIME type
+			mimeType = getMimeType(*fileType)
+		}
+	}
+
+	// Build full file path
+	fullPath := s.buildVaultFilePath(v, fileEntry.Path)
+	if fullPath == "" {
+		writeError(w, http.StatusNotFound, "Asset path not found")
+		return
+	}
+
+	// Set Content-Type header if we have a MIME type
+	if mimeType != "" {
+		w.Header().Set("Content-Type", mimeType)
+	}
+
+	// Set Cache-Control header for better performance
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+
+	// Serve the file
+	http.ServeFile(w, r, fullPath)
+}
+
+// getMimeType returns the MIME type for a given FileType
+func getMimeType(ft db.FileType) string {
+	switch ft {
+	case db.FileTypeMarkdown:
+		return "text/markdown"
+	case db.FileTypePNG:
+		return "image/png"
+	case db.FileTypeJPEG, db.FileTypeJPG:
+		return "image/jpeg"
+	case db.FileTypeGIF:
+		return "image/gif"
+	case db.FileTypeWebP:
+		return "image/webp"
+	case db.FileTypeSVG:
+		return "image/svg+xml"
+	case db.FileTypePDF:
+		return "application/pdf"
+	case db.FileTypeTXT:
+		return "text/plain"
+	case db.FileTypeJSON:
+		return "application/json"
+	case db.FileTypeYAML:
+		return "application/x-yaml"
+	case db.FileTypeXML:
+		return "application/xml"
+	case db.FileTypeCSV:
+		return "text/csv"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 // extractVaultIDFromPath extracts vault ID from URL path with a given prefix

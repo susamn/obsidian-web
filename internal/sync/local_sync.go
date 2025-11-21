@@ -89,13 +89,18 @@ func (l *localSync) watchLoop(ctx context.Context, events chan<- FileChangeEvent
 				// New directory created, add it to watcher recursively
 				_ = l.addRecursive(event.Name)
 
-				// Emit FileCreated events for all markdown files inside the newly created directory
+				// Emit FileCreated events for all files inside the newly created directory
 				l.emitEventsForDirectory(ctx, event.Name, events, FileCreated)
 				continue
 			}
 
-			// Filter for markdown files only (after handling directories)
-			if !l.isMarkdownFile(event.Name) {
+			// Skip hidden files (but allow all other file types)
+			if l.isHiddenFile(event.Name) {
+				continue
+			}
+
+			// Skip directories (already handled above)
+			if isDir {
 				continue
 			}
 
@@ -163,7 +168,7 @@ func (l *localSync) addRecursive(path string) error {
 	return err
 }
 
-// emitEventsForDirectory walks a directory and emits events for all markdown files
+// emitEventsForDirectory walks a directory and emits events for all files
 func (l *localSync) emitEventsForDirectory(ctx context.Context, dirPath string, events chan<- FileChangeEvent, eventType FileEventType) {
 	err := filepath.Walk(dirPath, func(walkPath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -178,8 +183,8 @@ func (l *localSync) emitEventsForDirectory(ctx context.Context, dirPath string, 
 			return nil
 		}
 
-		// Only process markdown files, skip directories
-		if !info.IsDir() && l.isMarkdownFile(walkPath) {
+		// Process all files (not directories)
+		if !info.IsDir() && !l.isHiddenFile(walkPath) {
 			fileEvent := &FileChangeEvent{
 				VaultID:   l.vaultID,
 				Path:      walkPath,
@@ -218,10 +223,16 @@ func (l *localSync) emitEventsForDirectory(ctx context.Context, dirPath string, 
 	}
 }
 
-// isMarkdownFile checks if the file is a markdown file
+// isMarkdownFile checks if the file is a markdown file (kept for potential future use)
 func (l *localSync) isMarkdownFile(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return ext == ".md"
+}
+
+// isHiddenFile checks if a file is hidden (starts with .)
+func (l *localSync) isHiddenFile(path string) bool {
+	base := filepath.Base(path)
+	return strings.HasPrefix(base, ".")
 }
 
 // isHiddenDir checks if a directory is hidden (starts with .)

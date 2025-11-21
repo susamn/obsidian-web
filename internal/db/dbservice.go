@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,16 +42,38 @@ func (s ServiceStatus) String() string {
 	}
 }
 
+// FileType represents a file type constant
+type FileType string
+
+const (
+	FileTypeDirectory FileType = "DIRECTORY"
+	FileTypeMarkdown  FileType = "MARKDOWN"
+	FileTypePNG       FileType = "PNG"
+	FileTypeJPEG      FileType = "JPEG"
+	FileTypeJPG       FileType = "JPG"
+	FileTypeGIF       FileType = "GIF"
+	FileTypeWebP      FileType = "WEBP"
+	FileTypeSVG       FileType = "SVG"
+	FileTypePDF       FileType = "PDF"
+	FileTypeTXT       FileType = "TXT"
+	FileTypeJSON      FileType = "JSON"
+	FileTypeYAML      FileType = "YAML"
+	FileTypeXML       FileType = "XML"
+	FileTypeCSV       FileType = "CSV"
+	FileTypeUnknown   FileType = "UNKNOWN"
+)
+
 // FileEntry represents a file or directory record
 type FileEntry struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	ParentID *string   `json:"parent_id,omitempty"` // nil for root entries
-	IsDir    bool      `json:"is_dir"`
-	Created  time.Time `json:"created"`
-	Modified time.Time `json:"modified"`
-	Size     int64     `json:"size"` // 0 for directories
-	Path     string    `json:"-"`    // For internal use only, hidden from API
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	ParentID   *string   `json:"parent_id,omitempty"` // nil for root entries
+	IsDir      bool      `json:"is_dir"`
+	FileTypeID *int64    `json:"file_type_id,omitempty"` // Foreign key to file_types
+	Created    time.Time `json:"created"`
+	Modified   time.Time `json:"modified"`
+	Size       int64     `json:"size"` // 0 for directories
+	Path       string    `json:"-"`    // For internal use only, hidden from API
 }
 
 // DBService manages a sqlite database for file metadata
@@ -177,25 +200,183 @@ func (s *DBService) ensureSchema() error {
 	}
 
 	schema := `
+CREATE TABLE IF NOT EXISTS file_types (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  is_binary INTEGER DEFAULT 0,
+  mime_type TEXT
+);
+
 CREATE TABLE IF NOT EXISTS file_entries (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   parent_id TEXT,
   is_dir INTEGER NOT NULL,
+  file_type_id INTEGER,
   created INTEGER NOT NULL,
   modified INTEGER NOT NULL,
   size INTEGER,
   path TEXT NOT NULL UNIQUE,
-  FOREIGN KEY (parent_id) REFERENCES file_entries(id) ON DELETE CASCADE
+  FOREIGN KEY (parent_id) REFERENCES file_entries(id) ON DELETE CASCADE,
+  FOREIGN KEY (file_type_id) REFERENCES file_types(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_parent_id ON file_entries(parent_id);
 CREATE INDEX IF NOT EXISTS idx_path ON file_entries(path);
+CREATE INDEX IF NOT EXISTS idx_file_type ON file_entries(file_type_id);
 `
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
-	_, err := db.ExecContext(ctx, schema)
-	return err
+
+	if _, err := db.ExecContext(ctx, schema); err != nil {
+		return err
+	}
+
+	// Seed file types if table is empty
+	return s.seedFileTypes()
+}
+
+// seedFileTypes populates the file_types table with predefined types
+func (s *DBService) seedFileTypes() error {
+	db := s.getDB()
+	if db == nil {
+		return errors.New("db not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	defer cancel()
+
+	// Check if table already has data
+	var count int
+	row := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM file_types")
+	if err := row.Scan(&count); err != nil {
+		return fmt.Errorf("check file_types count: %w", err)
+	}
+
+	if count > 0 {
+		return nil // Already seeded
+	}
+
+	// Define file types with metadata
+	types := []struct {
+		name        string
+		description string
+		isBinary    bool
+		mimeType    string
+	}{
+		{string(FileTypeDirectory), "Directory", false, ""},
+		{string(FileTypeMarkdown), "Markdown document", false, "text/markdown"},
+		{string(FileTypePNG), "PNG image", true, "image/png"},
+		{string(FileTypeJPEG), "JPEG image", true, "image/jpeg"},
+		{string(FileTypeJPG), "JPG image", true, "image/jpeg"},
+		{string(FileTypeGIF), "GIF image", true, "image/gif"},
+		{string(FileTypeWebP), "WebP image", true, "image/webp"},
+		{string(FileTypeSVG), "SVG image", false, "image/svg+xml"},
+		{string(FileTypePDF), "PDF document", true, "application/pdf"},
+		{string(FileTypeTXT), "Text file", false, "text/plain"},
+		{string(FileTypeJSON), "JSON file", false, "application/json"},
+		{string(FileTypeYAML), "YAML file", false, "application/x-yaml"},
+		{string(FileTypeXML), "XML file", false, "application/xml"},
+		{string(FileTypeCSV), "CSV file", false, "text/csv"},
+		{string(FileTypeUnknown), "Unknown file type", true, "application/octet-stream"},
+	}
+
+	// Insert all types
+	for _, ft := range types {
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO file_types(name, description, is_binary, mime_type) VALUES (?, ?, ?, ?)",
+			ft.name, ft.description, boolToInt(ft.isBinary), ft.mimeType)
+		if err != nil {
+			return fmt.Errorf("insert file type %s: %w", ft.name, err)
+		}
+	}
+
+	return nil
+}
+
+// GetFileTypeID returns the ID for a given file type name
+func (s *DBService) GetFileTypeID(fileType FileType) (*int64, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+	defer cancel()
+
+	var id int64
+	row := db.QueryRowContext(ctx, "SELECT id FROM file_types WHERE name = ?", string(fileType))
+	if err := row.Scan(&id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get file type id: %w", err)
+	}
+
+	return &id, nil
+}
+
+// GetFileTypeByID returns the file type name for a given ID
+func (s *DBService) GetFileTypeByID(id int64) (*FileType, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+	defer cancel()
+
+	var name string
+	row := db.QueryRowContext(ctx, "SELECT name FROM file_types WHERE id = ?", id)
+	if err := row.Scan(&name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get file type: %w", err)
+	}
+
+	ft := FileType(name)
+	return &ft, nil
+}
+
+// DetectFileType detects the file type from filename
+func DetectFileType(filename string, isDir bool) FileType {
+	if isDir {
+		return FileTypeDirectory
+	}
+
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".md", ".markdown":
+		return FileTypeMarkdown
+	case ".png":
+		return FileTypePNG
+	case ".jpeg":
+		return FileTypeJPEG
+	case ".jpg":
+		return FileTypeJPG
+	case ".gif":
+		return FileTypeGIF
+	case ".webp":
+		return FileTypeWebP
+	case ".svg":
+		return FileTypeSVG
+	case ".pdf":
+		return FileTypePDF
+	case ".txt":
+		return FileTypeTXT
+	case ".json":
+		return FileTypeJSON
+	case ".yaml", ".yml":
+		return FileTypeYAML
+	case ".xml":
+		return FileTypeXML
+	case ".csv":
+		return FileTypeCSV
+	default:
+		return FileTypeUnknown
+	}
 }
 
 // CreateFileEntry inserts a new file or directory entry.
@@ -217,9 +398,9 @@ func (s *DBService) CreateFileEntry(entry *FileEntry) error {
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO file_entries(id, name, parent_id, is_dir, created, modified, size, path)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		entry.ID, entry.Name, entry.ParentID, boolToInt(entry.IsDir),
+		`INSERT INTO file_entries(id, name, parent_id, is_dir, file_type_id, created, modified, size, path)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entry.ID, entry.Name, entry.ParentID, boolToInt(entry.IsDir), entry.FileTypeID,
 		entry.Created.Unix(), entry.Modified.Unix(), entry.Size, entry.Path)
 	if err != nil {
 		return fmt.Errorf("insert entry: %w", err)
@@ -236,16 +417,17 @@ func (s *DBService) GetFileEntryByID(id string) (*FileEntry, error) {
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
 	row := db.QueryRowContext(ctx,
-		`SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE id = ?`, id)
+		`SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE id = ?`, id)
 
 	var (
-		entry     FileEntry
-		isDirInt  int
-		creatUnix sql.NullInt64
-		modUnix   sql.NullInt64
-		parentID  sql.NullString
+		entry      FileEntry
+		isDirInt   int
+		creatUnix  sql.NullInt64
+		modUnix    sql.NullInt64
+		parentID   sql.NullString
+		fileTypeID sql.NullInt64
 	)
-	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt,
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID,
 		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -255,6 +437,9 @@ func (s *DBService) GetFileEntryByID(id string) (*FileEntry, error) {
 
 	if parentID.Valid {
 		entry.ParentID = &parentID.String
+	}
+	if fileTypeID.Valid {
+		entry.FileTypeID = &fileTypeID.Int64
 	}
 	entry.IsDir = intToBool(isDirInt)
 	if creatUnix.Valid {
@@ -275,16 +460,17 @@ func (s *DBService) GetFileEntryByPath(path string) (*FileEntry, error) {
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
 	row := db.QueryRowContext(ctx,
-		`SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE path = ?`, path)
+		`SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE path = ?`, path)
 
 	var (
-		entry     FileEntry
-		isDirInt  int
-		creatUnix sql.NullInt64
-		modUnix   sql.NullInt64
-		parentID  sql.NullString
+		entry      FileEntry
+		isDirInt   int
+		creatUnix  sql.NullInt64
+		modUnix    sql.NullInt64
+		parentID   sql.NullString
+		fileTypeID sql.NullInt64
 	)
-	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt,
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID,
 		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -294,6 +480,9 @@ func (s *DBService) GetFileEntryByPath(path string) (*FileEntry, error) {
 
 	if parentID.Valid {
 		entry.ParentID = &parentID.String
+	}
+	if fileTypeID.Valid {
+		entry.FileTypeID = &fileTypeID.Int64
 	}
 	entry.IsDir = intToBool(isDirInt)
 	if creatUnix.Valid {
@@ -329,9 +518,9 @@ func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, err
 	var query string
 	var args []interface{}
 	if parentID == nil {
-		query = `SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE parent_id IS NULL ORDER BY is_dir DESC, name ASC`
+		query = `SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE parent_id IS NULL ORDER BY is_dir DESC, name ASC`
 	} else {
-		query = `SELECT id, name, parent_id, is_dir, created, modified, size, path FROM file_entries WHERE parent_id = ? ORDER BY is_dir DESC, name ASC`
+		query = `SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE parent_id = ? ORDER BY is_dir DESC, name ASC`
 		args = []interface{}{*parentID}
 	}
 
@@ -348,14 +537,18 @@ func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, err
 		var creatUnix sql.NullInt64
 		var modUnix sql.NullInt64
 		var parentIDStr sql.NullString
+		var fileTypeID sql.NullInt64
 
-		if err := rows.Scan(&entry.ID, &entry.Name, &parentIDStr, &isDirInt,
+		if err := rows.Scan(&entry.ID, &entry.Name, &parentIDStr, &isDirInt, &fileTypeID,
 			&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 			return nil, err
 		}
 
 		if parentIDStr.Valid {
 			entry.ParentID = &parentIDStr.String
+		}
+		if fileTypeID.Valid {
+			entry.FileTypeID = &fileTypeID.Int64
 		}
 		entry.IsDir = intToBool(isDirInt)
 		if creatUnix.Valid {
@@ -385,8 +578,8 @@ func (s *DBService) UpdateFileEntry(entry *FileEntry) error {
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	res, err := db.ExecContext(ctx,
-		`UPDATE file_entries SET name = ?, parent_id = ?, modified = ?, size = ?, path = ? WHERE id = ?`,
-		entry.Name, entry.ParentID, entry.Modified.Unix(), entry.Size, entry.Path, entry.ID)
+		`UPDATE file_entries SET name = ?, parent_id = ?, file_type_id = ?, modified = ?, size = ?, path = ? WHERE id = ?`,
+		entry.Name, entry.ParentID, entry.FileTypeID, entry.Modified.Unix(), entry.Size, entry.Path, entry.ID)
 	if err != nil {
 		return fmt.Errorf("update entry: %w", err)
 	}
@@ -429,6 +622,57 @@ func (s *DBService) ClearAll() error {
 		return fmt.Errorf("clear all: %w", err)
 	}
 	return nil
+}
+
+// GetFileEntryByName finds a file entry by name (for resolving wikilinks)
+// This searches for an exact match or match with .md extension
+func (s *DBService) GetFileEntryByName(name string) (*FileEntry, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+	defer cancel()
+
+	// Try exact match first
+	var entry FileEntry
+	var isDirInt int
+	var creatUnix sql.NullInt64
+	var modUnix sql.NullInt64
+	var parentID sql.NullString
+	var fileTypeID sql.NullInt64
+
+	row := db.QueryRowContext(ctx,
+		`SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path
+		 FROM file_entries
+		 WHERE name = ? OR name = ?
+		 LIMIT 1`,
+		name, name+".md")
+
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID,
+		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("scan entry: %w", err)
+	}
+
+	if parentID.Valid {
+		entry.ParentID = &parentID.String
+	}
+	if fileTypeID.Valid {
+		entry.FileTypeID = &fileTypeID.Int64
+	}
+	entry.IsDir = intToBool(isDirInt)
+	if creatUnix.Valid {
+		entry.Created = time.Unix(creatUnix.Int64, 0).UTC()
+	}
+	if modUnix.Valid {
+		entry.Modified = time.Unix(modUnix.Int64, 0).UTC()
+	}
+
+	return &entry, nil
 }
 
 // Helper functions

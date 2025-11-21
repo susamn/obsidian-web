@@ -205,8 +205,8 @@ func TestSyncService_LocalFileChanges(t *testing.T) {
 		}
 	})
 
-	// Test non-markdown files are ignored
-	t.Run("ignore non-markdown files", func(t *testing.T) {
+	// Test all file types are now processed (not just markdown)
+	t.Run("process all file types", func(t *testing.T) {
 		// Drain any pending events from previous tests
 		drainEvents(svc.Events(), 100*time.Millisecond)
 
@@ -215,16 +215,19 @@ func TestSyncService_LocalFileChanges(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		// Should not receive event for .txt file
+		// Should receive event for .txt file (all file types are now tracked)
+		timeout := time.After(500 * time.Millisecond)
 		select {
 		case event := <-svc.Events():
-			// Check if it's for the .txt file (which would be wrong)
-			if filepath.Ext(event.Path) == ".txt" {
-				t.Errorf("Should not receive event for non-markdown file, got %v", event)
+			// Check if it's for the .txt file
+			if filepath.Ext(event.Path) != ".txt" {
+				t.Errorf("Expected event for .txt file, got event for: %s", event.Path)
 			}
-			// Otherwise it might be a lingering event from previous test
-		case <-time.After(500 * time.Millisecond):
-			// Expected - no event received
+			if event.EventType != FileCreated {
+				t.Errorf("Expected FileCreated event, got %v", event.EventType)
+			}
+		case <-timeout:
+			t.Error("Expected to receive event for non-markdown file, but got none")
 		}
 
 		// Cleanup

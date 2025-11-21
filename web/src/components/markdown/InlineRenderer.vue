@@ -71,6 +71,17 @@
     <!-- Tag -->
     <span v-else-if="token.type === 'tag'" class="md-tag">#{{ token.tag }}</span>
 
+    <!-- Image -->
+    <img
+      v-else-if="token.type === 'image'"
+      :src="token.url"
+      :alt="token.alt || ''"
+      :title="token.alt || ''"
+      :width="token.width || null"
+      class="md-image"
+      loading="lazy"
+    />
+
     <!-- Embed -->
     <div v-else-if="token.type === 'embed'" class="md-embed">
       <div v-if="token.exists === false" class="md-embed-not-found">
@@ -281,6 +292,22 @@ function handleWikilinkClick(token) {
 
 .md-tag:hover {
   background-color: rgba(139, 92, 246, 0.2);
+}
+
+/* Images */
+.md-image {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+  margin: 0.5em 0;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.md-image:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  transform: scale(1.01);
 }
 
 /* Embeds */

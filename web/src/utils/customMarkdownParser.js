@@ -14,9 +14,10 @@
  * @param {string} markdown - Raw markdown content
  * @param {Array<Object>} wikilinks - Wikilink metadata from backend
  * @param {Array<Object>} embeds - Embed metadata from backend
+ * @param {Object} options - Additional options (vaultId for image URLs)
  * @returns {Array<Object>} - Array of parsed nodes
  */
-export function parseMarkdown(markdown, wikilinks = [], embeds = []) {
+export function parseMarkdown(markdown, wikilinks = [], embeds = [], options = {}) {
   if (!markdown) return [];
 
   const lines = markdown.split('\n');
@@ -100,8 +101,8 @@ export function parseMarkdown(markdown, wikilinks = [], embeds = []) {
     i = result.nextIndex;
   }
 
-  // Post-process: inject wikilink and embed data
-  return postProcessNodes(nodes, wikilinks, embeds);
+  // Post-process: inject wikilink and embed data, and convert image paths to asset URLs
+  return postProcessNodes(nodes, wikilinks, embeds, options);
 }
 
 /**
@@ -345,17 +346,41 @@ function parseInline(text) {
       continue;
     }
 
-    // Embeds ![[embed]]
+    // Embeds ![[embed]] or ![[embed|display]]
     const embedMatch = remaining.match(/^!\[\[([^\]]+)\]\]/);
     if (embedMatch) {
       const fullMatch = embedMatch[0];
-      const target = embedMatch[1].trim();
+      const inner = embedMatch[1];
 
-      tokens.push({
-        type: 'embed',
-        target,
-        original: fullMatch
-      });
+      // Split by pipe for display/sizing (e.g., |500)
+      const parts = inner.split('|');
+      const target = parts[0].trim();
+      const display = parts[1] ? parts[1].trim() : '';
+
+      // Check if this is an image embed (looks like a file ID or has image extension)
+      // File IDs are typically alphanumeric with hyphens/underscores and NO path separators
+      const isImageEmbed = (target.match(/^[a-zA-Z0-9_-]+$/) && !target.includes('/') && !target.includes('\\')) ||
+                           target.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i);
+
+      if (isImageEmbed) {
+        // Treat as image
+        tokens.push({
+          type: 'image',
+          alt: '',
+          url: target, // Will be converted to asset URL in post-processing
+          fileId: target,
+          width: display || '', // Store width/size if provided
+          original: fullMatch
+        });
+      } else {
+        // Regular embed (note, pdf, etc.)
+        tokens.push({
+          type: 'embed',
+          target,
+          display,
+          original: fullMatch
+        });
+      }
 
       remaining = remaining.slice(fullMatch.length);
       pos += fullMatch.length;
@@ -465,6 +490,26 @@ function parseInline(text) {
       continue;
     }
 
+    // Images ![alt](url) - Must come BEFORE links since both use brackets
+    const imageMatch = remaining.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+    if (imageMatch) {
+      const fullMatch = imageMatch[0];
+      const alt = imageMatch[1];
+      const url = imageMatch[2].trim();
+
+      tokens.push({
+        type: 'image',
+        alt,
+        url,
+        original: fullMatch
+      });
+
+      remaining = remaining.slice(fullMatch.length);
+      pos += fullMatch.length;
+      matched = true;
+      continue;
+    }
+
     // Links [text](url)
     const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     if (linkMatch) {
@@ -507,9 +552,9 @@ function parseInline(text) {
 }
 
 /**
- * Post-process nodes to inject wikilink and embed metadata
+ * Post-process nodes to inject wikilink and embed metadata and convert image paths
  */
-function postProcessNodes(nodes, wikilinks, embeds) {
+function postProcessNodes(nodes, wikilinks, embeds, options = {}) {
   return nodes.map(node => {
     if (node.content && Array.isArray(node.content)) {
       node.content = node.content.map(inline => {
@@ -521,8 +566,12 @@ function postProcessNodes(nodes, wikilinks, embeds) {
           const metadata = embeds.find(em => em.target === inline.target);
           return { ...inline, ...metadata };
         }
+        if (inline.type === 'image') {
+          // Convert relative image paths to asset URLs if vaultId and images metadata provided
+          return processImageUrl(inline, options);
+        }
         if (inline.content && Array.isArray(inline.content)) {
-          inline.content = postProcessInline(inline.content, wikilinks, embeds);
+          inline.content = postProcessInline(inline.content, wikilinks, embeds, options);
         }
         return inline;
       });
@@ -531,14 +580,14 @@ function postProcessNodes(nodes, wikilinks, embeds) {
     if (node.type === 'ul' || node.type === 'ol') {
       node.items = node.items.map(item => ({
         ...item,
-        content: postProcessInline(item.content, wikilinks, embeds)
+        content: postProcessInline(item.content, wikilinks, embeds, options)
       }));
     }
 
     if (node.type === 'table') {
       node.rows = node.rows.map(row => ({
         ...row,
-        cells: row.cells.map(cell => postProcessInline(cell, wikilinks, embeds))
+        cells: row.cells.map(cell => postProcessInline(cell, wikilinks, embeds, options))
       }));
     }
 
@@ -546,7 +595,7 @@ function postProcessNodes(nodes, wikilinks, embeds) {
   });
 }
 
-function postProcessInline(inlineNodes, wikilinks, embeds) {
+function postProcessInline(inlineNodes, wikilinks, embeds, options = {}) {
   return inlineNodes.map(inline => {
     if (inline.type === 'wikilink') {
       const metadata = wikilinks.find(wl => wl.original === inline.original);
@@ -556,11 +605,52 @@ function postProcessInline(inlineNodes, wikilinks, embeds) {
       const metadata = embeds.find(em => em.target === inline.target);
       return { ...inline, ...metadata };
     }
+    if (inline.type === 'image') {
+      return processImageUrl(inline, options);
+    }
     if (inline.content && Array.isArray(inline.content)) {
-      inline.content = postProcessInline(inline.content, wikilinks, embeds);
+      inline.content = postProcessInline(inline.content, wikilinks, embeds, options);
     }
     return inline;
   });
+}
+
+/**
+ * Process image URLs to convert relative paths to asset URLs
+ * If the URL is already a file ID (from backend replacement), use it directly
+ * Otherwise, try to find metadata or keep the original path
+ */
+function processImageUrl(imageInline, options = {}) {
+  const { vaultId } = options;
+
+  // If URL is already absolute (http/https), return as-is
+  if (imageInline.url.match(/^https?:\/\//)) {
+    return imageInline;
+  }
+
+  // Check if this is already a file ID (alphanumeric with hyphens/underscores, no path separators)
+  // This happens when backend has already replaced the link
+  const isFileId = imageInline.url.match(/^[a-zA-Z0-9_-]+$/) && !imageInline.url.includes('/') && !imageInline.url.includes('\\');
+
+  if (isFileId && vaultId) {
+    // Already a file ID, convert to asset URL
+    return {
+      ...imageInline,
+      url: `/api/v1/assets/${vaultId}/${imageInline.url}`,
+      fileId: imageInline.url
+    };
+  }
+
+  // If we have a fileId field set (from embed parsing), use it
+  if (imageInline.fileId && vaultId) {
+    return {
+      ...imageInline,
+      url: `/api/v1/assets/${vaultId}/${imageInline.fileId}`
+    };
+  }
+
+  // Return original if no processing needed
+  return imageInline;
 }
 
 /**

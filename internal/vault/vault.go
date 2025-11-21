@@ -460,10 +460,21 @@ func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) {
 
 	switch event.EventType {
 	case syncpkg.FileCreated, syncpkg.FileModified:
-		// Determine if it's a directory
+		// Determine if it's a directory and get file info
 		isDir := false
+		var size int64
 		if info, err := os.Stat(event.Path); err == nil {
 			isDir = info.IsDir()
+			if !isDir {
+				size = info.Size()
+			}
+		}
+
+		// Detect file type
+		fileType := db.DetectFileType(filepath.Base(event.Path), isDir)
+		fileTypeID, err := v.dbService.GetFileTypeID(fileType)
+		if err != nil {
+			logger.WithField("file_type", fileType).WithField("error", err).Warn("Failed to get file type ID")
 		}
 
 		// Ensure parent directories exist in the database
@@ -484,13 +495,15 @@ func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) {
 
 		// Create or update file entry in database
 		entry := &db.FileEntry{
-			ID:       generateID(), // Use UUID or similar
-			Name:     filepath.Base(event.Path),
-			IsDir:    isDir,
-			Created:  event.Timestamp,
-			Modified: event.Timestamp,
-			Path:     relPath,  // Store relative path
-			ParentID: parentID, // Set parent ID from hierarchy
+			ID:         generateID(), // Use UUID or similar
+			Name:       filepath.Base(event.Path),
+			IsDir:      isDir,
+			FileTypeID: fileTypeID,
+			Created:    event.Timestamp,
+			Modified:   event.Timestamp,
+			Size:       size,
+			Path:       relPath,  // Store relative path
+			ParentID:   parentID, // Set parent ID from hierarchy
 		}
 
 		// Check if entry already exists
@@ -500,6 +513,7 @@ func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) {
 			entry.ID = existing.ID
 			entry.Created = existing.Created
 			entry.ParentID = existing.ParentID // Keep existing parent ID if updating
+			entry.FileTypeID = fileTypeID      // Update file type ID
 			if err := v.dbService.UpdateFileEntry(entry); err != nil {
 				logger.WithField("path", relPath).WithField("error", err).Warn("Failed to update entry in database")
 			}
@@ -529,14 +543,16 @@ func (v *Vault) ensureParentDirsExist(parentPath string) *string {
 	if err != nil || rootEntry == nil {
 		// Root doesn't exist, create it
 		rootID := generateID()
+		dirFileTypeID, _ := v.dbService.GetFileTypeID(db.FileTypeDirectory)
 		rootEntry := &db.FileEntry{
-			ID:       rootID,
-			Name:     "vault",
-			ParentID: nil,
-			IsDir:    true,
-			Path:     "",
-			Created:  time.Now().UTC(),
-			Modified: time.Now().UTC(),
+			ID:         rootID,
+			Name:       "vault",
+			ParentID:   nil,
+			IsDir:      true,
+			FileTypeID: dirFileTypeID,
+			Path:       "",
+			Created:    time.Now().UTC(),
+			Modified:   time.Now().UTC(),
 		}
 		if err := v.dbService.CreateFileEntry(rootEntry); err != nil {
 			// Check if it's a duplicate key error - might have been created by another goroutine
@@ -583,14 +599,16 @@ func (v *Vault) ensureParentDirsExist(parentPath string) *string {
 		}
 
 		// Directory doesn't exist, create it
+		dirFileTypeID, _ := v.dbService.GetFileTypeID(db.FileTypeDirectory)
 		dirEntry := &db.FileEntry{
-			ID:       generateID(),
-			Name:     part,
-			IsDir:    true,
-			ParentID: currentParentID,
-			Created:  time.Now().UTC(),
-			Modified: time.Now().UTC(),
-			Path:     currentPath,
+			ID:         generateID(),
+			Name:       part,
+			IsDir:      true,
+			FileTypeID: dirFileTypeID,
+			ParentID:   currentParentID,
+			Created:    time.Now().UTC(),
+			Modified:   time.Now().UTC(),
+			Path:       currentPath,
 		}
 
 		if err := v.dbService.CreateFileEntry(dirEntry); err != nil {
@@ -631,14 +649,16 @@ func (v *Vault) ForceReindex() error {
 
 	// Create root directory entry
 	rootID := generateID()
+	dirFileTypeID, _ := v.dbService.GetFileTypeID(db.FileTypeDirectory)
 	rootEntry := &db.FileEntry{
-		ID:       rootID,
-		Name:     "vault",
-		ParentID: nil, // Root has no parent
-		IsDir:    true,
-		Path:     "", // Root has empty path
-		Created:  time.Now().UTC(),
-		Modified: time.Now().UTC(),
+		ID:         rootID,
+		Name:       "vault",
+		ParentID:   nil, // Root has no parent
+		IsDir:      true,
+		FileTypeID: dirFileTypeID,
+		Path:       "", // Root has empty path
+		Created:    time.Now().UTC(),
+		Modified:   time.Now().UTC(),
 	}
 	if err := v.dbService.CreateFileEntry(rootEntry); err != nil {
 		return fmt.Errorf("failed to create root entry: %w", err)
@@ -673,18 +693,21 @@ func (v *Vault) walkAndPopulateDatabase(dirPath string, parentID *string) error 
 			continue
 		}
 
-		// For files, only index markdown files
-		if !entry.IsDir() && !strings.HasSuffix(strings.ToLower(entry.Name()), ".md") {
-			continue
+		// Detect file type
+		fileType := db.DetectFileType(entry.Name(), entry.IsDir())
+		fileTypeID, err := v.dbService.GetFileTypeID(fileType)
+		if err != nil {
+			logger.WithField("file_type", fileType).WithField("error", err).Warn("Failed to get file type ID")
 		}
 
 		id := generateID()
 		fileEntry := &db.FileEntry{
-			ID:       id,
-			Name:     entry.Name(),
-			ParentID: parentID,
-			IsDir:    entry.IsDir(),
-			Path:     relPath,
+			ID:         id,
+			Name:       entry.Name(),
+			ParentID:   parentID,
+			IsDir:      entry.IsDir(),
+			FileTypeID: fileTypeID,
+			Path:       relPath,
 		}
 
 		// Set timestamps

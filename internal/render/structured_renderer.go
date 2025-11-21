@@ -57,11 +57,15 @@ type Backlink struct {
 
 // Embed represents an embedded note or media
 type Embed struct {
-	Type    string `json:"type"`
-	Target  string `json:"target"`
-	Content string `json:"content,omitempty"`
-	Exists  bool   `json:"exists"`
-	Line    int    `json:"line"`
+	Original string `json:"original"`
+	Type     string `json:"type"`
+	Target   string `json:"target"`
+	Display  string `json:"display,omitempty"` // For sizing like |500
+	Content  string `json:"content,omitempty"`
+	Exists   bool   `json:"exists"`
+	FileID   string `json:"file_id,omitempty"`
+	Path     string `json:"path,omitempty"`
+	Line     int    `json:"line"`
 }
 
 // Stats represents file statistics
@@ -132,8 +136,11 @@ func (sr *StructuredRenderer) ProcessMarkdown(content string, vaultID string, fi
 	// Calculate stats
 	stats := sr.calculateStats(cleanContent, created, modified)
 
+	// Replace image/embed links with file IDs in raw markdown
+	processedMarkdown := sr.replaceLinksWithIDs(cleanContent, wikilinks, embeds)
+
 	return &FileContentResponse{
-		RawMarkdown: cleanContent,
+		RawMarkdown: processedMarkdown,
 		Frontmatter: frontmatter,
 		Headings:    headings,
 		Tags:        allTags,
@@ -142,6 +149,41 @@ func (sr *StructuredRenderer) ProcessMarkdown(content string, vaultID string, fi
 		Embeds:      embeds,
 		Stats:       stats,
 	}, nil
+}
+
+// replaceLinksWithIDs replaces wikilinks and embeds with their file IDs in the markdown content
+func (sr *StructuredRenderer) replaceLinksWithIDs(content string, wikilinks []WikiLink, embeds []Embed) string {
+	result := content
+
+	// Replace embeds first (they start with !)
+	for _, embed := range embeds {
+		if embed.FileID != "" {
+			// Replace ![[filename|display]] with ![[fileID|display]]
+			// Or ![[filename]] with ![[fileID]]
+			replacement := "![[" + embed.FileID
+			if embed.Display != "" {
+				replacement += "|" + embed.Display
+			}
+			replacement += "]]"
+			result = strings.Replace(result, embed.Original, replacement, -1)
+		}
+	}
+
+	// Replace wikilinks
+	for _, wikilink := range wikilinks {
+		if wikilink.FileID != "" {
+			// Replace [[target|display]] with [[fileID|display]]
+			// Or [[target]] with [[fileID]]
+			replacement := "[[" + wikilink.FileID
+			if wikilink.Display != wikilink.Target {
+				replacement += "|" + wikilink.Display
+			}
+			replacement += "]]"
+			result = strings.Replace(result, wikilink.Original, replacement, -1)
+		}
+	}
+
+	return result
 }
 
 // extractFrontmatter extracts and parses YAML frontmatter
@@ -341,7 +383,7 @@ func (sr *StructuredRenderer) extractWikiLinks(content string, vaultID string) [
 
 // extractEmbeds extracts embedded notes and media
 func (sr *StructuredRenderer) extractEmbeds(content string, vaultID string) []Embed {
-	// Regex for embeds: ![[target]]
+	// Regex for embeds: ![[target]] or ![[target|display]]
 	embedRegex := regexp.MustCompile(`!\[\[([^\]]+)\]\]`)
 	matches := embedRegex.FindAllStringSubmatch(content, -1)
 
@@ -353,12 +395,21 @@ func (sr *StructuredRenderer) extractEmbeds(content string, vaultID string) []Em
 			continue
 		}
 
-		target := strings.TrimSpace(match[1])
+		original := match[0]
+		inner := match[1]
+
+		// Split by pipe for display text/sizing (e.g., |500)
+		parts := strings.SplitN(inner, "|", 2)
+		target := strings.TrimSpace(parts[0])
+		display := ""
+		if len(parts) > 1 {
+			display = strings.TrimSpace(parts[1])
+		}
 
 		// Find line number
 		lineNum := 0
 		for i, line := range lines {
-			if strings.Contains(line, match[0]) {
+			if strings.Contains(line, original) {
 				lineNum = i + 1
 				break
 			}
@@ -382,15 +433,21 @@ func (sr *StructuredRenderer) extractEmbeds(content string, vaultID string) []Em
 
 		// Resolve embed
 		exists := false
+		fileID := ""
+		path := ""
 		if sr.FileResolver != nil {
-			exists, _, _ = sr.FileResolver.ResolveWikiLink(vaultID, target)
+			exists, fileID, path = sr.FileResolver.ResolveWikiLink(vaultID, target)
 		}
 
 		embeds = append(embeds, Embed{
-			Type:   embedType,
-			Target: target,
-			Exists: exists,
-			Line:   lineNum,
+			Original: original,
+			Type:     embedType,
+			Target:   target,
+			Display:  display,
+			Exists:   exists,
+			FileID:   fileID,
+			Path:     path,
+			Line:     lineNum,
 		})
 	}
 

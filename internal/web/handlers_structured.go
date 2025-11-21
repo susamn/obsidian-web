@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/logger"
 	"github.com/susamn/obsidian-web/internal/render"
 )
@@ -92,8 +93,10 @@ func (s *Server) handleStructuredRenderByID(w http.ResponseWriter, r *http.Reque
 	// Convert bytes to string
 	content := string(contentBytes)
 
-	// Create file resolver (pass nil for now as we don't have full resolver implementation)
-	var resolver render.FileResolver = nil
+	// Create file resolver using the database service
+	resolver := &DBFileResolver{
+		dbService: dbService,
+	}
 
 	// Create structured renderer
 	renderer := render.NewStructuredRenderer(resolver)
@@ -119,6 +122,36 @@ func (s *Server) handleStructuredRenderByID(w http.ResponseWriter, r *http.Reque
 	writeSuccess(w, response)
 }
 
-// Note: DBFileResolver is commented out for now until we implement
-// the required methods in the database service
-// TODO: Implement GetFileIDByName, GetBacklinksByFileID, and GetTagCount in DBService
+// DBFileResolver implements render.FileResolver using the database service
+type DBFileResolver struct {
+	dbService interface {
+		GetFileEntryByName(name string) (*db.FileEntry, error)
+	}
+}
+
+// ResolveWikiLink resolves a wikilink to file metadata
+func (r *DBFileResolver) ResolveWikiLink(vaultID, linkTarget string) (exists bool, fileID, path string) {
+	// Try to find the file by name
+	entry, err := r.dbService.GetFileEntryByName(linkTarget)
+	if err != nil || entry == nil {
+		return false, "", ""
+	}
+
+	return true, entry.ID, entry.Path
+}
+
+// GetBacklinks finds all files linking to the given file
+// TODO: Implement this properly with a backlinks table or index
+func (r *DBFileResolver) GetBacklinks(vaultID, fileID string) []render.Backlink {
+	// For now, return empty slice
+	// This would require scanning all files or maintaining a backlinks index
+	return []render.Backlink{}
+}
+
+// GetTagCount returns the number of files with a given tag
+// TODO: Implement this properly with a tags table or index
+func (r *DBFileResolver) GetTagCount(vaultID, tag string) int {
+	// For now, return 0
+	// This would require maintaining a tags index
+	return 0
+}

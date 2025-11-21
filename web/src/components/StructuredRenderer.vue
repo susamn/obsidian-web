@@ -160,7 +160,11 @@ const parsedNodes = computed(() => {
     const nodes = parseMarkdown(
       structuredData.value.raw_markdown,
       structuredData.value.wikilinks,
-      structuredData.value.embeds
+      structuredData.value.embeds,
+      {
+        vaultId: props.vaultId,
+        images: structuredData.value.embeds || [] // Pass embeds as images metadata
+      }
     );
     console.log('[StructuredRenderer] Parsed nodes:', nodes);
     return nodes;
