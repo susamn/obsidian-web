@@ -63,6 +63,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/files/tree-by-id/", s.handleGetTreeByID)
 	mux.HandleFunc("/api/v1/files/children-by-id/", s.handleGetChildrenByID)
 	mux.HandleFunc("/api/v1/files/ssr/by-id/", s.handleSSRFileByID)
+	mux.HandleFunc("/api/v1/files/sr/by-id/", s.handleStructuredRenderByID)
 	mux.HandleFunc("/api/v1/files/by-id/", s.handleGetFileByID)
 	mux.HandleFunc("/api/v1/files/reindex/", s.handleForceReindex)
 	mux.HandleFunc("/api/v1/files/tree/", s.handleGetTree)

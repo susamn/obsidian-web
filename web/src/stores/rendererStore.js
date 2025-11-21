@@ -2,19 +2,20 @@ import { defineStore } from 'pinia';
 
 export const useRendererStore = defineStore('renderer', {
   state: () => ({
-    rendererType: 'browser', // 'browser' or 'ssr'
+    rendererType: 'structured', // 'browser', 'ssr', or 'structured'
   }),
 
   getters: {
     currentRenderer: (state) => state.rendererType,
     isBrowserRenderer: (state) => state.rendererType === 'browser',
     isSSRRenderer: (state) => state.rendererType === 'ssr',
+    isStructuredRenderer: (state) => state.rendererType === 'structured',
   },
 
   actions: {
     setRenderer(type) {
-      if (!['browser', 'ssr'].includes(type)) {
-        console.warn(`Invalid renderer type: ${type}. Must be 'browser' or 'ssr'`);
+      if (!['browser', 'ssr', 'structured'].includes(type)) {
+        console.warn(`Invalid renderer type: ${type}. Must be 'browser', 'ssr', or 'structured'`);
         return;
       }
       this.rendererType = type;
@@ -24,7 +25,7 @@ export const useRendererStore = defineStore('renderer', {
 
     loadRendererFromLocalStorage() {
       const saved = localStorage.getItem('rendererType');
-      if (saved && ['browser', 'ssr'].includes(saved)) {
+      if (saved && ['browser', 'ssr', 'structured'].includes(saved)) {
         this.rendererType = saved;
       }
     },

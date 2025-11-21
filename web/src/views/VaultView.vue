@@ -83,6 +83,7 @@ import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import SSRRenderer from '../components/SSRRenderer.vue';
+import StructuredRenderer from '../components/StructuredRenderer.vue';
 import { entryAnimation, exitAnimation } from '../utils/animationUtils';
 
 const route = useRoute();
@@ -111,6 +112,9 @@ const markdownResult = ref({
 
 // Dynamic renderer component
 const currentRendererComponent = computed(() => {
+  if (rendererStore.isStructuredRenderer) {
+    return StructuredRenderer;
+  }
   return rendererStore.isBrowserRenderer ? MarkdownRenderer : SSRRenderer;
 });
 
@@ -157,11 +161,20 @@ const handleToggleExpand = async (node) => {
 
 const handleFileSelected = async (node) => {
   if (!node.metadata.is_directory) {
-    // Fetch file content using the node ID (more reliable than path)
-    await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
+    // Set current file ID first
+    currentFileId.value = node.metadata.id;
+
     // Use path if available, otherwise use filename
     fileStore.setCurrentPath(node.metadata.path || node.metadata.name);
-    currentFileId.value = node.metadata.id; // Track the file ID for SSE updates
+
+    // Only fetch file content for browser and SSR renderers
+    // Structured renderer fetches its own data
+    if (!rendererStore.isStructuredRenderer) {
+      await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
+    } else {
+      // For structured renderer, just set a placeholder to show the component
+      fileStore.selectedFileContent = 'loading';
+    }
   }
 };
 

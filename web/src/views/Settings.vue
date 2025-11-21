@@ -18,11 +18,15 @@
       <h2>Markdown Renderer</h2>
       <p class="renderer-description">Choose how markdown files are rendered</p>
       <select v-model="selectedRenderer" @change="setRenderer" class="renderer-select">
+        <option value="structured">Structured Renderer (Recommended)</option>
         <option value="browser">Browser Markdown Rendering</option>
         <option value="ssr">Server Side Rendering</option>
       </select>
       <p class="renderer-info">
-        <span v-if="selectedRenderer === 'browser'" class="info-text">
+        <span v-if="selectedRenderer === 'structured'" class="info-text">
+          <i class="fas fa-check-circle"></i> Structured renderer processes metadata on the server and renders in the browser. Best performance and features.
+        </span>
+        <span v-else-if="selectedRenderer === 'browser'" class="info-text">
           <i class="fas fa-check-circle"></i> Browser rendering provides real-time syntax highlighting and live preview
         </span>
         <span v-else class="info-text">
