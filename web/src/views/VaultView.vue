@@ -425,15 +425,19 @@ const sseCallbacks = {
     // Store old children for comparison
     const parentNode = findParentNode(fileStore.treeData, parentPath);
     const oldChildrenIds = new Set(
-      (parentNode?.children || []).map(child => child.metadata.id)
+      (parentNode?.children || []).map(child => child.metadata?.id).filter(Boolean)
     );
 
     // Refresh the parent node to get updated children list
     await fileStore.fetchChildren(fileStore.vaultId, parentPath);
     updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
 
-    // Update persistent tree
-    persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
+    // Update persistent tree (with error handling)
+    try {
+      persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
+    } catch (err) {
+      console.warn('[VaultView] Failed to update persistent tree:', err);
+    }
 
     // Register new children
     if (fileStore.childrenData.length > 0) {
@@ -443,45 +447,61 @@ const sseCallbacks = {
     // Force Vue update first to render the new element
     fileStore.treeData = [...fileStore.treeData];
 
-    // Find the newly added node and animate it
+    // Find the newly added node and animate it with retry logic
+    const animateNewElement = (attempt = 0) => {
+      const maxAttempts = 10; // Increased for nested folders
+      const delayMs = 50 * (attempt + 1); // Progressive delay
+
+      if (attempt >= maxAttempts) {
+        console.warn('[VaultView] Failed to animate new file after', maxAttempts, 'attempts:', fileName);
+        return;
+      }
+
+      // Find the new child that wasn't in the old list
+      const newChild = fileStore.childrenData.find(
+        child => child.metadata?.id && !oldChildrenIds.has(child.metadata.id)
+      );
+
+      if (!newChild || !newChild.metadata?.id) {
+        console.warn('[VaultView] New child not found in data');
+        return;
+      }
+
+      // Find the DOM element
+      const element = document.querySelector(`[data-node-id="${newChild.metadata.id}"]`);
+
+      if (element) {
+        console.log('[VaultView] Animating new file:', fileName, '(attempt', attempt + 1, ')');
+
+        // Start with opacity 0 and translate
+        element.style.opacity = '0';
+        element.style.transform = 'translateY(-10px)';
+
+        // Force reflow
+        void element.offsetHeight;
+
+        // Animate in
+        requestAnimationFrame(() => {
+          element.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
+          element.style.opacity = '1';
+          element.style.transform = 'translateY(0)';
+
+          // Clean up after animation
+          setTimeout(() => {
+            element.style.transition = '';
+            element.style.transform = '';
+          }, 450);
+        });
+      } else {
+        // Element not found yet, try again after a delay
+        console.log('[VaultView] Element not found, retrying in', delayMs, 'ms');
+        setTimeout(() => animateNewElement(attempt + 1), delayMs);
+      }
+    };
+
+    // Start animation attempts after Vue renders
     nextTick(() => {
-      // Give Vue a moment to render the new element
-      setTimeout(() => {
-        // Find the new child that wasn't in the old list
-        const newChild = fileStore.childrenData.find(
-          child => !oldChildrenIds.has(child.metadata.id)
-        );
-
-        if (newChild && newChild.metadata.id) {
-          // Find the DOM element
-          const element = document.querySelector(`[data-node-id="${newChild.metadata.id}"]`);
-
-          if (element) {
-            console.log('[VaultView] Animating new file:', fileName);
-            // Start with opacity 0 and translate
-            element.style.opacity = '0';
-            element.style.transform = 'translateY(-10px)';
-
-            // Force reflow
-            void element.offsetHeight;
-
-            // Animate in
-            requestAnimationFrame(() => {
-              element.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
-              element.style.opacity = '1';
-              element.style.transform = 'translateY(0)';
-
-              // Clean up after animation
-              setTimeout(() => {
-                element.style.transition = '';
-                element.style.transform = '';
-              }, 350);
-            });
-          } else {
-            console.warn('[VaultView] Could not find element for new file:', newChild.metadata.name);
-          }
-        }
-      }, 50);
+      setTimeout(() => animateNewElement(0), 100);
     });
   },
 
@@ -509,6 +529,7 @@ const sseCallbacks = {
     // If the deleted file was currently selected, clear its content
     if (fileStore.currentPath === event.path) {
       fileStore.selectedFileContent = null;
+      currentFileId.value = null;
     }
 
     // Find the node to be deleted to get its ID for animation
@@ -516,33 +537,63 @@ const sseCallbacks = {
     const nodeId = nodeToDelete?.metadata?.id;
 
     // Animate the element out before removing it
+    let animationCompleted = false;
     if (nodeId) {
       const element = document.querySelector(`[data-node-id="${nodeId}"]`);
 
       if (element) {
         console.log('[VaultView] Animating deletion of file:', event.path);
 
-        // Animate out with fade and slide
-        element.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
-        element.style.opacity = '0';
-        element.style.transform = 'translateX(-10px)';
+        try {
+          // Animate out with fade and slide
+          element.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
+          element.style.opacity = '0';
+          element.style.transform = 'translateX(-10px)';
 
-        // Wait for animation to complete before removing from DOM
-        await new Promise(resolve => setTimeout(resolve, 300));
+          // Wait for animation to complete before removing from DOM
+          await new Promise(resolve => setTimeout(resolve, 400));
+          animationCompleted = true;
+        } catch (err) {
+          console.warn('[VaultView] Animation error:', err);
+        }
       } else {
         console.warn('[VaultView] Could not find element to animate deletion:', event.path);
       }
     }
 
-    // Now remove from tree
-    if (removeChildFromParent(fileStore.treeData, event.path)) {
+    // Always remove from tree, even if animation failed
+    const removed = removeChildFromParent(fileStore.treeData, event.path);
+
+    if (removed) {
       console.log('[VaultView] Successfully removed node from tree');
 
-      // Update persistent tree
-      persistentTreeStore.removeNode(fileStore.vaultId, event.path);
+      // Update persistent tree (with error handling)
+      try {
+        persistentTreeStore.removeNode(fileStore.vaultId, event.path);
+      } catch (err) {
+        console.warn('[VaultView] Failed to remove from persistent tree:', err);
+      }
 
       // Force Vue update
       fileStore.treeData = [...fileStore.treeData];
+    } else {
+      console.warn('[VaultView] Failed to remove node from tree, path:', event.path);
+
+      // Fallback: refresh the parent folder to sync state
+      const lastSlash = event.path.lastIndexOf('/');
+      const parentPath = lastSlash === -1 ? '' : event.path.substring(0, lastSlash);
+
+      console.log('[VaultView] Attempting fallback: refreshing parent folder:', parentPath);
+      try {
+        await fileStore.fetchChildren(fileStore.vaultId, parentPath);
+        updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
+        fileStore.treeData = [...fileStore.treeData];
+
+        // Update persistent tree
+        persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
+      } catch (err) {
+        console.error('[VaultView] Fallback refresh failed:', err);
+      }
     }
   },
 
