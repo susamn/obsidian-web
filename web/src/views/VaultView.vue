@@ -60,6 +60,8 @@
         <component
           :is="currentRendererComponent"
           :content="fileStore.selectedFileContent"
+          :vault-id="fileStore.vaultId"
+          :file-id="currentFileId"
           @update:markdownResult="markdownResult = $event"
         />
       </div>
