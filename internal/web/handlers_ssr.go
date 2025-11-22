@@ -41,45 +41,21 @@ func (s *Server) handleSSRFileByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get vault
-	v, ok := s.getVault(vaultID)
+	// Validate vault and get DB service
+	v, dbService, ok := s.validateAndGetVaultWithDB(w, vaultID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "Vault not found")
-		return
-	}
-
-	// Check vault is active
-	if !v.IsActive() {
-		writeError(w, http.StatusServiceUnavailable, "Vault not active")
-		return
-	}
-
-	// Get the DBService to find the file path by ID
-	dbService := v.GetDBService()
-	if dbService == nil {
-		writeError(w, http.StatusInternalServerError, "Database service not available")
 		return
 	}
 
 	// Find file path by ID
-	filePath, err := dbService.GetFilePathByID(nodeID)
-	if err != nil {
-		logger.WithError(err).WithFields(map[string]interface{}{
-			"vault_id": vaultID,
-			"node_id":  nodeID,
-		}).Warn("Failed to find file path by ID for SSR")
-		writeError(w, http.StatusNotFound, "File not found")
+	filePath, ok := s.getFilePathByID(w, dbService, vaultID, nodeID)
+	if !ok {
 		return
 	}
 
 	// Read file content (as binary to preserve encoding)
-	contentBytes, _, err := s.readVaultFileInBinary(v, filePath)
-	if err != nil {
-		logger.WithError(err).WithFields(map[string]interface{}{
-			"vault_id":  vaultID,
-			"file_path": filePath,
-		}).Warn("Failed to read file for SSR")
-		writeError(w, http.StatusNotFound, fmt.Sprintf("File not found: %v", err))
+	contentBytes, _, ok := s.readFileContentBinary(w, v, filePath)
+	if !ok {
 		return
 	}
 

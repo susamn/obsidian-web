@@ -144,46 +144,21 @@ func (s *Server) handleGetFileByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get vault
-	v, ok := s.getVault(vaultID)
+	// Validate vault and get DB service
+	v, dbService, ok := s.validateAndGetVaultWithDB(w, vaultID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "Vault not found")
-		return
-	}
-
-	// Check vault is active
-	if !v.IsActive() {
-		writeError(w, http.StatusServiceUnavailable, "Vault not active")
-		return
-	}
-
-	// Get the DBService to find the file path by ID
-	dbService := v.GetDBService()
-	if dbService == nil {
-		writeError(w, http.StatusInternalServerError, "Database service not available")
 		return
 	}
 
 	// Get file entry by ID (contains both path and metadata)
-	fileEntry, err := dbService.GetFileEntryByID(nodeID)
-	if err != nil {
-		logger.WithError(err).WithFields(map[string]interface{}{
-			"vault_id": vaultID,
-			"node_id":  nodeID,
-		}).Warn("Failed to find file by ID")
-		writeError(w, http.StatusNotFound, "File not found")
-		return
-	}
-
-	if fileEntry == nil {
-		writeError(w, http.StatusNotFound, "File not found")
+	fileEntry, ok := s.getFileEntryByID(w, dbService, vaultID, nodeID)
+	if !ok {
 		return
 	}
 
 	// Read file content
-	content, _, err := s.readVaultFileInBinary(v, fileEntry.Path)
-	if err != nil {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("File not found: %v", err))
+	content, _, ok := s.readFileContentBinary(w, v, fileEntry.Path)
+	if !ok {
 		return
 	}
 
@@ -308,23 +283,9 @@ func (s *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get vault
-	v, ok := s.getVault(vaultID)
+	// Validate vault and get explorer service
+	_, explorerSvc, ok := s.validateAndGetVaultWithExplorer(w, vaultID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "Vault not found")
-		return
-	}
-
-	// Check vault is active
-	if !v.IsActive() {
-		writeError(w, http.StatusServiceUnavailable, "Vault not active")
-		return
-	}
-
-	// Get explorer service
-	explorerSvc := v.GetExplorerService()
-	if explorerSvc == nil {
-		writeError(w, http.StatusServiceUnavailable, "Explorer service not available")
 		return
 	}
 
@@ -367,23 +328,9 @@ func (s *Server) handleGetChildren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get vault
-	v, ok := s.getVault(vaultID)
+	// Validate vault and get explorer service
+	_, explorerSvc, ok := s.validateAndGetVaultWithExplorer(w, vaultID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "Vault not found")
-		return
-	}
-
-	// Check vault is active
-	if !v.IsActive() {
-		writeError(w, http.StatusServiceUnavailable, "Vault not active")
-		return
-	}
-
-	// Get explorer service
-	explorerSvc := v.GetExplorerService()
-	if explorerSvc == nil {
-		writeError(w, http.StatusServiceUnavailable, "Explorer service not available")
 		return
 	}
 
@@ -769,38 +716,19 @@ func (s *Server) handleGetAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get vault
-	v, ok := s.getVault(vaultID)
+	// Validate vault and get DB service
+	v, dbService, ok := s.validateAndGetVaultWithDB(w, vaultID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "Vault not found")
-		return
-	}
-
-	// Check vault is active
-	if !v.IsActive() {
-		writeError(w, http.StatusServiceUnavailable, "Vault not active")
-		return
-	}
-
-	// Get the DBService to find the file path by ID
-	dbService := v.GetDBService()
-	if dbService == nil {
-		writeError(w, http.StatusInternalServerError, "Database service not available")
 		return
 	}
 
 	// Get file entry by ID
-	fileEntry, err := dbService.GetFileEntryByID(fileID)
-	if err != nil {
-		logger.WithError(err).WithFields(map[string]interface{}{
-			"vault_id": vaultID,
-			"file_id":  fileID,
-		}).Warn("Failed to find asset by ID")
-		writeError(w, http.StatusNotFound, "Asset not found")
+	fileEntry, ok := s.getFileEntryByID(w, dbService, vaultID, fileID)
+	if !ok {
 		return
 	}
 
-	if fileEntry == nil || fileEntry.IsDir {
+	if fileEntry.IsDir {
 		writeError(w, http.StatusNotFound, "Asset not found or is a directory")
 		return
 	}

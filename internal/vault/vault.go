@@ -18,6 +18,7 @@ import (
 	"github.com/susamn/obsidian-web/internal/search"
 	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
+	"github.com/susamn/obsidian-web/internal/utils"
 )
 
 // VaultStatus represents the current state of a vault
@@ -492,7 +493,9 @@ func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) (string, error) {
 	return performDatabaseUpdate(v.dbService, v.vaultPath, event)
 }
 
-// DEPRECATED: Legacy method - keeping for reference, will be removed
+// DEPRECATED: Legacy method - replaced by performDatabaseUpdate in db_helper.go
+// Kept for reference only, will be removed in future versions
+/*
 func (v *Vault) updateDatabaseOld(event syncpkg.FileChangeEvent) {
 	if v.dbService == nil {
 		return
@@ -582,7 +585,8 @@ func (v *Vault) updateDatabaseOld(event syncpkg.FileChangeEvent) {
 	}
 }
 
-// ensureParentDirsExist ensures all parent directories exist in the database and returns the ID of the immediate parent
+// DEPRECATED: ensureParentDirsExist is now in db_helper.go
+// Kept for reference only, will be removed in future versions
 func (v *Vault) ensureParentDirsExist(parentPath string) *string {
 	// Ensure root directory exists first
 	rootEntry, err := v.dbService.GetFileEntryByPath("")
@@ -670,6 +674,7 @@ func (v *Vault) ensureParentDirsExist(parentPath string) *string {
 
 	return currentParentID
 }
+*/
 
 // ForceReindex clears the database and reindexes all files
 func (v *Vault) ForceReindex() error {
@@ -695,7 +700,7 @@ func (v *Vault) ForceReindex() error {
 	logger.WithField("vault_id", v.config.ID).Info("Database cleared, starting reindex")
 
 	// Create root directory entry
-	rootID := generateID()
+	rootID := utils.GenerateID()
 	dirFileTypeID, _ := v.dbService.GetFileTypeID(db.FileTypeDirectory)
 	rootEntry := &db.FileEntry{
 		ID:         rootID,
@@ -747,7 +752,7 @@ func (v *Vault) walkAndPopulateDatabase(dirPath string, parentID *string) error 
 			logger.WithField("file_type", fileType).WithField("error", err).Warn("Failed to get file type ID")
 		}
 
-		id := generateID()
+		id := utils.GenerateID()
 		fileEntry := &db.FileEntry{
 			ID:         id,
 			Name:       entry.Name(),
@@ -862,14 +867,17 @@ func getVaultPath(cfg *config.VaultConfig) (string, error) {
 	}
 }
 
-// generateID generates a unique ID for a file entry
+// DEPRECATED: Moved to internal/utils package
+// Use utils.GenerateID() instead
+/*
 func generateID() string {
 	// Simple UUID-like generation using timestamp + random
 	// In production, consider using github.com/google/uuid
 	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), generateRandomString(12))
 }
 
-// generateRandomString generates a random string of specified length
+// DEPRECATED: Moved to internal/utils package
+// Use utils.GenerateRandomString() instead
 func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
@@ -878,3 +886,4 @@ func generateRandomString(length int) string {
 	}
 	return string(b)
 }
+*/

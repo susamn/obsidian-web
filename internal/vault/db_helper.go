@@ -11,6 +11,7 @@ import (
 	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/logger"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
+	"github.com/susamn/obsidian-web/internal/utils"
 )
 
 // Global mutex for parent directory creation to prevent race conditions
@@ -69,7 +70,7 @@ func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event sync
 
 		// Create or update file entry in database
 		entry := &db.FileEntry{
-			ID:         generateID(),
+			ID:         utils.GenerateID(),
 			Name:       filepath.Base(event.Path),
 			IsDir:      isDir,
 			FileTypeID: fileTypeID,
@@ -127,7 +128,7 @@ func ensureParentDirsExist(dbService *db.DBService, vaultPath, parentPath string
 	var currentParentID *string
 	if err != nil || rootEntry == nil {
 		// Root doesn't exist, create it
-		rootID := generateID()
+		rootID := utils.GenerateID()
 		dirFileTypeID, _ := dbService.GetFileTypeID(db.FileTypeDirectory)
 		rootEntry := &db.FileEntry{
 			ID:         rootID,
@@ -186,7 +187,7 @@ func ensureParentDirsExist(dbService *db.DBService, vaultPath, parentPath string
 		// Directory doesn't exist, create it
 		dirFileTypeID, _ := dbService.GetFileTypeID(db.FileTypeDirectory)
 		dirEntry := &db.FileEntry{
-			ID:         generateID(),
+			ID:         utils.GenerateID(),
 			Name:       part,
 			IsDir:      true,
 			FileTypeID: dirFileTypeID,
