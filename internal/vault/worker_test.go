@@ -52,14 +52,14 @@ type mockIndexService struct {
 	mu           sync.Mutex
 }
 
-func (m *mockIndexService) ReIndexSync(path string) error {
+func (m *mockIndexService) ReIndexSync(path string, fileID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.reindexCalls++
 	return nil
 }
 
-func (m *mockIndexService) DeleteFromIndexSync(path string) error {
+func (m *mockIndexService) DeleteFromIndexSync(path string, fileID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.deleteCalls++

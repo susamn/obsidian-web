@@ -257,8 +257,8 @@ Updated content with #newtag.
 		t.Fatalf("Failed to update test file: %v", err)
 	}
 
-	// Re-index the file
-	if err := svc.reIndex(testFile); err != nil {
+	// Re-index the file (use empty string for fileID to fallback to relative path)
+	if err := svc.reIndex(testFile, ""); err != nil {
 		t.Fatalf("reIndex() error = %v", err)
 	}
 
@@ -316,8 +316,8 @@ Content here.
 		t.Errorf("Initial DocCount() = %d, want 2", count)
 	}
 
-	// Delete one document
-	if err := svc.deleteFromIndex(testFile1); err != nil {
+	// Delete one document (use empty string for fileID to fallback to relative path)
+	if err := svc.deleteFromIndex(testFile1, ""); err != nil {
 		t.Fatalf("deleteFromIndex() error = %v", err)
 	}
 

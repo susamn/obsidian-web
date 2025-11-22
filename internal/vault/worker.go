@@ -116,8 +116,8 @@ func (w *Worker) run() {
 
 // processEvent handles a single file event
 func (w *Worker) processEvent(event syncpkg.FileChangeEvent) {
-	// Step 1: Update DB with retry logic
-	err := w.updateDBWithRetry(event)
+	// Step 1: Update DB with retry logic and get file ID
+	fileID, err := w.updateDBWithRetry(event)
 	if err != nil {
 		// DB update failed after retries, send to DLQ
 		logger.WithFields(map[string]interface{}{
@@ -141,20 +141,22 @@ func (w *Worker) processEvent(event syncpkg.FileChangeEvent) {
 	// Step 2: Update Explorer cache (synchronous)
 	w.explorerService.InvalidateCacheSync(event)
 
-	// Step 3: Update Index (best effort, synchronous)
+	// Step 3: Update Index (best effort, synchronous) with file ID
 	switch event.EventType {
 	case syncpkg.FileCreated, syncpkg.FileModified:
-		if err := w.indexService.ReIndexSync(event.Path); err != nil {
+		if err := w.indexService.ReIndexSync(event.Path, fileID); err != nil {
 			logger.WithError(err).WithFields(map[string]interface{}{
 				"worker_id": w.id,
 				"path":      event.Path,
+				"file_id":   fileID,
 			}).Warn("Failed to update index")
 		}
 	case syncpkg.FileDeleted:
-		if err := w.indexService.DeleteFromIndexSync(event.Path); err != nil {
+		if err := w.indexService.DeleteFromIndexSync(event.Path, fileID); err != nil {
 			logger.WithError(err).WithFields(map[string]interface{}{
 				"worker_id": w.id,
 				"path":      event.Path,
+				"file_id":   fileID,
 			}).Warn("Failed to delete from index")
 		}
 	}
@@ -166,22 +168,24 @@ func (w *Worker) processEvent(event syncpkg.FileChangeEvent) {
 }
 
 // updateDBWithRetry attempts to update the database with retry logic
-func (w *Worker) updateDBWithRetry(event syncpkg.FileChangeEvent) error {
+// Returns the file ID and error
+func (w *Worker) updateDBWithRetry(event syncpkg.FileChangeEvent) (string, error) {
 	var lastErr error
 
 	for attempt := 0; attempt <= w.maxRetries; attempt++ {
 		// Perform the DB update based on event type
-		err := w.updateDatabase(event)
+		fileID, err := w.updateDatabase(event)
 		if err == nil {
 			if attempt > 0 {
 				atomic.AddInt64(&w.retriedCount, 1)
 				logger.WithFields(map[string]interface{}{
 					"worker_id": w.id,
 					"path":      event.Path,
+					"file_id":   fileID,
 					"attempt":   attempt + 1,
 				}).Info("DB update succeeded after retry")
 			}
-			return nil
+			return fileID, nil
 		}
 
 		lastErr = err
@@ -200,18 +204,19 @@ func (w *Worker) updateDBWithRetry(event syncpkg.FileChangeEvent) error {
 			case <-time.After(w.retryDelay):
 				// Continue to next retry
 			case <-w.ctx.Done():
-				return fmt.Errorf("context cancelled during retry: %w", err)
+				return "", fmt.Errorf("context cancelled during retry: %w", err)
 			}
 		}
 	}
 
-	return fmt.Errorf("DB update failed after %d attempts: %w", w.maxRetries+1, lastErr)
+	return "", fmt.Errorf("DB update failed after %d attempts: %w", w.maxRetries+1, lastErr)
 }
 
 // updateDatabase performs the actual database update
-func (w *Worker) updateDatabase(event syncpkg.FileChangeEvent) error {
+// Returns the file ID and error
+func (w *Worker) updateDatabase(event syncpkg.FileChangeEvent) (string, error) {
 	if w.dbService == nil {
-		return fmt.Errorf("db service not initialized")
+		return "", fmt.Errorf("db service not initialized")
 	}
 
 	return performDatabaseUpdate(w.dbService, w.vaultPath, event)
@@ -260,7 +265,7 @@ func (w *Worker) processDLQ() {
 			stillFailing := make([]syncpkg.FileChangeEvent, 0)
 
 			for _, event := range pendingEvents {
-				err := w.updateDatabase(event)
+				fileID, err := w.updateDatabase(event)
 				if err != nil {
 					// Still failing, keep in DLQ for next retry
 					stillFailing = append(stillFailing, event)
@@ -270,12 +275,12 @@ func (w *Worker) processDLQ() {
 						"error":     err,
 					}).Warn("DLQ event still failing")
 				} else {
-					// Success! Process remaining steps (synchronous)
+					// Success! Process remaining steps (synchronous) with file ID
 					switch event.EventType {
 					case syncpkg.FileCreated, syncpkg.FileModified:
-						_ = w.indexService.ReIndexSync(event.Path)
+						_ = w.indexService.ReIndexSync(event.Path, fileID)
 					case syncpkg.FileDeleted:
-						_ = w.indexService.DeleteFromIndexSync(event.Path)
+						_ = w.indexService.DeleteFromIndexSync(event.Path, fileID)
 					}
 					w.explorerService.InvalidateCacheSync(event)
 					w.queueSSEEvent(event)
@@ -284,6 +289,7 @@ func (w *Worker) processDLQ() {
 					logger.WithFields(map[string]interface{}{
 						"worker_id": w.id,
 						"path":      event.Path,
+						"file_id":   fileID,
 					}).Info("DLQ event recovered successfully")
 				}
 			}

@@ -483,9 +483,10 @@ func (v *Vault) trackFileOperation(event syncpkg.FileChangeEvent) {
 }
 
 // updateDatabase syncs file changes to the database
-func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) error {
+// Returns the file ID and error
+func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) (string, error) {
 	if v.dbService == nil {
-		return fmt.Errorf("db service not available")
+		return "", fmt.Errorf("db service not available")
 	}
 
 	return performDatabaseUpdate(v.dbService, v.vaultPath, event)

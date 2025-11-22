@@ -15,7 +15,8 @@ import (
 )
 
 type MarkdownDoc struct {
-	Path      string   `json:"path"`
+	ID        string   `json:"id"`   // File ID from database
+	Path      string   `json:"path"` // Relative path from vault root
 	Title     string   `json:"title"`
 	Content   string   `json:"content"`
 	Tags      []string `json:"tags"`
@@ -36,6 +37,33 @@ func parseMarkdownFile(path string) (*MarkdownDoc, error) {
 		Tags:      []string{},
 		Wikilinks: []string{},
 	}
+
+	doc.Content = text
+	return parseMarkdownContent(doc)
+}
+
+// parseMarkdownFileWithID parses a markdown file with a provided file ID
+func parseMarkdownFileWithID(fullPath string, relPath string, fileID string) (*MarkdownDoc, error) {
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, err
+	}
+
+	text := string(content)
+	doc := &MarkdownDoc{
+		ID:        fileID,
+		Path:      relPath,
+		Tags:      []string{},
+		Wikilinks: []string{},
+	}
+
+	doc.Content = text
+	return parseMarkdownContent(doc)
+}
+
+// parseMarkdownContent parses the markdown content and extracts metadata
+func parseMarkdownContent(doc *MarkdownDoc) (*MarkdownDoc, error) {
+	text := doc.Content
 
 	// Extract YAML frontmatter (if exists)
 	if strings.HasPrefix(text, "---") {
@@ -80,7 +108,6 @@ func parseMarkdownFile(path string) (*MarkdownDoc, error) {
 	// Extract wikilinks from content
 	doc.Wikilinks = extractWikilinks(text)
 
-	doc.Content = text
 	return doc, nil
 }
 
@@ -335,6 +362,12 @@ func buildIndexMapping() mapping.IndexMapping {
 	wikilinkFieldMapping := bleve.NewTextFieldMapping()
 	wikilinkFieldMapping.Analyzer = keyword.Name
 	docMapping.AddFieldMappingsAt("wikilinks", wikilinkFieldMapping)
+
+	// ID field - stored but not analyzed (used as document ID)
+	idFieldMapping := bleve.NewTextFieldMapping()
+	idFieldMapping.Store = true
+	idFieldMapping.Index = false
+	docMapping.AddFieldMappingsAt("id", idFieldMapping)
 
 	// Path field - stored but not analyzed
 	pathFieldMapping := bleve.NewTextFieldMapping()

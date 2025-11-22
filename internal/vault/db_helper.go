@@ -19,15 +19,18 @@ var parentDirMutex sync.Mutex
 
 // performDatabaseUpdate updates the database for a given file event
 // This is a shared helper that both vault.updateDatabase and worker.updateDatabase use
-func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event syncpkg.FileChangeEvent) error {
+// Returns the file ID and error
+// For create/modify events, returns the ID of the created/updated file
+// For delete events, returns the ID of the deleted file (before deletion)
+func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event syncpkg.FileChangeEvent) (string, error) {
 	if dbService == nil {
-		return fmt.Errorf("db service not available")
+		return "", fmt.Errorf("db service not available")
 	}
 
 	// Convert absolute path to relative path
 	relPath, err := filepath.Rel(vaultPath, event.Path)
 	if err != nil {
-		return fmt.Errorf("failed to get relative path: %w", err)
+		return "", fmt.Errorf("failed to get relative path: %w", err)
 	}
 
 	switch event.EventType {
@@ -86,26 +89,31 @@ func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event sync
 			entry.ParentID = existing.ParentID
 			entry.FileTypeID = fileTypeID
 			if err := dbService.UpdateFileEntry(entry); err != nil {
-				return fmt.Errorf("failed to update entry: %w", err)
+				return "", fmt.Errorf("failed to update entry: %w", err)
 			}
+			return entry.ID, nil
 		} else {
 			// Create new entry
 			if err := dbService.CreateFileEntry(entry); err != nil {
-				return fmt.Errorf("failed to create entry: %w", err)
+				return "", fmt.Errorf("failed to create entry: %w", err)
 			}
+			return entry.ID, nil
 		}
 
 	case syncpkg.FileDeleted:
 		// Delete entry from database
 		entry, err := dbService.GetFileEntryByPath(relPath)
 		if err == nil && entry != nil {
+			fileID := entry.ID
 			if err := dbService.DeleteFileEntry(entry.ID); err != nil {
-				return fmt.Errorf("failed to delete entry: %w", err)
+				return "", fmt.Errorf("failed to delete entry: %w", err)
 			}
+			return fileID, nil
 		}
+		return "", nil // File not found in DB, but not an error
 	}
 
-	return nil
+	return "", nil
 }
 
 // ensureParentDirsExist ensures all parent directories exist in the database and returns the ID of the immediate parent

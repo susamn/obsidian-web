@@ -323,32 +323,34 @@ const handleSearchExecuted = () => {
 const handleSearchResultSelected = async (result) => {
   console.log('[VaultView] Search result selected:', result);
 
-  // The result.id should be the file path or file ID
-  // We need to navigate to this file
+  // The result.id is the file ID from database
+  // The result.fields.path is the relative path
   try {
-    // First, try to get the file by ID to ensure it exists
     const fileId = result.id;
+    const relativePath = result.fields?.path || '';
 
     // Set current file ID
     currentFileId.value = fileId;
 
-    // Fetch file content
+    // Set the current path for display (use relative path from fields)
+    if (relativePath) {
+      fileStore.setCurrentPath(relativePath);
+    }
+
+    // Fetch file content using file ID
     if (!rendererStore.isStructuredRenderer) {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
 
-      // Update the path from server response
+      // Update the path from server response if available
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path);
       }
     } else {
       // For structured renderer, just set a placeholder
       fileStore.selectedFileContent = 'loading';
-      fileStore.setCurrentPath(fileId);
     }
 
-    // Optionally close search panel after selecting a result
-    // Uncomment the next line if you want this behavior
-    // closeSearch();
+    // Keep search panel open - don't call closeSearch()
   } catch (error) {
     console.error('[VaultView] Failed to load search result:', error);
   }

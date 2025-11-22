@@ -24,7 +24,7 @@
       >
         <div class="result-header">
           <i class="fas fa-file-alt result-icon"></i>
-          <span class="result-title">{{ getFileName(result.id) }}</span>
+          <span class="result-title">{{ getFileName(result) }}</span>
           <span class="result-score" :title="`Relevance: ${result.score.toFixed(2)}`">
             {{ formatScore(result.score) }}
           </span>
@@ -74,10 +74,11 @@ const emit = defineEmits(['result-selected']);
 
 const searchStore = useSearchStore();
 
-const getFileName = (id) => {
-  // Extract filename from ID (assuming ID is the file path)
-  const parts = id.split('/');
-  return parts[parts.length - 1] || id;
+const getFileName = (result) => {
+  // Use the path from fields if available, otherwise fallback to ID
+  const path = result.fields?.path || result.id;
+  const parts = path.split('/');
+  return parts[parts.length - 1] || path;
 };
 
 const formatScore = (score) => {

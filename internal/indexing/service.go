@@ -294,6 +294,11 @@ func (s *IndexService) performInitialIndexing() error {
 			return nil
 		}
 
+		// Get relative path
+		relPath, _ := filepath.Rel(s.vaultPath, path)
+
+		// During initial indexing, use relative path as ID
+		// The worker will update with proper file IDs later
 		doc, err := parseMarkdownFile(path)
 		if err != nil {
 			logger.WithError(err).WithFields(map[string]interface{}{
@@ -303,8 +308,10 @@ func (s *IndexService) performInitialIndexing() error {
 			return nil // Continue processing other files
 		}
 
-		// Use relative path as document ID
-		relPath, _ := filepath.Rel(s.vaultPath, path)
+		// Set the relative path as both ID and Path
+		doc.ID = relPath
+		doc.Path = relPath
+
 		err = batch.Index(relPath, doc)
 		if err != nil {
 			return err
@@ -393,68 +400,86 @@ func (s *IndexService) GetStatus() ServiceStatus {
 // ReIndexSync updates a single document in the index SYNCHRONOUSLY
 // This is the preferred method for workers and UI operations
 // docPath should be a local file path
-func (s *IndexService) ReIndexSync(docPath string) error {
-	return s.reIndex(docPath)
+// fileID is the database file ID (if empty, will use relative path as ID)
+func (s *IndexService) ReIndexSync(docPath string, fileID string) error {
+	return s.reIndex(docPath, fileID)
 }
 
 // DeleteFromIndexSync removes a document from the index SYNCHRONOUSLY
 // This is the preferred method for workers and UI operations
 // docPath should be a local file path
-func (s *IndexService) DeleteFromIndexSync(docPath string) error {
-	return s.deleteFromIndex(docPath)
+// fileID is the database file ID to delete
+func (s *IndexService) DeleteFromIndexSync(docPath string, fileID string) error {
+	return s.deleteFromIndex(docPath, fileID)
 }
 
 // reIndex updates a single document in the index
 // docPath should be a local file path (sync service provides this)
-func (s *IndexService) reIndex(docPath string) error {
+// fileID is the database file ID (if empty, will use relative path as ID)
+func (s *IndexService) reIndex(docPath string, fileID string) error {
 	if s.index == nil {
 		return fmt.Errorf("index not initialized, call Index() first")
 	}
 
-	// Parse the markdown file
-	doc, err := parseMarkdownFile(docPath)
-	if err != nil {
-		return fmt.Errorf("failed to parse file: %w", err)
-	}
-
-	// Use relative path as document ID
+	// Use relative path
 	relPath, err := filepath.Rel(s.vaultPath, docPath)
 	if err != nil {
 		return fmt.Errorf("failed to get relative path: %w", err)
 	}
 
-	// Index the document
-	if err := s.index.Index(relPath, doc); err != nil {
+	// Use file ID as document ID (fallback to relPath if no ID provided)
+	docID := fileID
+	if docID == "" {
+		docID = relPath
+	}
+
+	// Parse the markdown file with file ID
+	doc, err := parseMarkdownFileWithID(docPath, relPath, docID)
+	if err != nil {
+		return fmt.Errorf("failed to parse file: %w", err)
+	}
+
+	// Index the document using the file ID
+	if err := s.index.Index(docID, doc); err != nil {
 		return fmt.Errorf("failed to index document: %w", err)
 	}
 
 	logger.WithFields(map[string]interface{}{
 		"vault_id": s.vaultID,
 		"path":     relPath,
+		"doc_id":   docID,
 	}).Debug("Re-indexed document")
 	return nil
 }
 
 // deleteFromIndex removes a document from the index
 // docPath should be a local file path (sync service provides this)
-func (s *IndexService) deleteFromIndex(docPath string) error {
+// fileID is the database file ID to delete (if empty, will use relative path as ID)
+func (s *IndexService) deleteFromIndex(docPath string, fileID string) error {
 	if s.index == nil {
 		return fmt.Errorf("index not initialized, call Index() first")
 	}
 
-	// Use relative path as document ID
+	// Use relative path
 	relPath, err := filepath.Rel(s.vaultPath, docPath)
 	if err != nil {
 		return fmt.Errorf("failed to get relative path: %w", err)
 	}
 
-	if err := s.index.Delete(relPath); err != nil {
+	// Use file ID as document ID (fallback to relPath if no ID provided)
+	docID := fileID
+	if docID == "" {
+		docID = relPath
+	}
+
+	if err := s.index.Delete(docID); err != nil {
 		return fmt.Errorf("failed to delete document: %w", err)
 	}
 
 	logger.WithFields(map[string]interface{}{
 		"vault_id": s.vaultID,
 		"path":     relPath,
+		"doc_id":   docID,
 	}).Debug("Deleted document from index")
 	return nil
 }
@@ -637,7 +662,9 @@ func (s *IndexService) processEvent(event syncpkg.FileChangeEvent) {
 
 	switch event.EventType {
 	case syncpkg.FileCreated, syncpkg.FileModified:
-		if err := s.reIndex(event.Path); err != nil {
+		// Note: Internal event processor doesn't have file IDs, pass empty string
+		// to use relative path as fallback
+		if err := s.reIndex(event.Path, ""); err != nil {
 			logger.WithError(err).WithFields(map[string]interface{}{
 				"vault_id": s.vaultID,
 				"path":     event.Path,
@@ -651,7 +678,9 @@ func (s *IndexService) processEvent(event syncpkg.FileChangeEvent) {
 		}
 
 	case syncpkg.FileDeleted:
-		if err := s.deleteFromIndex(event.Path); err != nil {
+		// Note: Internal event processor doesn't have file IDs, pass empty string
+		// to use relative path as fallback
+		if err := s.deleteFromIndex(event.Path, ""); err != nil {
 			logger.WithError(err).WithFields(map[string]interface{}{
 				"vault_id": s.vaultID,
 				"path":     event.Path,
