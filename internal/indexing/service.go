@@ -390,6 +390,20 @@ func (s *IndexService) GetStatus() ServiceStatus {
 	return s.status
 }
 
+// ReIndexSync updates a single document in the index SYNCHRONOUSLY
+// This is the preferred method for workers and UI operations
+// docPath should be a local file path
+func (s *IndexService) ReIndexSync(docPath string) error {
+	return s.reIndex(docPath)
+}
+
+// DeleteFromIndexSync removes a document from the index SYNCHRONOUSLY
+// This is the preferred method for workers and UI operations
+// docPath should be a local file path
+func (s *IndexService) DeleteFromIndexSync(docPath string) error {
+	return s.deleteFromIndex(docPath)
+}
+
 // reIndex updates a single document in the index
 // docPath should be a local file path (sync service provides this)
 func (s *IndexService) reIndex(docPath string) error {

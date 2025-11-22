@@ -36,7 +36,8 @@ type FileEventData struct {
 type Event struct {
 	Type      EventType              `json:"type"`
 	VaultID   string                 `json:"vault_id"`
-	Path      string                 `json:"path,omitempty"`
+	Path      string                 `json:"path,omitempty"`    // Relative path only (NEVER absolute!)
+	FileID    string                 `json:"file_id,omitempty"` // DB ID for fetching content
 	Timestamp time.Time              `json:"timestamp"`
 	Data      map[string]interface{} `json:"data,omitempty"`      // Legacy: generic data map
 	FileData  *FileEventData         `json:"file_data,omitempty"` // Rich file event metadata for UI updates
@@ -46,8 +47,9 @@ type Event struct {
 
 // EventChange represents a single change in a bulk update
 type EventChange struct {
-	Type EventType `json:"type"`
-	Path string    `json:"path"`
+	Type   EventType `json:"type"`
+	Path   string    `json:"path"`    // Relative path only
+	FileID string    `json:"file_id"` // DB ID
 }
 
 // EventSummary summarizes bulk changes
@@ -376,8 +378,9 @@ func (m *Manager) BroadcastBulkUpdate(vaultID string, events []Event) {
 
 	for _, evt := range events {
 		changes = append(changes, EventChange{
-			Type: evt.Type,
-			Path: evt.Path,
+			Type:   evt.Type,
+			Path:   evt.Path,   // Already relative from worker
+			FileID: evt.FileID, // DB ID from worker
 		})
 
 		switch evt.Type {

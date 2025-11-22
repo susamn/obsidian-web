@@ -3,6 +3,7 @@ package vault
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -137,11 +138,26 @@ func (w *Worker) processEvent(event syncpkg.FileChangeEvent) {
 		return
 	}
 
-	// Step 2: Update Index (best effort)
-	w.indexService.UpdateIndex(event)
+	// Step 2: Update Explorer cache (synchronous)
+	w.explorerService.InvalidateCacheSync(event)
 
-	// Step 3: Update Explorer cache (for server-side tree invalidation)
-	w.explorerService.UpdateIndex(event)
+	// Step 3: Update Index (best effort, synchronous)
+	switch event.EventType {
+	case syncpkg.FileCreated, syncpkg.FileModified:
+		if err := w.indexService.ReIndexSync(event.Path); err != nil {
+			logger.WithError(err).WithFields(map[string]interface{}{
+				"worker_id": w.id,
+				"path":      event.Path,
+			}).Warn("Failed to update index")
+		}
+	case syncpkg.FileDeleted:
+		if err := w.indexService.DeleteFromIndexSync(event.Path); err != nil {
+			logger.WithError(err).WithFields(map[string]interface{}{
+				"worker_id": w.id,
+				"path":      event.Path,
+			}).Warn("Failed to delete from index")
+		}
+	}
 
 	// Step 4: Queue for SSE batching
 	w.queueSSEEvent(event)
@@ -254,9 +270,14 @@ func (w *Worker) processDLQ() {
 						"error":     err,
 					}).Warn("DLQ event still failing")
 				} else {
-					// Success! Process remaining steps
-					w.indexService.UpdateIndex(event)
-					w.explorerService.UpdateIndex(event)
+					// Success! Process remaining steps (synchronous)
+					switch event.EventType {
+					case syncpkg.FileCreated, syncpkg.FileModified:
+						_ = w.indexService.ReIndexSync(event.Path)
+					case syncpkg.FileDeleted:
+						_ = w.indexService.DeleteFromIndexSync(event.Path)
+					}
+					w.explorerService.InvalidateCacheSync(event)
 					w.queueSSEEvent(event)
 					atomic.AddInt64(&w.processedCount, 1)
 
@@ -273,6 +294,7 @@ func (w *Worker) processDLQ() {
 }
 
 // queueSSEEvent queues an SSE event for batching
+// SECURITY: Converts absolute path to relative path and fetches ID from DB
 func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
 	var eventType sse.EventType
 	switch event.EventType {
@@ -286,10 +308,29 @@ func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
 		return
 	}
 
+	// Convert absolute path to relative path (NEVER send absolute paths to client!)
+	relPath, err := filepath.Rel(w.vaultPath, event.Path)
+	if err != nil {
+		logger.WithError(err).WithFields(map[string]interface{}{
+			"worker_id": w.id,
+			"path":      event.Path,
+		}).Warn("Failed to get relative path for SSE event")
+		return
+	}
+
+	// Get file ID from DB (needed by UI to fetch content)
+	var fileID string
+	if w.dbService != nil {
+		if entry, err := w.dbService.GetFileEntryByPath(relPath); err == nil && entry != nil {
+			fileID = entry.ID
+		}
+	}
+
 	sseEvent := sse.Event{
 		Type:      eventType,
 		VaultID:   w.vaultID,
-		Path:      event.Path,
+		Path:      relPath, // Relative path only!
+		FileID:    fileID,  // DB ID for fetching content
 		Timestamp: event.Timestamp,
 	}
 
@@ -299,7 +340,7 @@ func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
 	default:
 		logger.WithFields(map[string]interface{}{
 			"worker_id": w.id,
-			"path":      event.Path,
+			"path":      relPath,
 		}).Warn("SSE channel full, dropping SSE event")
 	}
 }

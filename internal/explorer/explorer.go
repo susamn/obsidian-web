@@ -205,7 +205,14 @@ func (e *ExplorerService) GetMetadata(path string) (*NodeMetadata, error) {
 	return e.getNodeMetadata(fullPath, cleanPath)
 }
 
-// UpdateIndex handles file change events from sync service
+// InvalidateCacheSync invalidates cache for a file change SYNCHRONOUSLY
+// This is the preferred method for workers and UI operations
+func (e *ExplorerService) InvalidateCacheSync(event syncpkg.FileChangeEvent) {
+	e.handleFileEvent(event)
+}
+
+// UpdateIndex handles file change events from sync service (DEPRECATED - use InvalidateCacheSync)
+// This queues events to a channel which is unnecessary when called from workers
 func (e *ExplorerService) UpdateIndex(event syncpkg.FileChangeEvent) {
 	select {
 	case e.eventChan <- event:
@@ -524,7 +531,6 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		"event_type": event.EventType,
 	}).Debug("Processing file event")
 
-	var sseEventType string
 	var parentPath string
 
 	switch event.EventType {
@@ -539,7 +545,6 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		if parent, err := e.GetTree(parentPath); err == nil && parent != nil {
 			e.updateCache(parentPath, parent)
 		}
-		sseEventType = "file_created"
 
 	case syncpkg.FileModified:
 		// Invalidate the node itself
@@ -549,7 +554,6 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		if parentPath == "." {
 			parentPath = ""
 		}
-		sseEventType = "file_modified"
 
 	case syncpkg.FileDeleted:
 		// Invalidate the node itself
@@ -564,7 +568,6 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		if parent, err := e.GetTree(parentPath); err == nil && parent != nil {
 			e.updateCache(parentPath, parent)
 		}
-		sseEventType = "file_deleted"
 	}
 
 	// NOTE: SSE broadcasting is disabled here to prevent duplicate events.

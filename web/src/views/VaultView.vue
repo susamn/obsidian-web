@@ -7,18 +7,25 @@
           <span
             class="status-indicator"
             :class="{
-              'connected': connected,
-              'disconnected': !connected && !error,
-              'error': error
+              'connected': connected && !bulkOperationProgress.active,
+              'disconnected': !connected && !error && !bulkOperationProgress.active,
+              'error': error,
+              'syncing': bulkOperationProgress.active
             }"
-            :title="error || (connected ? 'Live updates enabled' : 'Connecting...')"
+            :title="bulkOperationProgress.active ? `Syncing ${bulkOperationProgress.percentage}%` : (error || (connected ? 'Live updates enabled' : 'Connecting...'))"
           >
-            <i v-if="connected" class="fas fa-circle"></i>
+            <i v-if="bulkOperationProgress.active" class="fas fa-sync fa-spin"></i>
+            <i v-else-if="connected" class="fas fa-circle"></i>
             <i v-else-if="error" class="fas fa-exclamation-circle"></i>
             <i v-else class="fas fa-circle-notch fa-spin"></i>
           </span>
           <span class="status-text">
-            {{ connected ? 'Live' : (error ? 'Offline' : 'Connecting') }}
+            <template v-if="bulkOperationProgress.active">
+              Syncing {{ bulkOperationProgress.percentage }}%
+            </template>
+            <template v-else>
+              {{ connected ? 'Live' : (error ? 'Offline' : 'Connecting') }}
+            </template>
           </span>
         </div>
       </div>
@@ -101,6 +108,14 @@ const expandedNodes = ref({});
 const connected = ref(false);
 const error = ref(null);
 const currentFileId = ref(null); // Track the ID of the currently selected file
+
+// Bulk operation progress tracking
+const bulkOperationProgress = ref({
+  active: false,
+  processed: 0,
+  total: 0,
+  percentage: 0
+});
 
 // Markdown rendering state
 const markdownResult = ref({
@@ -599,10 +614,36 @@ const sseCallbacks = {
 
   onTreeRefresh: async (event) => {
     console.log('[VaultView] Tree refresh requested:', event.path);
-    // For tree refresh, only update if parent is walked
-    if (shouldUpdateUI(event.path)) {
+    // For tree refresh, only update if parent is walked and path exists
+    if (event.path && shouldUpdateUI(event.path)) {
       await refreshNode(event.path);
     }
+  },
+
+  onBulkUpdate: async (data) => {
+    console.log('[VaultView] Bulk update received:', data.summary);
+
+    const total = data.summary.created + data.summary.modified + data.summary.deleted;
+    console.log(`[VaultView] Bulk update: ${total} files changed`);
+
+    // Activate progress indicator
+    bulkOperationProgress.value = {
+      active: true,
+      processed: data.changes.length,
+      total: total,
+      percentage: Math.round((data.changes.length / total) * 100)
+    };
+
+    // Refresh the root tree to pick up all changes
+    await fileStore.fetchTree(route.params.id);
+
+    // Update persistent storage
+    persistentTreeStore.initializeTree(route.params.id, fileStore.treeData);
+
+    // Clear progress after a delay
+    setTimeout(() => {
+      bulkOperationProgress.value.active = false;
+    }, 2000);
   },
 
   onError: (err) => {
@@ -750,6 +791,10 @@ onMounted(() => {
 
 .status-indicator.error {
   color: #e06c75;
+}
+
+.status-indicator.syncing {
+  color: #61afef;
 }
 
 .status-text {
