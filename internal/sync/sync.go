@@ -71,7 +71,8 @@ func NewSyncService(ctx context.Context, vaultID string, storage *config.Storage
 	svcCtx, cancel := context.WithCancel(ctx)
 
 	// Create buffered channel to prevent blocking
-	events := make(chan FileChangeEvent, 100)
+	// Large buffer (10000) to handle bulk operations without dropping events
+	events := make(chan FileChangeEvent, 10000)
 
 	// Create the appropriate backend based on storage type
 	var backend syncBackend

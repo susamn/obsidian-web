@@ -128,8 +128,8 @@ func NewIndexService(ctx context.Context, vault *config.VaultConfig, vaultPath s
 	statusChan := make(chan StatusUpdate, 10)
 
 	// Configure backpressure settings
-	// Buffer size: larger for high-volume scenarios
-	eventBuffer := 1000
+	// Buffer size: larger for high-volume scenarios (match sync channel size)
+	eventBuffer := 10000
 	batchSize := 50
 	flushInterval := 500 * time.Millisecond
 

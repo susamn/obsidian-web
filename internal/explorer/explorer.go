@@ -102,7 +102,7 @@ func NewExplorerService(ctx context.Context, vaultID, vaultPath string, dbSvc *d
 		vaultID:      vaultID,
 		vaultPath:    vaultPath,
 		cache:        make(map[string]*TreeNode),
-		eventChan:    make(chan syncpkg.FileChangeEvent, 100),
+		eventChan:    make(chan syncpkg.FileChangeEvent, 10000), // Match sync channel size
 		dbService:    dbSvc,
 		maxCacheSize: 1000,
 		cacheTTL:     5 * time.Minute,
@@ -567,25 +567,14 @@ func (e *ExplorerService) handleFileEvent(event syncpkg.FileChangeEvent) {
 		sseEventType = "file_deleted"
 	}
 
-	// Broadcast SSE event with rich metadata if broadcaster is available
-	if e.sseBroadcaster != nil && sseEventType != "" {
-		// Build the event data as a map that can be sent with the event
-		eventData := map[string]interface{}{
-			"path":       relPath,
-			"event_type": sseEventType,
-		}
+	// NOTE: SSE broadcasting is disabled here to prevent duplicate events.
+	// Workers now handle SSE via the batching mechanism for better performance.
+	// Explorer service only maintains cache; SSE is handled by worker → SSE batcher.
 
-		// Add file metadata if available
-		if event.Path != "" {
-			fileData := e.buildFileEventDataSSE(relPath, parentPath, event.Path, event.EventType)
-			if fileData != nil {
-				eventData["file_data"] = fileData
-			}
-		}
-
-		// Broadcast the event
-		e.sseBroadcaster.BroadcastFileEvent(e.vaultID, relPath, sseEventType)
-	}
+	// Legacy code kept for reference (can be re-enabled if needed):
+	// if e.sseBroadcaster != nil && sseEventType != "" {
+	//     e.sseBroadcaster.BroadcastFileEvent(e.vaultID, relPath, sseEventType)
+	// }
 }
 
 // buildFileEventData constructs rich metadata for SSE events (legacy interface{} version)

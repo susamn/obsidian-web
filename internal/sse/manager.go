@@ -18,6 +18,7 @@ const (
 	EventFileModified EventType = "file_modified"
 	EventFileDeleted  EventType = "file_deleted"
 	EventTreeRefresh  EventType = "tree_refresh"
+	EventBulkUpdate   EventType = "bulk_update"
 	EventPing         EventType = "ping"
 )
 
@@ -39,6 +40,21 @@ type Event struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Data      map[string]interface{} `json:"data,omitempty"`      // Legacy: generic data map
 	FileData  *FileEventData         `json:"file_data,omitempty"` // Rich file event metadata for UI updates
+	Changes   []EventChange          `json:"changes,omitempty"`   // For bulk updates
+	Summary   *EventSummary          `json:"summary,omitempty"`   // Summary for bulk updates
+}
+
+// EventChange represents a single change in a bulk update
+type EventChange struct {
+	Type EventType `json:"type"`
+	Path string    `json:"path"`
+}
+
+// EventSummary summarizes bulk changes
+type EventSummary struct {
+	Created  int `json:"created"`
+	Modified int `json:"modified"`
+	Deleted  int `json:"deleted"`
 }
 
 // Client represents a connected SSE client
@@ -345,6 +361,59 @@ func (m *Manager) BroadcastFileEventWithData(vaultID, path string, eventType Eve
 			"event_type": eventType,
 			"path":       path,
 		}).Warn("SSE broadcast channel full")
+	}
+}
+
+// BroadcastBulkUpdate broadcasts a bulk update event with multiple changes
+func (m *Manager) BroadcastBulkUpdate(vaultID string, events []Event) {
+	if len(events) == 0 {
+		return
+	}
+
+	// Build summary and changes
+	summary := &EventSummary{}
+	changes := make([]EventChange, 0, len(events))
+
+	for _, evt := range events {
+		changes = append(changes, EventChange{
+			Type: evt.Type,
+			Path: evt.Path,
+		})
+
+		switch evt.Type {
+		case EventFileCreated:
+			summary.Created++
+		case EventFileModified:
+			summary.Modified++
+		case EventFileDeleted:
+			summary.Deleted++
+		}
+	}
+
+	bulkEvent := Event{
+		Type:      EventBulkUpdate,
+		VaultID:   vaultID,
+		Timestamp: time.Now(),
+		Changes:   changes,
+		Summary:   summary,
+	}
+
+	select {
+	case m.broadcast <- bulkEvent:
+		logger.WithFields(map[string]interface{}{
+			"vault_id": vaultID,
+			"count":    len(events),
+			"created":  summary.Created,
+			"modified": summary.Modified,
+			"deleted":  summary.Deleted,
+		}).Debug("Broadcast bulk update")
+	case <-m.ctx.Done():
+		// Manager stopped
+	default:
+		logger.WithFields(map[string]interface{}{
+			"vault_id": vaultID,
+			"count":    len(events),
+		}).Warn("SSE broadcast channel full, bulk update dropped")
 	}
 }
 

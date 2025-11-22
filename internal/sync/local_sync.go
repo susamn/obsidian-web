@@ -107,18 +107,13 @@ func (l *localSync) watchLoop(ctx context.Context, events chan<- FileChangeEvent
 			// Convert fsnotify event to FileChangeEvent
 			fileEvent := l.convertEvent(event)
 			if fileEvent != nil {
-				// Send event non-blocking
+				// Send event BLOCKING - let backpressure propagate to fsnotify
+				// This prevents event loss during bulk operations
 				select {
 				case events <- *fileEvent:
+					// Event sent successfully
 				case <-ctx.Done():
 					return
-				default:
-					// Channel full, skip this event
-					logger.WithFields(map[string]interface{}{
-						"vault_id": l.vaultID,
-						"path":     event.Name,
-						"event":    fileEvent.EventType.String(),
-					}).Warn("Event channel full, dropping event")
 				}
 			}
 
@@ -192,7 +187,7 @@ func (l *localSync) emitEventsForDirectory(ctx context.Context, dirPath string, 
 				Timestamp: time.Now(),
 			}
 
-			// Send event non-blocking
+			// Send event BLOCKING - ensures all files in new directory are tracked
 			select {
 			case events <- *fileEvent:
 				logger.WithFields(map[string]interface{}{
@@ -202,13 +197,6 @@ func (l *localSync) emitEventsForDirectory(ctx context.Context, dirPath string, 
 				}).Debug("Emitted event for file in newly created directory")
 			case <-ctx.Done():
 				return ctx.Err()
-			default:
-				// Channel full, log and continue
-				logger.WithFields(map[string]interface{}{
-					"vault_id": l.vaultID,
-					"path":     walkPath,
-					"event":    eventType.String(),
-				}).Warn("Event channel full, dropping event for file in newly created directory")
 			}
 		}
 

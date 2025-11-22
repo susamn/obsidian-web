@@ -16,6 +16,7 @@ import (
 	"github.com/susamn/obsidian-web/internal/indexing"
 	"github.com/susamn/obsidian-web/internal/logger"
 	"github.com/susamn/obsidian-web/internal/search"
+	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
@@ -69,6 +70,11 @@ type Vault struct {
 	searchService   *search.SearchService
 	explorerService *explorer.ExplorerService
 	dbService       *db.DBService
+
+	// Event processing
+	dispatcher *EventDispatcher
+	workers    []*Worker
+	sseBatcher *sse.EventBatcher
 
 	// State
 	status       VaultStatus
@@ -170,6 +176,31 @@ func (v *Vault) initializeServices() error {
 		return fmt.Errorf("failed to create explorer service: %w", err)
 	}
 
+	// Create SSE batcher (will be started when SSE manager is set)
+	v.sseBatcher = sse.NewEventBatcher(v.ctx, nil, 2*time.Second, 5)
+
+	// Create workers (10 workers)
+	const numWorkers = 10
+	v.workers = make([]*Worker, numWorkers)
+	sseChannel := v.sseBatcher.GetChannel()
+
+	for i := 0; i < numWorkers; i++ {
+		v.workers[i] = NewWorker(
+			i,
+			v.config.ID,
+			v.vaultPath,
+			v.ctx,
+			v.eventRouter,
+			v.dbService,
+			v.indexService,
+			v.explorerService,
+			sseChannel,
+		)
+	}
+
+	// Create dispatcher
+	v.dispatcher = NewEventDispatcher(v.ctx, v.config.ID, v.workers)
+
 	return nil
 }
 
@@ -202,14 +233,19 @@ func (v *Vault) Start() error {
 		return fmt.Errorf("failed to start explorer service: %w", err)
 	}
 
+	// Start workers
+	for _, worker := range v.workers {
+		worker.Start()
+	}
+
 	// Start sync service
 	if err := v.syncService.Start(); err != nil {
 		v.setStatus(VaultStatusError)
 		return fmt.Errorf("failed to start sync service: %w", err)
 	}
 
-	// Start event router
-	v.startEventRouter()
+	// Start dispatcher to route events from sync service to workers
+	v.dispatcher.Start(v.syncService.Events())
 
 	return nil
 }
@@ -281,28 +317,17 @@ func (v *Vault) monitorIndexAndStartSearch() {
 	}
 }
 
-// startEventRouter connects sync events to index and explorer
-func (v *Vault) startEventRouter() {
-	v.eventRouter.Add(1)
-	go func() {
-		defer v.eventRouter.Done()
-		for {
-			select {
-			case <-v.ctx.Done():
-				return
-			case <-v.stopChan:
-				return
-			case event, ok := <-v.syncService.Events():
-				if !ok {
-					return
-				}
-				v.trackFileOperation(event)
-				v.updateDatabase(event)
-				v.indexService.UpdateIndex(event)
-				v.explorerService.UpdateIndex(event)
-			}
-		}
-	}()
+// SetSSEManager sets the SSE manager and starts the SSE batcher
+func (v *Vault) SetSSEManager(manager *sse.Manager) {
+	// Update the batcher with the manager
+	v.sseBatcher = sse.NewEventBatcher(v.ctx, manager, 2*time.Second, 5)
+	v.sseBatcher.Start()
+
+	// Update workers with new SSE channel
+	sseChannel := v.sseBatcher.GetChannel()
+	for _, worker := range v.workers {
+		worker.sseChannel = sseChannel
+	}
 }
 
 // Stop stops all vault services
@@ -317,11 +342,23 @@ func (v *Vault) Stop() error {
 	close(v.stopChan)
 	v.cancel()
 
+	// Stop sync service first (stops producing events)
 	if v.syncService != nil {
 		v.syncService.Stop()
 	}
 
+	// Wait for dispatcher to finish routing
+	if v.dispatcher != nil {
+		v.dispatcher.Wait()
+	}
+
+	// Wait for all workers to finish
 	v.eventRouter.Wait()
+
+	// Stop SSE batcher
+	if v.sseBatcher != nil {
+		v.sseBatcher.Stop()
+	}
 
 	if v.explorerService != nil {
 		v.explorerService.Stop()
@@ -446,7 +483,16 @@ func (v *Vault) trackFileOperation(event syncpkg.FileChangeEvent) {
 }
 
 // updateDatabase syncs file changes to the database
-func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) {
+func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) error {
+	if v.dbService == nil {
+		return fmt.Errorf("db service not available")
+	}
+
+	return performDatabaseUpdate(v.dbService, v.vaultPath, event)
+}
+
+// DEPRECATED: Legacy method - keeping for reference, will be removed
+func (v *Vault) updateDatabaseOld(event syncpkg.FileChangeEvent) {
 	if v.dbService == nil {
 		return
 	}

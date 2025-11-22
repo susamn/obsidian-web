@@ -125,8 +125,9 @@ func (s *DBService) Start() error {
 		return fmt.Errorf("open sqlite: %w", err)
 	}
 
-	// Optional: tune DB connection pool for single-file sqlite
-	db.SetMaxOpenConns(1)
+	// Tune DB connection pool for better concurrency with workers
+	// Increase from 1 to allow multiple workers to write concurrently
+	db.SetMaxOpenConns(10)
 	db.SetConnMaxLifetime(time.Minute * 5)
 
 	// Ping with context
@@ -136,6 +137,27 @@ func (s *DBService) Start() error {
 		_ = db.Close()
 		s.setStatus(StatusError)
 		return fmt.Errorf("ping sqlite: %w", err)
+	}
+
+	// Enable WAL mode for better concurrency
+	if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
+		_ = db.Close()
+		s.setStatus(StatusError)
+		return fmt.Errorf("enable WAL mode: %w", err)
+	}
+
+	// Set synchronous mode to NORMAL for better performance (still safe with WAL)
+	if _, err := db.ExecContext(ctx, "PRAGMA synchronous=NORMAL"); err != nil {
+		_ = db.Close()
+		s.setStatus(StatusError)
+		return fmt.Errorf("set synchronous mode: %w", err)
+	}
+
+	// Set busy timeout to handle concurrent writes
+	if _, err := db.ExecContext(ctx, "PRAGMA busy_timeout=5000"); err != nil {
+		_ = db.Close()
+		s.setStatus(StatusError)
+		return fmt.Errorf("set busy timeout: %w", err)
 	}
 
 	s.dbMu.Lock()
