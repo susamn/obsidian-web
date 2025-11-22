@@ -2,7 +2,19 @@
   <div class="vault-view">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <h2 class="vault-name">{{ vaultName }}</h2>
+        <div class="header-top">
+          <h2 class="vault-name">{{ vaultName }}</h2>
+          <div class="header-actions">
+            <button
+              class="search-toggle-button"
+              :class="{ active: showSearch }"
+              @click="toggleSearch"
+              :title="showSearch ? 'Show file browser' : 'Search notes'"
+            >
+              <i :class="showSearch ? 'fas fa-folder' : 'fas fa-search'"></i>
+            </button>
+          </div>
+        </div>
         <div class="connection-status">
           <span
             class="status-indicator"
@@ -29,7 +41,22 @@
           </span>
         </div>
       </div>
-      <div class="file-tree">
+
+      <!-- Search Panel -->
+      <div v-if="showSearch" class="search-section">
+        <SearchPanel
+          :vault-id="fileStore.vaultId"
+          @close="closeSearch"
+          @search="handleSearchExecuted"
+        />
+        <SearchResults
+          :vault-id="fileStore.vaultId"
+          @result-selected="handleSearchResultSelected"
+        />
+      </div>
+
+      <!-- File Tree -->
+      <div v-else class="file-tree">
         <p v-if="fileStore.loading">Loading file tree...</p>
         <p v-else-if="fileStore.error" class="text-red-500">Error: {{ fileStore.error }}</p>
         <FileTree
@@ -87,8 +114,11 @@ import { useFileStore } from '../stores/fileStore';
 import { useTreeWalkerStore } from '../stores/treeWalkerStore';
 import { usePersistentTreeStore } from '../stores/persistentTreeStore';
 import { useRendererStore } from '../stores/rendererStore';
+import { useSearchStore } from '../stores/searchStore';
 import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
+import SearchPanel from '../components/SearchPanel.vue';
+import SearchResults from '../components/SearchResults.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import SSRRenderer from '../components/SSRRenderer.vue';
 import StructuredRenderer from '../components/StructuredRenderer.vue';
@@ -99,6 +129,7 @@ const fileStore = useFileStore();
 const treeWalkerStore = useTreeWalkerStore();
 const persistentTreeStore = usePersistentTreeStore();
 const rendererStore = useRendererStore();
+const searchStore = useSearchStore();
 
 // Load renderer preference on component setup
 rendererStore.loadRendererFromLocalStorage();
@@ -108,6 +139,7 @@ const expandedNodes = ref({});
 const connected = ref(false);
 const error = ref(null);
 const currentFileId = ref(null); // Track the ID of the currently selected file
+const showSearch = ref(false); // Toggle between file browser and search
 
 // Bulk operation progress tracking
 const bulkOperationProgress = ref({
@@ -258,6 +290,69 @@ const navigateToFile = async (filePath) => {
 defineExpose({
   navigateToFile,
 });
+
+/**
+ * Toggle search panel
+ */
+const toggleSearch = () => {
+  showSearch.value = !showSearch.value;
+  if (!showSearch.value) {
+    // Clear search when closing
+    searchStore.clearSearch();
+  }
+};
+
+/**
+ * Close search panel and return to file browser
+ */
+const closeSearch = () => {
+  showSearch.value = false;
+  searchStore.clearSearch();
+};
+
+/**
+ * Handle when a search is executed
+ */
+const handleSearchExecuted = () => {
+  console.log('[VaultView] Search executed, results:', searchStore.total);
+};
+
+/**
+ * Handle when a search result is selected
+ */
+const handleSearchResultSelected = async (result) => {
+  console.log('[VaultView] Search result selected:', result);
+
+  // The result.id should be the file path or file ID
+  // We need to navigate to this file
+  try {
+    // First, try to get the file by ID to ensure it exists
+    const fileId = result.id;
+
+    // Set current file ID
+    currentFileId.value = fileId;
+
+    // Fetch file content
+    if (!rendererStore.isStructuredRenderer) {
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
+
+      // Update the path from server response
+      if (fileData && fileData.path) {
+        fileStore.setCurrentPath(fileData.path);
+      }
+    } else {
+      // For structured renderer, just set a placeholder
+      fileStore.selectedFileContent = 'loading';
+      fileStore.setCurrentPath(fileId);
+    }
+
+    // Optionally close search panel after selecting a result
+    // Uncomment the next line if you want this behavior
+    // closeSearch();
+  } catch (error) {
+    console.error('[VaultView] Failed to load search result:', error);
+  }
+};
 
 const currentFileName = computed(() => {
   if (!fileStore.currentPath) return 'No file selected';
@@ -759,11 +854,54 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
 .vault-name {
   font-size: 1.2rem;
   font-weight: bold;
   color: var(--primary-color);
-  margin-bottom: 0.5rem;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.search-toggle-button {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
+  font-size: 1rem;
+}
+
+.search-toggle-button:hover {
+  background-color: var(--background-color);
+  color: var(--primary-color);
+}
+
+.search-toggle-button.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.search-section {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 4rem);
+  overflow: hidden;
 }
 
 .connection-status {
