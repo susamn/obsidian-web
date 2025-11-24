@@ -86,11 +86,15 @@ describe('customMarkdownParser', () => {
     });
 
     it('should parse nested formatting', () => {
-      const result = parseMarkdown('This is **bold and *italic***');
+      const result = parseMarkdown('This is **bold and *italic* text**');
       const content = result[0].content;
       expect(content[1].type).toBe('bold');
       expect(content[1].content).toHaveLength(3);
+      expect(content[1].content[0].type).toBe('text');
+      expect(content[1].content[0].content).toBe('bold and ');
       expect(content[1].content[1].type).toBe('italic');
+      expect(content[1].content[2].type).toBe('text');
+      expect(content[1].content[2].content).toBe(' text');
     });
   });
 

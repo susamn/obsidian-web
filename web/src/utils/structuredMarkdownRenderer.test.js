@@ -51,7 +51,7 @@ describe('structuredMarkdownRenderer', () => {
 
       const html = renderStructuredMarkdown(markdown, wikilinks, []);
 
-      expect(html).toContain('md-wikilink-broken');
+      expect(html).toContain('md-wikilink-pill-broken');
     });
 
     it('should replace image embeds', () => {

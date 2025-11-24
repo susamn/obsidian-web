@@ -165,12 +165,13 @@ function parseBlockquote(lines, startIndex) {
   const fullContent = quoteLines.join('\n');
 
   // Check if it's a callout: [!TYPE] Title
-  const calloutMatch = fullContent.match(/^\[!(\w+)\]\s*(.*)$/m);
+  const calloutMatch = fullContent.match(/^\[!(\w+)\](.*?)$/m);
 
   if (calloutMatch) {
     const type = calloutMatch[1].toLowerCase();
-    const title = calloutMatch[2].trim();
-    const content = fullContent.replace(/^\[!(\w+)\]\s*.*$/m, '').trim();
+    const titleLine = calloutMatch[2].trim();
+    const title = titleLine || getCalloutLabel(type);
+    const content = fullContent.replace(/^\[!(\w+)\].*$/m, '').trim();
 
     return {
       node: {
@@ -357,30 +358,13 @@ function parseInline(text) {
       const target = parts[0].trim();
       const display = parts[1] ? parts[1].trim() : '';
 
-      // Check if this is an image embed (looks like a file ID or has image extension)
-      // File IDs are typically alphanumeric with hyphens/underscores and NO path separators
-      const isImageEmbed = (target.match(/^[a-zA-Z0-9_-]+$/) && !target.includes('/') && !target.includes('\\')) ||
-                           target.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i);
-
-      if (isImageEmbed) {
-        // Treat as image
-        tokens.push({
-          type: 'image',
-          alt: '',
-          url: target, // Will be converted to asset URL in post-processing
-          fileId: target,
-          width: display || '', // Store width/size if provided
-          original: fullMatch
-        });
-      } else {
-        // Regular embed (note, pdf, etc.)
-        tokens.push({
-          type: 'embed',
-          target,
-          display,
-          original: fullMatch
-        });
-      }
+      // All ![[...]] syntax uses type 'embed'
+      tokens.push({
+        type: 'embed',
+        target,
+        display,
+        original: fullMatch
+      });
 
       remaining = remaining.slice(fullMatch.length);
       pos += fullMatch.length;
@@ -564,7 +548,9 @@ function postProcessNodes(nodes, wikilinks, embeds, options = {}) {
         }
         if (inline.type === 'embed') {
           const metadata = embeds.find(em => em.target === inline.target);
-          return { ...inline, ...metadata };
+          // Preserve the 'embed' type even if metadata has a different type field
+          const { type, ...metadataWithoutType } = metadata || {};
+          return { ...inline, ...metadataWithoutType };
         }
         if (inline.type === 'image') {
           // Convert relative image paths to asset URLs if vaultId and images metadata provided
@@ -603,7 +589,9 @@ function postProcessInline(inlineNodes, wikilinks, embeds, options = {}) {
     }
     if (inline.type === 'embed') {
       const metadata = embeds.find(em => em.target === inline.target);
-      return { ...inline, ...metadata };
+      // Preserve the 'embed' type even if metadata has a different type field
+      const { type, ...metadataWithoutType } = metadata || {};
+      return { ...inline, ...metadataWithoutType };
     }
     if (inline.type === 'image') {
       return processImageUrl(inline, options);
