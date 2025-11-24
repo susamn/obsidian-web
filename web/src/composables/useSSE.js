@@ -15,6 +15,7 @@ export function useSSE(callbacks = {}) {
   const connected = ref(false);
   const error = ref(null);
   const reconnectAttempts = ref(0);
+  const pendingEvents = ref(0); // Number of pending events in sync channel
   const maxReconnectAttempts = 5;
   const reconnectDelay = 3000; // 3 seconds
 
@@ -136,9 +137,20 @@ export function useSSE(callbacks = {}) {
         }
       });
 
-      // Ping event (keep-alive)
+      // Ping event (keep-alive and UI state updates)
       eventSource.addEventListener('ping', (event) => {
         console.debug('[SSE] Ping received');
+        try {
+          const data = JSON.parse(event.data);
+          // Update pending events count from ping
+          if (data.pending_events !== undefined) {
+            pendingEvents.value = data.pending_events;
+            console.debug(`[SSE] Pending events: ${data.pending_events}`);
+          }
+        } catch (err) {
+          // Ping might not have data, that's okay
+          console.debug('[SSE] Ping event (no data)');
+        }
       });
 
       // Error handler
@@ -214,6 +226,7 @@ export function useSSE(callbacks = {}) {
     connected,
     error,
     reconnectAttempts,
+    pendingEvents,
     connect,
     disconnect,
     reconnect,

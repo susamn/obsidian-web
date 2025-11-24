@@ -177,3 +177,9 @@ func (s *SyncService) Stop() error {
 func (s *SyncService) VaultID() string {
 	return s.vaultID
 }
+
+// PendingEventsCount returns the number of pending events in the channel
+// This is a non-blocking operation that returns the current buffer length
+func (s *SyncService) PendingEventsCount() int {
+	return len(s.events)
+}

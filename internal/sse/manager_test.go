@@ -429,3 +429,118 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+// TestPendingCountGetter tests the pending count getter registration and usage
+func TestPendingCountGetter(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewManager(ctx)
+	mgr.Start()
+	defer mgr.Stop()
+
+	vaultID := "test-vault"
+	pendingCount := 42
+
+	// Register a pending count getter
+	mgr.RegisterPendingCountGetter(vaultID, func() int {
+		return pendingCount
+	})
+
+	// Get the pending count
+	count := mgr.getPendingCount(vaultID)
+	if count != pendingCount {
+		t.Errorf("Expected pending count %d, got %d", pendingCount, count)
+	}
+
+	// Update the count
+	pendingCount = 100
+	count = mgr.getPendingCount(vaultID)
+	if count != 100 {
+		t.Errorf("Expected updated pending count 100, got %d", count)
+	}
+
+	// Unregister the getter
+	mgr.UnregisterPendingCountGetter(vaultID)
+	count = mgr.getPendingCount(vaultID)
+	if count != 0 {
+		t.Errorf("Expected 0 after unregister, got %d", count)
+	}
+}
+
+// TestPingWithPendingCount tests that ping events include pending count
+func TestPingWithPendingCount(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mgr := NewManager(ctx)
+	mgr.Start()
+	defer mgr.Stop()
+
+	vaultID := "test-vault"
+	pendingCount := 25
+
+	// Register a pending count getter
+	mgr.RegisterPendingCountGetter(vaultID, func() int {
+		return pendingCount
+	})
+
+	// Register a client
+	clientID := "test-client"
+	client := mgr.RegisterClient(ctx, clientID, vaultID)
+
+	// Give time for registration
+	time.Sleep(50 * time.Millisecond)
+
+	// Wait for a ping event (pings happen every 2 seconds)
+	select {
+	case event := <-client.Messages:
+		if event.Type != EventPing {
+			t.Errorf("Expected ping event, got %s", event.Type)
+		}
+		if event.VaultID != vaultID {
+			t.Errorf("Expected vault ID %s, got %s", vaultID, event.VaultID)
+		}
+		if event.PendingEvents != pendingCount {
+			t.Errorf("Expected pending events %d, got %d", pendingCount, event.PendingEvents)
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("Timeout waiting for ping event")
+	}
+}
+
+// TestMultipleVaultsPendingCount tests pending count for multiple vaults
+func TestMultipleVaultsPendingCount(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewManager(ctx)
+	mgr.Start()
+	defer mgr.Stop()
+
+	vault1 := "vault-1"
+	vault2 := "vault-2"
+	count1 := 10
+	count2 := 20
+
+	// Register pending count getters for both vaults
+	mgr.RegisterPendingCountGetter(vault1, func() int {
+		return count1
+	})
+	mgr.RegisterPendingCountGetter(vault2, func() int {
+		return count2
+	})
+
+	// Verify counts
+	if got := mgr.getPendingCount(vault1); got != count1 {
+		t.Errorf("Vault1: expected %d, got %d", count1, got)
+	}
+	if got := mgr.getPendingCount(vault2); got != count2 {
+		t.Errorf("Vault2: expected %d, got %d", count2, got)
+	}
+
+	// Unregister vault1
+	mgr.UnregisterPendingCountGetter(vault1)
+	if got := mgr.getPendingCount(vault1); got != 0 {
+		t.Errorf("Vault1 after unregister: expected 0, got %d", got)
+	}
+	if got := mgr.getPendingCount(vault2); got != count2 {
+		t.Errorf("Vault2 after vault1 unregister: expected %d, got %d", count2, got)
+	}
+}

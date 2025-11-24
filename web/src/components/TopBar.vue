@@ -4,9 +4,32 @@
       Obsidian Web
     </div>
     <div class="actions">
-      <div class="progress-indicator">
-        <!-- Placeholder for circular progress -->
-        <div class="progress-circle"></div>
+      <!-- Combined status indicator: connection + progress -->
+      <div
+        class="status-widget"
+        :class="statusClass"
+        :title="statusTitle"
+      >
+        <div class="status-icon">
+          <i v-if="pendingEvents > 0" class="fas fa-sync fa-spin"></i>
+          <i v-else-if="connected && !error" class="fas fa-circle"></i>
+          <i v-else-if="error" class="fas fa-exclamation-circle"></i>
+          <i v-else class="fas fa-circle-notch fa-spin"></i>
+        </div>
+        <div class="status-text">
+          <template v-if="pendingEvents > 0">
+            Syncing ({{ pendingEvents }})
+          </template>
+          <template v-else-if="connected && !error">
+            Live
+          </template>
+          <template v-else-if="error">
+            Offline
+          </template>
+          <template v-else>
+            Connecting
+          </template>
+        </div>
       </div>
       <div class="settings-icon" @click="goToSettings">
         ⚙️
@@ -16,8 +39,79 @@
 </template>
 
 <script>
+import { ref, watch, computed } from 'vue';
+import { useRoute } from 'vue-router';
+import { useSSE } from '../composables/useSSE';
+
 export default {
   name: 'TopBar',
+  setup() {
+    const route = useRoute();
+    const pendingEvents = ref(0);
+    const connected = ref(false);
+    const error = ref(null);
+
+    // Setup SSE connection
+    const {
+      connected: sseConnected,
+      error: sseError,
+      pendingEvents: ssePendingEvents,
+      connect,
+      disconnect
+    } = useSSE({});
+
+    // Watch for route changes to connect/disconnect SSE
+    watch(() => route.params.id, (newVaultId, oldVaultId) => {
+      if (oldVaultId) {
+        disconnect();
+      }
+
+      if (newVaultId) {
+        connect(newVaultId);
+      }
+    }, { immediate: true });
+
+    // Watch SSE state and update local refs
+    watch(ssePendingEvents, (newValue) => {
+      pendingEvents.value = newValue;
+    });
+
+    watch(sseConnected, (newValue) => {
+      connected.value = newValue;
+    });
+
+    watch(sseError, (newValue) => {
+      error.value = newValue;
+    });
+
+    // Computed properties for status
+    const statusClass = computed(() => {
+      if (pendingEvents.value > 0) return 'syncing';
+      if (error.value) return 'error';
+      if (connected.value) return 'connected';
+      return 'connecting';
+    });
+
+    const statusTitle = computed(() => {
+      if (pendingEvents.value > 0) return `Syncing ${pendingEvents.value} events`;
+      if (error.value) return `Offline: ${error.value}`;
+      if (connected.value) return 'Live updates enabled';
+      return 'Connecting to server...';
+    });
+
+    const goToSettings = (router) => {
+      router.push({ name: 'settings' });
+    };
+
+    return {
+      pendingEvents,
+      connected,
+      error,
+      statusClass,
+      statusTitle,
+      goToSettings,
+    };
+  },
   methods: {
     goToSettings() {
       this.$router.push({ name: 'settings' });
@@ -52,13 +146,64 @@ export default {
   font-size: 1.5rem;
 }
 
-.progress-circle {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--primary-color);
-  border-radius: 50%;
-  border-top-color: transparent;
-  animation: spin 1s linear infinite;
+/* Combined status widget */
+.status-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: default;
+  transition: background-color 0.2s;
+}
+
+.status-icon {
+  display: flex;
+  align-items: center;
+  font-size: 0.7rem;
+}
+
+.status-text {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Status states */
+.status-widget.connected {
+  background-color: rgba(152, 195, 121, 0.1);
+  color: #98c379;
+}
+
+.status-widget.connected .status-icon {
+  color: #98c379;
+}
+
+.status-widget.connecting {
+  background-color: rgba(229, 192, 123, 0.1);
+  color: #e5c07b;
+}
+
+.status-widget.connecting .status-icon {
+  color: #e5c07b;
+}
+
+.status-widget.error {
+  background-color: rgba(224, 108, 117, 0.1);
+  color: #e06c75;
+}
+
+.status-widget.error .status-icon {
+  color: #e06c75;
+}
+
+.status-widget.syncing {
+  background-color: rgba(97, 175, 239, 0.1);
+  color: #61afef;
+}
+
+.status-widget.syncing .status-icon {
+  color: #61afef;
 }
 
 @keyframes spin {

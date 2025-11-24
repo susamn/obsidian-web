@@ -184,18 +184,18 @@ const getFileIcon = (metadata) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-right: 4px;
-  font-size: 0.7rem;
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+  font-size: 0.65rem;
   color: var(--icon-color, #666);
   flex-shrink: 0;
 }
 
 .expand-icon-placeholder {
   display: inline-block;
-  width: 16px;
-  margin-right: 4px;
+  width: 14px;
+  margin-right: 2px;
   flex-shrink: 0;
 }
 
@@ -204,9 +204,9 @@ const getFileIcon = (metadata) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
   flex-shrink: 0;
 }
 
@@ -258,6 +258,8 @@ const getFileIcon = (metadata) => {
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  text-align: left;
+  padding-left: 0;
 }
 
 /* Create button */

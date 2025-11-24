@@ -34,15 +34,16 @@ type FileEventData struct {
 
 // Event represents an SSE event to be sent to clients
 type Event struct {
-	Type      EventType              `json:"type"`
-	VaultID   string                 `json:"vault_id"`
-	Path      string                 `json:"path,omitempty"`    // Relative path only (NEVER absolute!)
-	FileID    string                 `json:"file_id,omitempty"` // DB ID for fetching content
-	Timestamp time.Time              `json:"timestamp"`
-	Data      map[string]interface{} `json:"data,omitempty"`      // Legacy: generic data map
-	FileData  *FileEventData         `json:"file_data,omitempty"` // Rich file event metadata for UI updates
-	Changes   []EventChange          `json:"changes,omitempty"`   // For bulk updates
-	Summary   *EventSummary          `json:"summary,omitempty"`   // Summary for bulk updates
+	Type          EventType              `json:"type"`
+	VaultID       string                 `json:"vault_id"`
+	Path          string                 `json:"path,omitempty"`    // Relative path only (NEVER absolute!)
+	FileID        string                 `json:"file_id,omitempty"` // DB ID for fetching content
+	Timestamp     time.Time              `json:"timestamp"`
+	Data          map[string]interface{} `json:"data,omitempty"`      // Legacy: generic data map
+	FileData      *FileEventData         `json:"file_data,omitempty"` // Rich file event metadata for UI updates
+	Changes       []EventChange          `json:"changes,omitempty"`   // For bulk updates
+	Summary       *EventSummary          `json:"summary,omitempty"`   // Summary for bulk updates
+	PendingEvents int                    `json:"pending_events"`      // Number of pending events in sync channel
 }
 
 // EventChange represents a single change in a bulk update
@@ -68,6 +69,9 @@ type Client struct {
 	cancel   context.CancelFunc
 }
 
+// PendingCountGetter is a function that returns the pending events count for a vault
+type PendingCountGetter func() int
+
 // Manager manages SSE connections and broadcasts events
 type Manager struct {
 	clients   map[string]*Client
@@ -76,6 +80,10 @@ type Manager struct {
 	// Index by vault ID for efficient broadcasting
 	vaultClients   map[string]map[string]*Client
 	vaultClientsMu sync.RWMutex
+
+	// Pending count getters per vault
+	pendingCountGetters   map[string]PendingCountGetter
+	pendingCountGettersMu sync.RWMutex
 
 	register   chan *Client
 	unregister chan *Client
@@ -91,13 +99,14 @@ func NewManager(ctx context.Context) *Manager {
 	mgrCtx, cancel := context.WithCancel(ctx)
 
 	return &Manager{
-		clients:      make(map[string]*Client),
-		vaultClients: make(map[string]map[string]*Client),
-		register:     make(chan *Client, 10),
-		unregister:   make(chan *Client, 10),
-		broadcast:    make(chan Event, 100),
-		ctx:          mgrCtx,
-		cancel:       cancel,
+		clients:             make(map[string]*Client),
+		vaultClients:        make(map[string]map[string]*Client),
+		pendingCountGetters: make(map[string]PendingCountGetter),
+		register:            make(chan *Client, 10),
+		unregister:          make(chan *Client, 10),
+		broadcast:           make(chan Event, 100),
+		ctx:                 mgrCtx,
+		cancel:              cancel,
 	}
 }
 
@@ -246,11 +255,11 @@ func (m *Manager) broadcastEvent(event Event) {
 	}
 }
 
-// pingClients sends periodic ping events to keep connections alive
+// pingClients sends periodic ping events to keep connections alive and update UI state
 func (m *Manager) pingClients() {
 	defer m.wg.Done()
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(2 * time.Second) // Ping every 2 seconds for UI updates
 	defer ticker.Stop()
 
 	for {
@@ -259,22 +268,33 @@ func (m *Manager) pingClients() {
 			return
 
 		case <-ticker.C:
-			m.clientsMu.RLock()
-			clients := make([]*Client, 0, len(m.clients))
-			for _, client := range m.clients {
-				clients = append(clients, client)
+			// Get all vaults and their pending counts
+			m.vaultClientsMu.RLock()
+			vaultIDs := make([]string, 0, len(m.vaultClients))
+			for vaultID := range m.vaultClients {
+				vaultIDs = append(vaultIDs, vaultID)
 			}
-			m.clientsMu.RUnlock()
+			m.vaultClientsMu.RUnlock()
 
-			// Send ping to all clients
-			for _, client := range clients {
-				select {
-				case client.Messages <- Event{
-					Type:      EventPing,
-					Timestamp: time.Now(),
-				}:
-				default:
-					// Skip if channel is full
+			// Send ping to each vault's clients with pending count
+			for _, vaultID := range vaultIDs {
+				pendingCount := m.getPendingCount(vaultID)
+
+				m.vaultClientsMu.RLock()
+				clients := m.vaultClients[vaultID]
+				m.vaultClientsMu.RUnlock()
+
+				for _, client := range clients {
+					select {
+					case client.Messages <- Event{
+						Type:          EventPing,
+						VaultID:       vaultID,
+						Timestamp:     time.Now(),
+						PendingEvents: pendingCount,
+					}:
+					default:
+						// Skip if channel is full
+					}
 				}
 			}
 		}
@@ -304,6 +324,11 @@ func (m *Manager) UnregisterClient(client *Client) {
 
 // BroadcastFileEvent broadcasts a file change event
 func (m *Manager) BroadcastFileEvent(vaultID, path string, eventType interface{}) {
+	m.BroadcastFileEventWithPendingCount(vaultID, path, eventType, 0)
+}
+
+// BroadcastFileEventWithPendingCount broadcasts a file change event with pending count
+func (m *Manager) BroadcastFileEventWithPendingCount(vaultID, path string, eventType interface{}, pendingCount int) {
 	// Convert interface{} to EventType
 	var evtType EventType
 	switch v := eventType.(type) {
@@ -320,10 +345,11 @@ func (m *Manager) BroadcastFileEvent(vaultID, path string, eventType interface{}
 	}
 
 	event := Event{
-		Type:      evtType,
-		VaultID:   vaultID,
-		Path:      path,
-		Timestamp: time.Now(),
+		Type:          evtType,
+		VaultID:       vaultID,
+		Path:          path,
+		Timestamp:     time.Now(),
+		PendingEvents: pendingCount,
 	}
 
 	select {
@@ -368,6 +394,11 @@ func (m *Manager) BroadcastFileEventWithData(vaultID, path string, eventType Eve
 
 // BroadcastBulkUpdate broadcasts a bulk update event with multiple changes
 func (m *Manager) BroadcastBulkUpdate(vaultID string, events []Event) {
+	m.BroadcastBulkUpdateWithPendingCount(vaultID, events, 0)
+}
+
+// BroadcastBulkUpdateWithPendingCount broadcasts a bulk update event with pending count
+func (m *Manager) BroadcastBulkUpdateWithPendingCount(vaultID string, events []Event, pendingCount int) {
 	if len(events) == 0 {
 		return
 	}
@@ -394,21 +425,23 @@ func (m *Manager) BroadcastBulkUpdate(vaultID string, events []Event) {
 	}
 
 	bulkEvent := Event{
-		Type:      EventBulkUpdate,
-		VaultID:   vaultID,
-		Timestamp: time.Now(),
-		Changes:   changes,
-		Summary:   summary,
+		Type:          EventBulkUpdate,
+		VaultID:       vaultID,
+		Timestamp:     time.Now(),
+		Changes:       changes,
+		Summary:       summary,
+		PendingEvents: pendingCount,
 	}
 
 	select {
 	case m.broadcast <- bulkEvent:
 		logger.WithFields(map[string]interface{}{
-			"vault_id": vaultID,
-			"count":    len(events),
-			"created":  summary.Created,
-			"modified": summary.Modified,
-			"deleted":  summary.Deleted,
+			"vault_id":      vaultID,
+			"count":         len(events),
+			"created":       summary.Created,
+			"modified":      summary.Modified,
+			"deleted":       summary.Deleted,
+			"pending_count": pendingCount,
 		}).Debug("Broadcast bulk update")
 	case <-m.ctx.Done():
 		// Manager stopped
@@ -438,6 +471,30 @@ func (m *Manager) GetVaultClientCount(vaultID string) int {
 	defer m.vaultClientsMu.RUnlock()
 	if clients, exists := m.vaultClients[vaultID]; exists {
 		return len(clients)
+	}
+	return 0
+}
+
+// RegisterPendingCountGetter registers a function to get pending events count for a vault
+func (m *Manager) RegisterPendingCountGetter(vaultID string, getter PendingCountGetter) {
+	m.pendingCountGettersMu.Lock()
+	defer m.pendingCountGettersMu.Unlock()
+	m.pendingCountGetters[vaultID] = getter
+}
+
+// UnregisterPendingCountGetter removes the pending count getter for a vault
+func (m *Manager) UnregisterPendingCountGetter(vaultID string) {
+	m.pendingCountGettersMu.Lock()
+	defer m.pendingCountGettersMu.Unlock()
+	delete(m.pendingCountGetters, vaultID)
+}
+
+// getPendingCount gets the pending events count for a vault
+func (m *Manager) getPendingCount(vaultID string) int {
+	m.pendingCountGettersMu.RLock()
+	defer m.pendingCountGettersMu.RUnlock()
+	if getter, exists := m.pendingCountGetters[vaultID]; exists {
+		return getter()
 	}
 	return 0
 }

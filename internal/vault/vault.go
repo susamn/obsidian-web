@@ -76,6 +76,7 @@ type Vault struct {
 	dispatcher *EventDispatcher
 	workers    []*Worker
 	sseBatcher *sse.EventBatcher
+	sseManager *sse.Manager
 
 	// State
 	status       VaultStatus
@@ -320,6 +321,18 @@ func (v *Vault) monitorIndexAndStartSearch() {
 
 // SetSSEManager sets the SSE manager and starts the SSE batcher
 func (v *Vault) SetSSEManager(manager *sse.Manager) {
+	v.mu.Lock()
+	v.sseManager = manager
+	v.mu.Unlock()
+
+	// Register pending count getter for this vault
+	manager.RegisterPendingCountGetter(v.config.ID, func() int {
+		if v.syncService != nil {
+			return v.syncService.PendingEventsCount()
+		}
+		return 0
+	})
+
 	// Update the batcher with the manager
 	v.sseBatcher = sse.NewEventBatcher(v.ctx, manager, 2*time.Second, 5)
 	v.sseBatcher.Start()
@@ -347,6 +360,13 @@ func (v *Vault) Stop() error {
 	if v.syncService != nil {
 		v.syncService.Stop()
 	}
+
+	// Unregister pending count getter from SSE manager
+	v.mu.RLock()
+	if v.sseManager != nil {
+		v.sseManager.UnregisterPendingCountGetter(v.config.ID)
+	}
+	v.mu.RUnlock()
 
 	// Wait for dispatcher to finish routing
 	if v.dispatcher != nil {

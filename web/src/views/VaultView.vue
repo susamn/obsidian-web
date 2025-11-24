@@ -15,31 +15,6 @@
             </button>
           </div>
         </div>
-        <div class="connection-status">
-          <span
-            class="status-indicator"
-            :class="{
-              'connected': connected && !bulkOperationProgress.active,
-              'disconnected': !connected && !error && !bulkOperationProgress.active,
-              'error': error,
-              'syncing': bulkOperationProgress.active
-            }"
-            :title="bulkOperationProgress.active ? `Syncing ${bulkOperationProgress.percentage}%` : (error || (connected ? 'Live updates enabled' : 'Connecting...'))"
-          >
-            <i v-if="bulkOperationProgress.active" class="fas fa-sync fa-spin"></i>
-            <i v-else-if="connected" class="fas fa-circle"></i>
-            <i v-else-if="error" class="fas fa-exclamation-circle"></i>
-            <i v-else class="fas fa-circle-notch fa-spin"></i>
-          </span>
-          <span class="status-text">
-            <template v-if="bulkOperationProgress.active">
-              Syncing {{ bulkOperationProgress.percentage }}%
-            </template>
-            <template v-else>
-              {{ connected ? 'Live' : (error ? 'Offline' : 'Connecting') }}
-            </template>
-          </span>
-        </div>
       </div>
 
       <!-- Search Panel -->
@@ -979,49 +954,6 @@ onMounted(() => {
   flex-direction: column;
   height: calc(100% - 4rem);
   overflow: hidden;
-}
-
-.connection-status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-}
-
-.status-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
-}
-
-.status-indicator.connected {
-  color: #98c379;
-}
-
-.status-indicator.disconnected {
-  color: #e5c07b;
-}
-
-.status-indicator.error {
-  color: #e06c75;
-}
-
-.status-indicator.syncing {
-  color: #61afef;
-}
-
-.status-text {
-  color: var(--text-color-secondary, #666);
-}
-
-.status-indicator.connected + .status-text {
-  color: #98c379;
-}
-
-.status-indicator.error + .status-text {
-  color: #e06c75;
 }
 
 .main-content {
