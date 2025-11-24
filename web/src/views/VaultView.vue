@@ -66,9 +66,11 @@
           :expanded-nodes="expandedNodes"
           @toggle-expand="handleToggleExpand"
           @file-selected="handleFileSelected"
+          @create-clicked="handleCreateClick"
         />
       </div>
     </aside>
+
     <main class="main-content">
       <div v-if="fileStore.loading" class="loading-spinner">
         <i class="fas fa-spinner fa-spin"></i>
@@ -104,6 +106,15 @@
         <p>Select a file to view its content.</p>
       </div>
     </main>
+
+    <!-- Create Note Dialog -->
+    <CreateNoteDialog
+      :show="showCreateDialog"
+      :vault-id="fileStore.vaultId"
+      :parent-id="createParentId"
+      @close="closeCreateDialog"
+      @created="handleFileCreated"
+    />
   </div>
 </template>
 
@@ -122,6 +133,7 @@ import SearchResults from '../components/SearchResults.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import SSRRenderer from '../components/SSRRenderer.vue';
 import StructuredRenderer from '../components/StructuredRenderer.vue';
+import CreateNoteDialog from '../components/CreateNoteDialog.vue';
 import { entryAnimation, exitAnimation } from '../utils/animationUtils';
 
 const route = useRoute();
@@ -140,6 +152,10 @@ const connected = ref(false);
 const error = ref(null);
 const currentFileId = ref(null); // Track the ID of the currently selected file
 const showSearch = ref(false); // Toggle between file browser and search
+
+// Create dialog state
+const showCreateDialog = ref(false);
+const createParentId = ref(null);
 
 // Bulk operation progress tracking
 const bulkOperationProgress = ref({
@@ -354,6 +370,65 @@ const handleSearchResultSelected = async (result) => {
   } catch (error) {
     console.error('[VaultView] Failed to load search result:', error);
   }
+};
+
+/**
+ * Handle create button click on folder
+ */
+const handleCreateClick = (node) => {
+  createParentId.value = node.metadata.id;
+  showCreateDialog.value = true;
+};
+
+/**
+ * Close create dialog
+ */
+const closeCreateDialog = () => {
+  showCreateDialog.value = false;
+  createParentId.value = null;
+};
+
+/**
+ * Handle file/folder created
+ */
+const handleFileCreated = async (result) => {
+  console.log('[VaultView] File/folder created:', result);
+
+  // Find the parent folder path
+  let parentPath = '';
+  if (createParentId.value) {
+    const dbService = fileStore.vaults?.[fileStore.vaultId]?.GetDBService();
+    if (dbService) {
+      try {
+        const parentEntry = await dbService.GetFileEntryByID(createParentId.value);
+        if (parentEntry) {
+          parentPath = parentEntry.Path;
+        }
+      } catch (err) {
+        console.error('[VaultView] Failed to get parent path:', err);
+      }
+    }
+  }
+
+  // Refresh the parent folder to show the new item
+  console.log('[VaultView] Refreshing parent folder:', parentPath);
+  await fileStore.fetchChildren(fileStore.vaultId, parentPath);
+  updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
+
+  // Update persistent tree
+  try {
+    persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
+  } catch (err) {
+    console.warn('[VaultView] Failed to update persistent tree:', err);
+  }
+
+  // Register new children
+  if (fileStore.childrenData.length > 0) {
+    treeWalkerStore.registerNodes(fileStore.vaultId, fileStore.childrenData);
+  }
+
+  // Force Vue update
+  fileStore.treeData = [...fileStore.treeData];
 };
 
 const currentFileName = computed(() => {

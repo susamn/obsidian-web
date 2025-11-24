@@ -1,11 +1,13 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/logger"
@@ -800,4 +802,157 @@ func (s *Server) extractVaultIDFromPath(urlPath, prefix string) string {
 	path := strings.TrimPrefix(urlPath, prefix)
 	path = strings.TrimSuffix(path, "/")
 	return path
+}
+
+// CreateFileRequest represents a request to create a file or folder
+type CreateFileRequest struct {
+	VaultID  string `json:"vault_id"`
+	ParentID string `json:"parent_id,omitempty"` // Optional parent folder ID
+	Name     string `json:"name"`                // File or folder name
+	IsFolder bool   `json:"is_folder"`           // true for folder, false for file
+	Content  string `json:"content,omitempty"`   // File content (only for files)
+}
+
+// handleCreateFile godoc
+// @Summary Create a new file or folder
+// @Description Create a new file or folder in a vault
+// @Tags files
+// @Accept json
+// @Produce json
+// @Param request body CreateFileRequest true "Create file request"
+// @Success 200 {object} object{message=string,id=string,path=string}
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 405 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/v1/file/create [post]
+func (s *Server) handleCreateFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Parse request body
+	var req CreateFileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err))
+		return
+	}
+
+	// Validate required fields
+	if req.VaultID == "" {
+		writeError(w, http.StatusBadRequest, "vault_id is required")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	// Validate vault and get services
+	v, dbService, ok := s.validateAndGetVaultWithDB(w, req.VaultID)
+	if !ok {
+		return
+	}
+
+	// Build the file path
+	var targetPath string
+	if req.ParentID != "" {
+		// Get parent folder entry to build path
+		parentEntry, err := dbService.GetFileEntryByID(req.ParentID)
+		if err != nil || parentEntry == nil {
+			writeError(w, http.StatusNotFound, "Parent folder not found")
+			return
+		}
+		if !parentEntry.IsDir {
+			writeError(w, http.StatusBadRequest, "Parent must be a directory")
+			return
+		}
+		targetPath = filepath.Join(parentEntry.Path, req.Name)
+	} else {
+		// Create at root
+		targetPath = req.Name
+	}
+
+	// Security: prevent directory traversal
+	if strings.Contains(targetPath, "..") {
+		writeError(w, http.StatusBadRequest, "Invalid path: directory traversal not allowed")
+		return
+	}
+
+	// Auto-add .md extension for files if not present
+	if !req.IsFolder && !strings.HasSuffix(strings.ToLower(req.Name), ".md") {
+		targetPath += ".md"
+		req.Name += ".md"
+	}
+
+	// Build full filesystem path
+	fullPath := s.buildVaultFilePath(v, targetPath)
+	if fullPath == "" {
+		writeError(w, http.StatusInternalServerError, "Failed to build file path")
+		return
+	}
+
+	// Check if file/folder already exists
+	if _, err := os.Stat(fullPath); err == nil {
+		writeError(w, http.StatusConflict, fmt.Sprintf("%s already exists", map[bool]string{true: "Folder", false: "File"}[req.IsFolder]))
+		return
+	}
+
+	// Create the file or folder
+	if req.IsFolder {
+		// Create directory
+		if err := os.MkdirAll(fullPath, 0755); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create folder: %v", err))
+			return
+		}
+	} else {
+		// Ensure parent directory exists
+		parentDir := filepath.Dir(fullPath)
+		if err := os.MkdirAll(parentDir, 0755); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create parent directory: %v", err))
+			return
+		}
+
+		// Create file with content
+		content := req.Content
+		if content == "" {
+			content = "# " + strings.TrimSuffix(req.Name, ".md") + "\n\n"
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create file: %v", err))
+			return
+		}
+	}
+
+	// The file will be picked up by the file watcher and indexed automatically
+	// Wait a moment for the watcher to process it
+	time.Sleep(100 * time.Millisecond)
+
+	// Try to get the new file entry from database
+	var fileID string
+	// Try a few times to get the file entry (watcher might take a moment)
+	for i := 0; i < 10; i++ {
+		entry, err := dbService.GetFileEntryByPath(targetPath)
+		if err == nil && entry != nil {
+			fileID = entry.ID
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	logger.WithFields(map[string]interface{}{
+		"vault_id":  req.VaultID,
+		"path":      targetPath,
+		"is_folder": req.IsFolder,
+		"file_id":   fileID,
+	}).Info("Created file/folder")
+
+	writeSuccess(w, map[string]interface{}{
+		"message":   fmt.Sprintf("%s created successfully", map[bool]string{true: "Folder", false: "File"}[req.IsFolder]),
+		"id":        fileID,
+		"path":      targetPath,
+		"name":      req.Name,
+		"is_folder": req.IsFolder,
+	})
 }

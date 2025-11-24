@@ -1,7 +1,9 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -468,4 +470,282 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// createJSONBody creates a JSON request body from a map
+func createJSONBody(t *testing.T, data map[string]interface{}) *bytes.Buffer {
+	t.Helper()
+	body, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("Failed to marshal JSON: %v", err)
+	}
+	return bytes.NewBuffer(body)
+}
+
+func TestHandleCreateFile(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+	indexDir := t.TempDir()
+	dbDir := t.TempDir()
+
+	vaultCfg := &config.VaultConfig{
+		ID:        "test-vault",
+		Name:      "Test Vault",
+		Enabled:   true,
+		IndexPath: indexDir + "/test.bleve",
+		DBPath:    dbDir,
+		Storage: config.StorageConfig{
+			Type: "local",
+			Local: &config.LocalStorageConfig{
+				Path: tempDir,
+			},
+		},
+	}
+
+	v, err := vault.NewVault(ctx, vaultCfg)
+	if err != nil {
+		t.Fatalf("Failed to create vault: %v", err)
+	}
+
+	if err := v.Start(); err != nil {
+		t.Fatalf("Failed to start vault: %v", err)
+	}
+	defer v.Stop()
+
+	if err := v.WaitForReady(5 * 1000000000); err != nil {
+		t.Fatalf("Vault not ready: %v", err)
+	}
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Host: "localhost",
+			Port: 8080,
+		},
+		Vaults: []config.VaultConfig{*vaultCfg},
+	}
+
+	vaults := map[string]*vault.Vault{
+		"test-vault": v,
+	}
+
+	server := NewServer(ctx, cfg, vaults)
+
+	t.Run("Success - create file at root", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "test-vault",
+				"name":      "new-note",
+				"is_folder": false,
+				"content":   "# New Note\n\nTest content",
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+			return
+		}
+
+		// Verify file was created with .md extension
+		filePath := filepath.Join(tempDir, "new-note.md")
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			t.Error("File was not created")
+		}
+
+		// Verify content
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("Failed to read created file: %v", err)
+		}
+		if string(content) != "# New Note\n\nTest content" {
+			t.Errorf("File content mismatch, got: %s", string(content))
+		}
+
+		// Verify response
+		body := w.Body.String()
+		if !contains(body, "\"name\":\"new-note.md\"") {
+			t.Error("Response missing correct name with .md extension")
+		}
+	})
+
+	t.Run("Success - create file with .md extension already", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "test-vault",
+				"name":      "another-note.md",
+				"is_folder": false,
+				"content":   "# Another Note",
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+			return
+		}
+
+		// Verify file was created without double .md
+		filePath := filepath.Join(tempDir, "another-note.md")
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			t.Error("File was not created")
+		}
+
+		// Should not have .md.md
+		doubleExtPath := filepath.Join(tempDir, "another-note.md.md")
+		if _, err := os.Stat(doubleExtPath); !os.IsNotExist(err) {
+			t.Error("File was created with double .md extension")
+		}
+	})
+
+	t.Run("Success - create folder", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "test-vault",
+				"name":      "new-folder",
+				"is_folder": true,
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+			return
+		}
+
+		// Verify folder was created
+		folderPath := filepath.Join(tempDir, "new-folder")
+		info, err := os.Stat(folderPath)
+		if os.IsNotExist(err) {
+			t.Error("Folder was not created")
+		}
+		if err == nil && !info.IsDir() {
+			t.Error("Created path is not a directory")
+		}
+	})
+
+	t.Run("Success - create file with default content", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "test-vault",
+				"name":      "default-content",
+				"is_folder": false,
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+			return
+		}
+
+		// Verify file has default content
+		filePath := filepath.Join(tempDir, "default-content.md")
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("Failed to read created file: %v", err)
+		}
+		expectedContent := "# default-content\n\n"
+		if string(content) != expectedContent {
+			t.Errorf("Expected default content '%s', got '%s'", expectedContent, string(content))
+		}
+	})
+
+	t.Run("Failure - missing vault_id", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"name":      "test",
+				"is_folder": false,
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Failure - missing name", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "test-vault",
+				"is_folder": false,
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Failure - file already exists", func(t *testing.T) {
+		// Create a file first
+		existingFile := filepath.Join(tempDir, "existing.md")
+		if err := os.WriteFile(existingFile, []byte("existing"), 0644); err != nil {
+			t.Fatalf("Failed to create existing file: %v", err)
+		}
+
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "test-vault",
+				"name":      "existing",
+				"is_folder": false,
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusConflict {
+			t.Errorf("Expected status 409, got %d", w.Code)
+		}
+	})
+
+	t.Run("Failure - directory traversal attempt", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "test-vault",
+				"name":      "../../../etc/passwd",
+				"is_folder": false,
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Failure - method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/file/create", nil)
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("Expected status 405, got %d", w.Code)
+		}
+	})
+
+	t.Run("Failure - invalid vault", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/file/create",
+			createJSONBody(t, map[string]interface{}{
+				"vault_id":  "nonexistent-vault",
+				"name":      "test",
+				"is_folder": false,
+			}))
+		w := httptest.NewRecorder()
+
+		server.handleCreateFile(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected status 404, got %d", w.Code)
+		}
+	})
 }

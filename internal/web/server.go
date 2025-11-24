@@ -61,6 +61,7 @@ func NewServer(ctx context.Context, cfg *config.Config, vaults map[string]*vault
 func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// API routes - ID-based endpoints must come before path-based ones
 	mux.HandleFunc("/api/v1/assets/", s.handleGetAsset)
+	mux.HandleFunc("/api/v1/file/create", s.handleCreateFile)
 	mux.HandleFunc("/api/v1/files/tree-by-id/", s.handleGetTreeByID)
 	mux.HandleFunc("/api/v1/files/children-by-id/", s.handleGetChildrenByID)
 	mux.HandleFunc("/api/v1/files/ssr/by-id/", s.handleSSRFileByID)

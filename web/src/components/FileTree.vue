@@ -24,6 +24,16 @@
 
         <!-- Node name -->
         <span class="node-name">{{ node.metadata.name }}</span>
+
+        <!-- Create button (only for directories) -->
+        <button
+          v-if="node.metadata.is_directory"
+          class="create-button"
+          @click.stop="handleCreateClick(node)"
+          title="Create new file or folder"
+        >
+          <i class="fas fa-plus"></i>
+        </button>
       </div>
 
       <!-- Children (recursively) -->
@@ -34,6 +44,7 @@
           :expanded-nodes="expandedNodes"
           @toggle-expand="toggleExpand"
           @file-selected="selectFile"
+          @create-clicked="handleCreateClick"
         />
       </div>
     </li>
@@ -59,7 +70,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['toggle-expand']);
+const emit = defineEmits(['toggle-expand', 'file-selected', 'create-clicked']);
 
 const fileStore = useFileStore();
 
@@ -69,6 +80,10 @@ const toggleExpand = async (node) => {
 
 const selectFile = (node) => {
   emit('file-selected', node);
+};
+
+const handleCreateClick = (node) => {
+  emit('create-clicked', node);
 };
 
 /**
@@ -243,6 +258,34 @@ const getFileIcon = (metadata) => {
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+}
+
+/* Create button */
+.create-button {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-color-secondary, #666);
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.node-header:hover .create-button {
+  display: inline-flex;
+}
+
+.create-button:hover {
+  background-color: var(--primary-color, #3b82f6);
+  color: white;
 }
 
 /* Directory styling */
