@@ -1084,7 +1084,7 @@ onMounted(() => {
 
 .main-content {
   flex-grow: 1;
-  padding: 2rem;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
   overflow-y: auto;
   background-color: var(--background-color);
   color: var(--text-color);
@@ -1123,15 +1123,16 @@ onMounted(() => {
 }
 
 .file-header-section {
-  padding: 1.5rem 2rem 0;
+  padding: clamp(0.5rem, 1.5vw, 0.875rem) clamp(0.75rem, 2vw, 1.25rem) clamp(0.375rem, 1vw, 0.5rem);
   border-bottom: 1px solid var(--border-color);
+  background-color: var(--background-color);
 }
 
 .navigation-bar {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
+  gap: clamp(0.5rem, 1.5vw, 0.75rem);
+  margin-bottom: clamp(0.25rem, 0.8vw, 0.375rem);
 }
 
 .nav-buttons {
@@ -1140,54 +1141,66 @@ onMounted(() => {
 }
 
 .nav-button {
-  background: none;
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border: 1px solid rgba(128, 128, 128, 0.2);
   color: var(--text-color);
   cursor: pointer;
-  padding: 0.4rem 0.6rem;
-  border-radius: 4px;
+  padding: clamp(0.25rem, 0.8vw, 0.375rem) clamp(0.375rem, 1vw, 0.5rem);
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
-  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  font-size: clamp(0.8rem, 1.8vw, 0.875rem);
 }
 
 .nav-button:hover:not(:disabled) {
-  background-color: var(--background-color-light);
-  border-color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb, 59, 130, 246), 0.1);
+  border-color: rgba(var(--primary-color-rgb, 59, 130, 246), 0.3);
   color: var(--primary-color);
 }
 
 .nav-button:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: not-allowed;
 }
 
 .breadcrumb {
-  font-size: 0.85rem;
+  font-size: clamp(0.7rem, 1.6vw, 0.75rem);
   color: var(--text-color-secondary);
   display: flex;
   align-items: center;
   gap: 0;
   flex: 1;
+  opacity: 0.7;
+  font-weight: 400;
 }
 
 .breadcrumb-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: clamp(0.125rem, 0.5vw, 0.1875rem);
 }
 
 .breadcrumb-separator {
-  color: var(--border-color);
+  color: var(--text-color-secondary);
+  opacity: 0.6;
+  font-size: 0.9em;
+  padding: 0 clamp(0.25em, 0.8vw, 0.35em);
+  font-weight: 500;
+}
+
+.breadcrumb-separator::before {
+  content: "›";
+  display: inline-block;
 }
 
 .file-title {
-  font-size: 2em;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
   font-weight: 600;
   color: var(--text-color);
-  margin: 0.5rem 0 1rem 0;
+  margin: clamp(0.25rem, 1vw, 0.375rem) 0 clamp(0.375rem, 1.2vw, 0.5rem) 0;
   padding: 0;
+  line-height: 1.3;
 }
 </style>

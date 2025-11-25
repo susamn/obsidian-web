@@ -232,44 +232,45 @@ onMounted(() => {
 .markdown-content {
   color: var(--text-color);
   background-color: var(--background-color);
-  line-height: 1.8;
-  padding: 2rem;
+  line-height: 1.65;
+  padding: clamp(1rem, 3vw, 1.5rem);
   margin: 0;
   text-align: left;
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(128, 128, 128, 0.15);
   border-top: none;
-  font-size: 15px;
-  letter-spacing: 0.3px;
+  border-radius: 0 0 8px 8px;
+  font-size: clamp(0.875rem, 2vw, 0.9375rem);
+  letter-spacing: 0.01em;
 }
 
 /* HEADING STYLES - OBSIDIAN LIKE */
 
 .markdown-content h1 {
-  font-size: 2.15em;
+  font-size: clamp(1.5em, 3vw, 1.75em);
   font-weight: 700;
-  margin-top: 1.8em;
-  margin-bottom: 0.6em;
+  margin-top: clamp(1.2em, 2.5vw, 1.5em);
+  margin-bottom: clamp(0.4em, 1vw, 0.5em);
   color: var(--md-heading-color);
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .markdown-content h2 {
-  font-size: 1.75em;
+  font-size: clamp(1.3em, 2.5vw, 1.5em);
   font-weight: 700;
-  margin-top: 1.6em;
-  margin-bottom: 0.5em;
+  margin-top: clamp(1em, 2vw, 1.3em);
+  margin-bottom: clamp(0.35em, 0.8vw, 0.4em);
   color: var(--md-heading-color);
-  line-height: 1.3;
+  line-height: 1.25;
   display: flex;
   align-items: center;
   gap: 0.4em;
 }
 
 .markdown-content h3 {
-  font-size: 1.4em;
+  font-size: clamp(1.15em, 2.2vw, 1.3em);
   font-weight: 600;
-  margin-top: 1.4em;
-  margin-bottom: 0.4em;
+  margin-top: clamp(0.9em, 1.8vw, 1.1em);
+  margin-bottom: clamp(0.3em, 0.7vw, 0.35em);
   color: var(--md-heading-color);
   line-height: 1.3;
   display: flex;
@@ -278,10 +279,10 @@ onMounted(() => {
 }
 
 .markdown-content h4 {
-  font-size: 1.2em;
+  font-size: clamp(1.05em, 2vw, 1.15em);
   font-weight: 600;
-  margin-top: 1.2em;
-  margin-bottom: 0.3em;
+  margin-top: clamp(0.8em, 1.5vw, 1em);
+  margin-bottom: clamp(0.25em, 0.6vw, 0.3em);
   color: var(--md-heading-color);
   line-height: 1.3;
   display: flex;
@@ -290,19 +291,19 @@ onMounted(() => {
 }
 
 .markdown-content h5 {
-  font-size: 1.05em;
+  font-size: clamp(0.975em, 1.8vw, 1.05em);
   font-weight: 600;
-  margin-top: 1em;
-  margin-bottom: 0.3em;
+  margin-top: clamp(0.7em, 1.3vw, 0.85em);
+  margin-bottom: clamp(0.2em, 0.5vw, 0.25em);
   color: var(--md-heading-color);
   line-height: 1.3;
 }
 
 .markdown-content h6 {
-  font-size: 1em;
+  font-size: clamp(0.925em, 1.6vw, 1em);
   font-weight: 600;
-  margin-top: 1em;
-  margin-bottom: 0.3em;
+  margin-top: clamp(0.65em, 1.2vw, 0.8em);
+  margin-bottom: clamp(0.2em, 0.5vw, 0.25em);
   color: var(--md-heading-color);
   line-height: 1.3;
 }
@@ -340,10 +341,10 @@ onMounted(() => {
 /* ============================================================================ */
 
 .md-callout {
-  margin: 1.2em 0;
-  border-left: 5px solid;
-  border-radius: 6px;
-  padding: 1em 1.2em;
+  margin: clamp(0.75em, 1.5vw, 1em) 0;
+  border-left: 3px solid;
+  border-radius: 8px;
+  padding: clamp(0.75em, 1.5vw, 0.875em) clamp(0.875em, 2vw, 1em);
   background-color: var(--background-color-light);
   display: flex;
   flex-direction: column;
@@ -352,15 +353,15 @@ onMounted(() => {
 .md-callout-header {
   display: flex;
   align-items: center;
-  gap: 0.8em;
+  gap: clamp(0.5em, 1.2vw, 0.625em);
   font-weight: 600;
-  font-size: 0.95em;
-  margin-bottom: 0.6em;
+  font-size: clamp(0.85em, 1.8vw, 0.9em);
+  margin-bottom: clamp(0.4em, 1vw, 0.5em);
   text-transform: none;
 }
 
 .md-callout-icon {
-  font-size: 1.3em;
+  font-size: clamp(1.1em, 2vw, 1.2em);
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -373,10 +374,10 @@ onMounted(() => {
 }
 
 .md-callout-content {
-  padding-left: 2.4em;
+  padding-left: clamp(1.75em, 3vw, 2em);
   color: var(--text-color);
-  font-size: 0.98em;
-  line-height: 1.7;
+  font-size: clamp(0.9em, 1.8vw, 0.95em);
+  line-height: 1.65;
 }
 
 .md-callout-content > :first-child {
@@ -513,28 +514,28 @@ onMounted(() => {
 }
 
 .markdown-content .md-code-block-wrapper {
-  margin: 1.2em 0;
-  border: 1px solid var(--md-pre-border);
-  border-radius: 6px;
+  margin: clamp(0.75em, 1.5vw, 1em) 0;
+  border: 1px solid rgba(128, 128, 128, 0.15);
+  border-radius: 8px;
   overflow: hidden;
   background-color: var(--md-pre-bg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 .markdown-content .md-code-lang {
   background-color: rgba(0, 0, 0, 0.3);
-  padding: 0.5em 1em;
-  font-size: 0.8em;
+  padding: clamp(0.375em, 1vw, 0.4375em) clamp(0.75em, 1.8vw, 0.875em);
+  font-size: clamp(0.7em, 1.6vw, 0.75em);
   color: var(--md-code-text);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-bottom: 1px solid var(--md-pre-border);
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
   font-family: 'Fira Code', monospace;
 }
 
 .markdown-content .md-code-block {
-  padding: 1.2em;
+  padding: clamp(0.875em, 2vw, 1em);
   overflow-x: auto;
   margin: 0;
   border-radius: 0;
@@ -542,8 +543,8 @@ onMounted(() => {
   background-color: transparent;
   color: var(--md-code-text);
   font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
-  font-size: 0.9em;
-  line-height: 1.6;
+  font-size: clamp(0.8em, 1.8vw, 0.85em);
+  line-height: 1.55;
 }
 
 .markdown-content pre code {
@@ -560,24 +561,24 @@ onMounted(() => {
 
 .markdown-content ul,
 .markdown-content ol {
-  margin: 0.8em 0;
-  padding-left: 2.2em;
+  margin: clamp(0.5em, 1.2vw, 0.65em) 0;
+  padding-left: clamp(1.5em, 3vw, 2em);
 }
 
 .markdown-content ul li,
 .markdown-content ol li {
-  margin-bottom: 0.45em;
-  line-height: 1.75;
+  margin-bottom: clamp(0.25em, 0.8vw, 0.35em);
+  line-height: 1.65;
 }
 
 .markdown-content .md-list {
-  margin: 0.8em 0;
-  padding-left: 2.2em;
+  margin: clamp(0.5em, 1.2vw, 0.65em) 0;
+  padding-left: clamp(1.5em, 3vw, 2em);
 }
 
 .markdown-content .md-list li {
-  margin-bottom: 0.45em;
-  line-height: 1.75;
+  margin-bottom: clamp(0.25em, 0.8vw, 0.35em);
+  line-height: 1.65;
 }
 
 .markdown-content .md-list ul,
@@ -638,8 +639,8 @@ onMounted(() => {
 }
 
 .markdown-content p {
-  margin: 0.8em 0;
-  line-height: 1.8;
+  margin: clamp(0.5em, 1vw, 0.65em) 0;
+  line-height: 1.65;
 }
 
 /* ============================================================================ */
@@ -649,13 +650,16 @@ onMounted(() => {
 .markdown-content table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1em 0;
+  margin: clamp(0.75em, 1.5vw, 1em) 0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .markdown-content th, .markdown-content td {
-  border: 1px solid var(--md-table-border);
-  padding: 0.75em 1em;
+  border: 1px solid rgba(128, 128, 128, 0.15);
+  padding: clamp(0.5em, 1.2vw, 0.625em) clamp(0.75em, 1.8vw, 0.875em);
   text-align: left;
+  font-size: clamp(0.875em, 1.8vw, 0.9em);
 }
 
 .markdown-content th {
@@ -680,9 +684,10 @@ onMounted(() => {
   max-width: 100%;
   height: auto;
   display: block;
-  margin: 1em auto;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
+  margin: clamp(0.75em, 1.5vw, 1em) auto;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 /* ============================================================================ */
@@ -700,8 +705,8 @@ onMounted(() => {
 /* ============================================================================ */
 
 .markdown-content {
-  font-size: 15px;
-  line-height: 1.8;
+  font-size: clamp(0.875rem, 2vw, 0.9375rem);
+  line-height: 1.65;
 }
 
 /* Better spacing between different element types */
@@ -711,16 +716,16 @@ onMounted(() => {
 .markdown-content h4 + p,
 .markdown-content h5 + p,
 .markdown-content h6 + p {
-  margin-top: 0.3em;
+  margin-top: clamp(0.2em, 0.6vw, 0.25em);
 }
 
 /* Extra spacing before sections */
 .markdown-content h2 {
-  margin-top: 1.8em;
+  margin-top: clamp(1.2em, 2.5vw, 1.5em);
 }
 
 .markdown-content h3 {
-  margin-top: 1.5em;
+  margin-top: clamp(1em, 2vw, 1.25em);
 }
 
 /* ============================================================================ */
@@ -830,42 +835,43 @@ onMounted(() => {
 
 .outline-toggle {
   position: absolute;
-  top: 1.5rem;
-  right: 2rem;
+  top: clamp(0.75rem, 2vw, 1rem);
+  right: clamp(1rem, 3vw, 1.5rem);
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(128, 128, 128, 0.2);
   color: var(--text-color);
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
+  padding: clamp(0.375rem, 1vw, 0.5rem) clamp(0.5rem, 1.5vw, 0.625rem);
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 1.8vw, 0.875rem);
   transition: all 0.2s ease;
   z-index: 100;
 }
 
 .outline-toggle:hover {
-  background-color: var(--background-color-light);
+  background-color: rgba(var(--primary-color-rgb, 59, 130, 246), 0.1);
+  border-color: rgba(var(--primary-color-rgb, 59, 130, 246), 0.3);
 }
 
 .outline-panel {
   position: absolute;
-  top: 3.5rem;
-  right: 2rem;
+  top: clamp(2.5rem, 5vw, 3rem);
+  right: clamp(1rem, 3vw, 1.5rem);
   background-color: var(--background-color-light);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  width: 250px;
-  max-height: 400px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: 8px;
+  width: clamp(200px, 30vw, 250px);
+  max-height: clamp(300px, 50vh, 400px);
   overflow-y: auto;
   z-index: 99;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .outline-header {
   font-weight: 600;
-  font-size: 0.9rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  font-size: clamp(0.8rem, 1.8vw, 0.875rem);
+  padding: clamp(0.5rem, 1.5vw, 0.625rem) clamp(0.75rem, 2vw, 1rem);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
   color: var(--text-color);
 }
 
@@ -879,42 +885,83 @@ onMounted(() => {
 .outline-list {
   display: flex;
   flex-direction: column;
-  padding: 0.5rem;
+  padding: clamp(0.375rem, 1vw, 0.5rem);
+  gap: clamp(0.125rem, 0.4vw, 0.15rem);
 }
 
 .outline-item {
-  padding: 0.5rem 0.75rem;
+  padding: clamp(0.25rem, 0.8vw, 0.35rem) clamp(0.5rem, 1.2vw, 0.625rem);
   color: var(--md-link-color);
   text-decoration: none;
-  font-size: 0.85rem;
-  border-radius: 3px;
+  font-size: clamp(0.775rem, 1.6vw, 0.8rem);
+  border-radius: 4px;
   transition: all 0.2s ease;
-  border-left: 2px solid transparent;
   cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: clamp(0.3em, 0.8vw, 0.375em);
+  text-align: left;
+}
+
+.outline-item::before {
+  content: attr(data-marker);
+  color: var(--text-color-secondary);
+  opacity: 0.6;
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 1.2em;
 }
 
 .outline-item:hover {
-  background-color: var(--background-color);
+  background-color: rgba(59, 130, 246, 0.08);
   color: var(--md-link-hover);
 }
 
+.outline-level-1 {
+  padding-left: clamp(0.5rem, 1.2vw, 0.625rem);
+}
+
+.outline-level-1::before {
+  content: "•";
+}
+
 .outline-level-2 {
-  padding-left: 1rem;
+  padding-left: clamp(1rem, 2vw, 1.25rem);
+}
+
+.outline-level-2::before {
+  content: "*";
 }
 
 .outline-level-3 {
-  padding-left: 1.5rem;
+  padding-left: clamp(1.5rem, 3vw, 1.875rem);
+}
+
+.outline-level-3::before {
+  content: "**";
 }
 
 .outline-level-4 {
-  padding-left: 2rem;
+  padding-left: clamp(2rem, 4vw, 2.5rem);
+}
+
+.outline-level-4::before {
+  content: "***";
 }
 
 .outline-level-5 {
-  padding-left: 2.5rem;
+  padding-left: clamp(2.5rem, 5vw, 3.125rem);
+}
+
+.outline-level-5::before {
+  content: "–";
 }
 
 .outline-level-6 {
-  padding-left: 3rem;
+  padding-left: clamp(3rem, 6vw, 3.75rem);
+}
+
+.outline-level-6::before {
+  content: "·";
 }
 </style>
