@@ -85,7 +85,23 @@
               </span>
             </div>
           </div>
-          <h1 class="file-title">{{ currentFileName }}</h1>
+          <div class="title-stats-row">
+            <h1 class="file-title">{{ currentFileName }}</h1>
+            <div v-if="markdownResult.stats && markdownResult.stats.words > 0" class="file-stats">
+              <span class="stat-chip" title="Word count">
+                <i class="fas fa-font"></i>
+                {{ markdownResult.stats.words.toLocaleString() }}
+              </span>
+              <span class="stat-chip" title="Character count">
+                <i class="fas fa-text-width"></i>
+                {{ markdownResult.stats.chars ? markdownResult.stats.chars.toLocaleString() : markdownResult.stats.characters?.toLocaleString() }}
+              </span>
+              <span class="stat-chip" title="Reading time">
+                <i class="far fa-clock"></i>
+                {{ typeof markdownResult.stats.readingTime === 'number' ? `${markdownResult.stats.readingTime} min` : markdownResult.stats.readingTime }}
+              </span>
+            </div>
+          </div>
         </div>
 
         <!-- Dynamic Renderer Component -->
@@ -99,9 +115,11 @@
           @wikilink-click="handleWikilinkNavigation"
         />
       </div>
-      <div v-else class="no-content-message">
-        <i class="fas fa-file"></i>
-        <p>Select a file to view its content.</p>
+      <div v-else class="file-viewer">
+        <div class="no-content-message">
+          <i class="fas fa-file"></i>
+          <p>Select a file to view its content.</p>
+        </div>
       </div>
     </main>
 
@@ -1082,11 +1100,14 @@ onMounted(() => {
 }
 
 .main-content {
-  flex-grow: 1;
+  flex: 1;
+  min-height: 0;
   padding: clamp(0.75rem, 2vw, 1.25rem);
-  overflow-y: auto;
+  overflow: hidden;
   background-color: var(--background-color);
   color: var(--text-color);
+  display: flex;
+  flex-direction: column;
 }
 
 .loading-spinner,
@@ -1115,13 +1136,16 @@ onMounted(() => {
   background-color: var(--background-color);
   padding: 0;
   margin: 0;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
 }
 
 .file-header-section {
+  flex-shrink: 0;
   padding: clamp(0.5rem, 1.5vw, 0.875rem) clamp(0.75rem, 2vw, 1.25rem) clamp(0.375rem, 1vw, 0.5rem);
   border-bottom: 1px solid var(--border-color);
   background-color: var(--background-color);
@@ -1194,6 +1218,14 @@ onMounted(() => {
   display: inline-block;
 }
 
+.title-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(1rem, 3vw, 1.5rem);
+  flex-wrap: wrap;
+}
+
 .file-title {
   font-size: clamp(1.25rem, 3vw, 1.5rem);
   font-weight: 600;
@@ -1201,5 +1233,39 @@ onMounted(() => {
   margin: clamp(0.25rem, 1vw, 0.375rem) 0 clamp(0.375rem, 1.2vw, 0.5rem) 0;
   padding: 0;
   line-height: 1.3;
+  flex: 0 1 auto;
+}
+
+.file-stats {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.375rem, 1vw, 0.5rem);
+  flex-shrink: 0;
+}
+
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(0.25em, 0.6vw, 0.3em);
+  padding: clamp(0.25em, 0.8vw, 0.35em) clamp(0.5em, 1.2vw, 0.625em);
+  background-color: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: clamp(0.7rem, 1.6vw, 0.75rem);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.stat-chip:hover {
+  background-color: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.stat-chip i {
+  color: #3b82f6;
+  font-size: 0.9em;
+  opacity: 0.8;
 }
 </style>

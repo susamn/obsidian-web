@@ -223,17 +223,19 @@ onMounted(() => {
 <style scoped>
 .markdown-content-wrapper {
   flex: 1;
+  height: 100%;
   overflow-y: auto;
   padding: 0;
   min-width: 0;
   position: relative;
+  min-height: 0;
 }
 
 .markdown-content {
   color: var(--text-color);
   background-color: var(--background-color);
   line-height: 1.65;
-  padding: clamp(1rem, 3vw, 1.5rem);
+  padding: clamp(1.5rem, 4vw, 2.5rem);
   margin: 0;
   text-align: left;
   border: 1px solid rgba(128, 128, 128, 0.15);
@@ -241,6 +243,9 @@ onMounted(() => {
   border-radius: 0 0 8px 8px;
   font-size: clamp(0.875rem, 2vw, 0.9375rem);
   letter-spacing: 0.01em;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* HEADING STYLES - OBSIDIAN LIKE */

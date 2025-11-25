@@ -89,27 +89,7 @@
           </div>
         </div>
 
-        <!-- Stats -->
-        <div v-if="stats" class="sr-metadata-panel sr-stats">
-          <h3 class="metadata-title">
-            <i class="fas fa-chart-bar"></i>
-            Statistics
-          </h3>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <span class="stat-label">Words</span>
-              <span class="stat-value">{{ stats.words.toLocaleString() }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Characters</span>
-              <span class="stat-value">{{ stats.characters.toLocaleString() }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Reading Time</span>
-              <span class="stat-value">{{ stats.readingTime }}</span>
-            </div>
-          </div>
-        </div>
+        <!-- Stats removed from bottom - now shown in header -->
       </div>
     </div>
 
@@ -232,7 +212,7 @@ const fetchStructuredData = async () => {
         frontmatter: data.data.frontmatter || {},
         headings: data.data.headings || [],
         wikilinks: data.data.wikilinks || [],
-        stats: data.data.stats || {}
+        stats: formatStats(data.data.stats)
       });
     } else {
       throw new Error('Invalid response format');
@@ -278,10 +258,12 @@ watch(() => props.vaultId, () => {
 <style scoped>
 .structured-renderer-wrapper {
   flex: 1;
+  height: 100%;
   overflow-y: auto;
   padding: 0;
   min-width: 0;
   position: relative;
+  min-height: 0;
 }
 
 .sr-loading,
@@ -323,6 +305,11 @@ watch(() => props.vaultId, () => {
 .sr-content-container {
   position: relative;
   width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Outline Toggle Button */
@@ -456,7 +443,7 @@ watch(() => props.vaultId, () => {
 .sr-markdown-content {
   color: var(--text-color);
   background-color: var(--background-color);
-  padding: clamp(1rem, 3vw, 1.5rem);
+  padding: clamp(1.5rem, 4vw, 2.5rem);
   margin: 0;
   text-align: left;
   border: 1px solid rgba(128, 128, 128, 0.15);
@@ -465,6 +452,9 @@ watch(() => props.vaultId, () => {
   font-size: clamp(0.875rem, 2vw, 0.9375rem);
   letter-spacing: 0.01em;
   line-height: 1.65;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Metadata Panels */
