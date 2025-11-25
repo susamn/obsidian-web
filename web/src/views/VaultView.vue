@@ -131,7 +131,6 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import SSRRenderer from '../components/SSRRenderer.vue';
 import StructuredRenderer from '../components/StructuredRenderer.vue';
 import CreateNoteDialog from '../components/CreateNoteDialog.vue';
-import { entryAnimation, exitAnimation } from '../utils/animationUtils';
 
 const route = useRoute();
 const fileStore = useFileStore();
