@@ -143,7 +143,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:markdownResult']);
+const emit = defineEmits(['update:markdownResult', 'wikilink-click']);
 
 const loading = ref(false);
 const error = ref(null);
@@ -258,18 +258,14 @@ const scrollToHeading = (headingId) => {
 
 // Handle wikilink clicks
 const handleWikilinkClick = (event) => {
-  console.log('Wikilink clicked:', event);
-  // You can emit this event or navigate to the file
-  // For now, just log it
-  if (event.fileId && event.exists) {
-    // Navigate to the linked file
-    // This would typically trigger a navigation event
-  }
+  emit('wikilink-click', event);
 };
 
 // Watch for file ID changes
-watch(() => props.fileId, () => {
-  fetchStructuredData();
+watch(() => props.fileId, (newFileId) => {
+  if (newFileId) {
+    fetchStructuredData();
+  }
 }, { immediate: true });
 
 // Watch for vault ID changes

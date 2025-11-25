@@ -58,11 +58,31 @@
       <div v-else-if="fileStore.selectedFileContent" class="file-viewer">
         <!-- Breadcrumb and Header -->
         <div class="file-header-section">
-          <div class="breadcrumb">
-            <span v-for="(part, index) in breadcrumbParts" :key="index" class="breadcrumb-item">
-              <span v-if="index > 0" class="breadcrumb-separator">/</span>
-              <span>{{ part }}</span>
-            </span>
+          <div class="navigation-bar">
+            <div class="nav-buttons">
+              <button
+                class="nav-button"
+                :disabled="!canGoBack"
+                @click="goBack"
+                title="Go back"
+              >
+                <i class="fas fa-arrow-left"></i>
+              </button>
+              <button
+                class="nav-button"
+                :disabled="!canGoForward"
+                @click="goForward"
+                title="Go forward"
+              >
+                <i class="fas fa-arrow-right"></i>
+              </button>
+            </div>
+            <div class="breadcrumb">
+              <span v-for="(part, index) in breadcrumbParts" :key="index" class="breadcrumb-item">
+                <span v-if="index > 0" class="breadcrumb-separator">/</span>
+                <span>{{ part }}</span>
+              </span>
+            </div>
           </div>
           <h1 class="file-title">{{ currentFileName }}</h1>
         </div>
@@ -70,10 +90,12 @@
         <!-- Dynamic Renderer Component -->
         <component
           :is="currentRendererComponent"
+          :key="`${fileStore.vaultId}-${currentFileId}`"
           :content="fileStore.selectedFileContent"
           :vault-id="fileStore.vaultId"
           :file-id="currentFileId"
           @update:markdownResult="markdownResult = $event"
+          @wikilink-click="handleWikilinkNavigation"
         />
       </div>
       <div v-else class="no-content-message">
@@ -127,6 +149,11 @@ const connected = ref(false);
 const error = ref(null);
 const currentFileId = ref(null); // Track the ID of the currently selected file
 const showSearch = ref(false); // Toggle between file browser and search
+
+// Navigation history
+const navigationHistory = ref([]);
+const navigationIndex = ref(-1);
+const isNavigatingHistory = ref(false); // Flag to prevent adding to history during back/forward
 
 // Create dialog state
 const showCreateDialog = ref(false);
@@ -210,14 +237,18 @@ const handleToggleExpand = async (node) => {
 
 const handleFileSelected = async (node) => {
   if (!node.metadata.is_directory) {
-    // Set current file ID first
+    // Use path if available, otherwise use filename
+    const filePath = node.metadata.path || node.metadata.name;
+    fileStore.setCurrentPath(filePath);
+
+    // Add to navigation history
+    addToNavigationHistory(node.metadata.id, filePath);
+
+    // Set current file ID - this should trigger StructuredRenderer watcher
     currentFileId.value = node.metadata.id;
 
-    // Use path if available, otherwise use filename
-    fileStore.setCurrentPath(node.metadata.path || node.metadata.name);
-
     // Only fetch file content for browser and SSR renderers
-    // Structured renderer fetches its own data
+    // Structured renderer fetches its own data via watcher
     if (!rendererStore.isStructuredRenderer) {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
 
@@ -225,62 +256,18 @@ const handleFileSelected = async (node) => {
       // This path is READ-ONLY and used for UI navigation only
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path);
+        // Update history with correct path
+        if (navigationHistory.value.length > 0) {
+          navigationHistory.value[navigationIndex.value].filePath = fileData.path;
+        }
       }
     } else {
-      // For structured renderer, just set a placeholder to show the component
+      // For structured renderer, the watcher will handle fetching
+      // Just set a placeholder to ensure the component is shown
       fileStore.selectedFileContent = 'loading';
     }
   }
 };
-
-/**
- * Navigate to a file by its path (for deep linking from wikilinks)
- * This will expand all parent folders and select the file (Obsidian-style)
- * @param {string} filePath - The relative path of the file (READ-ONLY, from server)
- */
-const navigateToFile = async (filePath) => {
-  console.log('[VaultView] Navigating to file:', filePath);
-
-  // Helper function to fetch children by ID
-  const fetchChildrenByIdFn = async (vaultId, nodeId) => {
-    await fileStore.fetchChildrenByID(vaultId, nodeId);
-    return fileStore.childrenData;
-  };
-
-  try {
-    // Expand all parent folders
-    const expandedNodeIds = await persistentTreeStore.navigateToPath(
-      fileStore.vaultId,
-      filePath,
-      fetchChildrenByIdFn
-    );
-
-    // Update UI expanded state
-    expandedNodeIds.forEach((nodeId) => {
-      expandedNodes.value[nodeId] = true;
-    });
-
-    // Force update to reflect expanded state
-    fileStore.treeData = [...fileStore.treeData];
-
-    // Find and select the file node
-    const fileNode = persistentTreeStore.findNodeByPath(fileStore.vaultId, filePath);
-    if (fileNode) {
-      await handleFileSelected(fileNode);
-      console.log('[VaultView] Successfully navigated to file:', filePath);
-    } else {
-      console.warn('[VaultView] File node not found after navigation:', filePath);
-    }
-  } catch (error) {
-    console.error('[VaultView] Failed to navigate to file:', filePath, error);
-  }
-};
-
-// Expose navigateToFile for external use (e.g., from wikilink clicks)
-// This can be called from the markdown renderer when a wikilink is clicked
-defineExpose({
-  navigateToFile,
-});
 
 /**
  * Toggle search panel
@@ -344,6 +331,42 @@ const handleSearchResultSelected = async (result) => {
     // Keep search panel open - don't call closeSearch()
   } catch (error) {
     console.error('[VaultView] Failed to load search result:', error);
+  }
+};
+
+/**
+ * Handle wikilink navigation from markdown renderer
+ * Simple approach: just load the file by ID, update breadcrumb
+ */
+const handleWikilinkNavigation = async (event) => {
+  try {
+    const { fileId, path, exists } = event;
+
+    if (!exists || !fileId || !path) {
+      return;
+    }
+
+    // Update breadcrumb/path
+    fileStore.setCurrentPath(path);
+
+    // Add to navigation history
+    addToNavigationHistory(fileId, path);
+
+    // Update current file ID - this triggers StructuredRenderer watcher to fetch content
+    currentFileId.value = fileId;
+
+    // For structured renderer, set placeholder to show component
+    if (rendererStore.isStructuredRenderer) {
+      fileStore.selectedFileContent = 'loading';
+    } else {
+      // For other renderers, fetch content
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
+      if (fileData && fileData.path) {
+        fileStore.setCurrentPath(fileData.path);
+      }
+    }
+  } catch (error) {
+    console.error('[VaultView] Failed to navigate to wikilink:', error);
   }
 };
 
@@ -416,6 +439,101 @@ const breadcrumbParts = computed(() => {
   if (!fileStore.currentPath) return [];
   return fileStore.currentPath.split('/');
 });
+
+// Navigation history computed properties
+const canGoBack = computed(() => navigationIndex.value > 0);
+const canGoForward = computed(() => navigationIndex.value < navigationHistory.value.length - 1);
+
+/**
+ * Add file to navigation history
+ */
+const addToNavigationHistory = (fileId, filePath) => {
+  if (!fileId || !filePath || isNavigatingHistory.value) {
+    return;
+  }
+
+  // Don't add if it's the same as the current item
+  const currentItem = navigationHistory.value[navigationIndex.value];
+  if (currentItem && currentItem.fileId === fileId) {
+    return;
+  }
+
+  // Remove any forward history when navigating to a new file
+  navigationHistory.value = navigationHistory.value.slice(0, navigationIndex.value + 1);
+
+  // Add new item
+  navigationHistory.value.push({
+    fileId,
+    filePath,
+    timestamp: Date.now()
+  });
+
+  navigationIndex.value = navigationHistory.value.length - 1;
+};
+
+/**
+ * Navigate back in history
+ */
+const goBack = async () => {
+  if (!canGoBack.value) return;
+
+  isNavigatingHistory.value = true;
+
+  try {
+    navigationIndex.value--;
+    const item = navigationHistory.value[navigationIndex.value];
+
+    // Update breadcrumb
+    fileStore.setCurrentPath(item.filePath);
+
+    // Update current file ID - triggers fetch
+    currentFileId.value = item.fileId;
+
+    // For structured renderer, set placeholder
+    if (rendererStore.isStructuredRenderer) {
+      fileStore.selectedFileContent = 'loading';
+    } else {
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);
+      if (fileData && fileData.path) {
+        fileStore.setCurrentPath(fileData.path);
+      }
+    }
+  } finally {
+    isNavigatingHistory.value = false;
+  }
+};
+
+/**
+ * Navigate forward in history
+ */
+const goForward = async () => {
+  if (!canGoForward.value) return;
+
+  isNavigatingHistory.value = true;
+
+  try {
+    navigationIndex.value++;
+    const item = navigationHistory.value[navigationIndex.value];
+
+    // Update breadcrumb
+    fileStore.setCurrentPath(item.filePath);
+
+    // Update current file ID - triggers fetch
+    currentFileId.value = item.fileId;
+
+    // For structured renderer, set placeholder
+    if (rendererStore.isStructuredRenderer) {
+      fileStore.selectedFileContent = 'loading';
+    } else {
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);
+      if (fileData && fileData.path) {
+        fileStore.setCurrentPath(fileData.path);
+      }
+    }
+  } finally {
+    isNavigatingHistory.value = false;
+  }
+};
 
 
 
@@ -1001,13 +1119,50 @@ onMounted(() => {
   border-bottom: 1px solid var(--border-color);
 }
 
+.navigation-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.nav-button {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.nav-button:hover:not(:disabled) {
+  background-color: var(--background-color-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .breadcrumb {
   font-size: 0.85rem;
   color: var(--text-color-secondary);
-  margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
   gap: 0;
+  flex: 1;
 }
 
 .breadcrumb-item {

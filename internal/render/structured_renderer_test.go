@@ -311,8 +311,8 @@ func TestExtractEmbeds(t *testing.T) {
 				t.Errorf("Expected %d embeds, got %d", tt.expectedNum, len(embeds))
 			}
 
-			if tt.expectedNum > 0 && embeds[0].Type != tt.expectedType {
-				t.Errorf("Expected embed type %q, got %q", tt.expectedType, embeds[0].Type)
+			if tt.expectedNum > 0 && embeds[0].FileType != tt.expectedType {
+				t.Errorf("Expected embed type %q, got %q", tt.expectedType, embeds[0].FileType)
 			}
 		})
 	}
@@ -453,8 +453,8 @@ More content here.`
 	if len(result.Embeds) != 1 {
 		t.Errorf("Expected 1 embed, got %d", len(result.Embeds))
 	}
-	if len(result.Embeds) > 0 && result.Embeds[0].Type != "image" {
-		t.Errorf("Expected embed type 'image', got %q", result.Embeds[0].Type)
+	if len(result.Embeds) > 0 && result.Embeds[0].FileType != "image" {
+		t.Errorf("Expected embed type 'image', got %q", result.Embeds[0].FileType)
 	}
 
 	// Check stats

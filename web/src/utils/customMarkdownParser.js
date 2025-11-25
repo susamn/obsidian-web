@@ -539,18 +539,34 @@ function parseInline(text) {
  * Post-process nodes to inject wikilink and embed metadata and convert image paths
  */
 function postProcessNodes(nodes, wikilinks, embeds, options = {}) {
+  const { vaultId } = options;
+
   return nodes.map(node => {
     if (node.content && Array.isArray(node.content)) {
       node.content = node.content.map(inline => {
         if (inline.type === 'wikilink') {
           const metadata = wikilinks.find(wl => wl.original === inline.original);
-          return { ...inline, ...metadata };
+          const merged = { ...inline, ...metadata };
+
+          // Add asset_url for image wikilinks
+          if (merged.file_type === 'image' && merged.file_id && vaultId) {
+            merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+          }
+
+          return merged;
         }
         if (inline.type === 'embed') {
           const metadata = embeds.find(em => em.target === inline.target);
           // Preserve the 'embed' type even if metadata has a different type field
-          const { type, ...metadataWithoutType } = metadata || {};
-          return { ...inline, ...metadataWithoutType };
+          const { file_type, ...metadataWithoutFileType } = metadata || {};
+          const merged = { ...inline, ...metadataWithoutFileType, file_type };
+
+          // Add asset_url for image embeds
+          if (merged.file_type === 'image' && merged.file_id && vaultId) {
+            merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+          }
+
+          return merged;
         }
         if (inline.type === 'image') {
           // Convert relative image paths to asset URLs if vaultId and images metadata provided
@@ -582,16 +598,32 @@ function postProcessNodes(nodes, wikilinks, embeds, options = {}) {
 }
 
 function postProcessInline(inlineNodes, wikilinks, embeds, options = {}) {
+  const { vaultId } = options;
+
   return inlineNodes.map(inline => {
     if (inline.type === 'wikilink') {
       const metadata = wikilinks.find(wl => wl.original === inline.original);
-      return { ...inline, ...metadata };
+      const merged = { ...inline, ...metadata };
+
+      // Add asset_url for image wikilinks
+      if (merged.file_type === 'image' && merged.file_id && vaultId) {
+        merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+      }
+
+      return merged;
     }
     if (inline.type === 'embed') {
       const metadata = embeds.find(em => em.target === inline.target);
       // Preserve the 'embed' type even if metadata has a different type field
-      const { type, ...metadataWithoutType } = metadata || {};
-      return { ...inline, ...metadataWithoutType };
+      const { file_type, ...metadataWithoutFileType } = metadata || {};
+      const merged = { ...inline, ...metadataWithoutFileType, file_type };
+
+      // Add asset_url for image embeds
+      if (merged.file_type === 'image' && merged.file_id && vaultId) {
+        merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+      }
+
+      return merged;
     }
     if (inline.type === 'image') {
       return processImageUrl(inline, options);

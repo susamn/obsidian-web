@@ -41,6 +41,7 @@ type WikiLink struct {
 	Original string `json:"original"`
 	Target   string `json:"target"`
 	Display  string `json:"display"`
+	FileType string `json:"file_type,omitempty"`
 	Exists   bool   `json:"exists"`
 	FileID   string `json:"file_id,omitempty"`
 	Path     string `json:"path,omitempty"`
@@ -58,7 +59,7 @@ type Backlink struct {
 // Embed represents an embedded note or media
 type Embed struct {
 	Original string `json:"original"`
-	Type     string `json:"type"`
+	FileType string `json:"file_type"`
 	Target   string `json:"target"`
 	Display  string `json:"display,omitempty"` // For sizing like |500
 	Content  string `json:"content,omitempty"`
@@ -136,11 +137,11 @@ func (sr *StructuredRenderer) ProcessMarkdown(content string, vaultID string, fi
 	// Calculate stats
 	stats := sr.calculateStats(cleanContent, created, modified)
 
-	// Replace image/embed links with file IDs in raw markdown
-	processedMarkdown := sr.replaceLinksWithIDs(cleanContent, wikilinks, embeds)
+	// Keep original markdown - no need to replace links with IDs
+	// The frontend will use the metadata from wikilinks and embeds arrays
 
 	return &FileContentResponse{
-		RawMarkdown: processedMarkdown,
+		RawMarkdown: cleanContent,
 		Frontmatter: frontmatter,
 		Headings:    headings,
 		Tags:        allTags,
@@ -359,6 +360,22 @@ func (sr *StructuredRenderer) extractWikiLinks(content string, vaultID string) [
 			}
 		}
 
+		// Determine type based on extension
+		wikilinkType := "note"
+		if strings.Contains(target, ".") {
+			ext := strings.ToLower(target[strings.LastIndex(target, ".")+1:])
+			switch ext {
+			case "png", "jpg", "jpeg", "gif", "svg", "webp":
+				wikilinkType = "image"
+			case "pdf":
+				wikilinkType = "pdf"
+			case "mp4", "webm", "ogv":
+				wikilinkType = "video"
+			case "mp3", "wav", "ogg":
+				wikilinkType = "audio"
+			}
+		}
+
 		// Resolve wikilink
 		exists := false
 		fileID := ""
@@ -371,6 +388,7 @@ func (sr *StructuredRenderer) extractWikiLinks(content string, vaultID string) [
 			Original: original,
 			Target:   target,
 			Display:  display,
+			FileType: wikilinkType,
 			Exists:   exists,
 			FileID:   fileID,
 			Path:     path,
@@ -441,7 +459,7 @@ func (sr *StructuredRenderer) extractEmbeds(content string, vaultID string) []Em
 
 		embeds = append(embeds, Embed{
 			Original: original,
-			Type:     embedType,
+			FileType: embedType,
 			Target:   target,
 			Display:  display,
 			Exists:   exists,

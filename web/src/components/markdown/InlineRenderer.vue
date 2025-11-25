@@ -51,22 +51,34 @@
       {{ token.text }}
     </a>
 
-    <!-- Wikilink -->
-    <span
-      v-else-if="token.type === 'wikilink'"
-      :class="['md-wikilink-pill', token.exists === false ? 'md-wikilink-pill-broken' : '']"
-      :title="token.exists === false ? `File not found: ${token.display}` : `Open ${token.display}`"
-    >
-      <a
-        href="#"
-        class="md-wikilink-pill-link"
-        :data-file-id="token.file_id || ''"
-        @click.prevent="handleWikilinkClick(token)"
+    <!-- Wikilink - check file_type and render accordingly -->
+    <template v-else-if="token.type === 'wikilink'">
+      <!-- Image wikilink: [[image.png]] -->
+      <img
+        v-if="token.file_type === 'image' && token.asset_url"
+        :src="token.asset_url"
+        :alt="token.display || token.target"
+        :title="token.display || token.target"
+        class="md-image md-wikilink-image"
+        loading="lazy"
+      />
+      <!-- Regular wikilink: [[note]] -->
+      <span
+        v-else
+        :class="['md-wikilink-pill', token.exists === false ? 'md-wikilink-pill-broken' : '']"
+        :title="token.exists === false ? `File not found: ${token.display}` : `Open ${token.display}`"
       >
-        <span class="md-wikilink-label">B</span>
-        <span class="md-wikilink-content">{{ token.display }}</span>
-      </a>
-    </span>
+        <a
+          href="#"
+          class="md-wikilink-pill-link"
+          :data-file-id="token.file_id || ''"
+          @click.prevent="handleWikilinkClick(token)"
+        >
+          <span class="md-wikilink-label">B</span>
+          <span class="md-wikilink-content">{{ token.display }}</span>
+        </a>
+      </span>
+    </template>
 
     <!-- Tag -->
     <span v-else-if="token.type === 'tag'" class="md-tag">#{{ token.tag }}</span>
@@ -82,17 +94,28 @@
       loading="lazy"
     />
 
-    <!-- Embed -->
-    <div v-else-if="token.type === 'embed'" class="md-embed">
-      <div v-if="token.exists === false" class="md-embed-not-found">
+    <!-- Embed - check file_type and render accordingly -->
+    <template v-else-if="token.type === 'embed'">
+      <!-- Image embed: ![[image.png]] -->
+      <img
+        v-if="token.file_type === 'image' && token.asset_url"
+        :src="token.asset_url"
+        :alt="token.display || token.target"
+        :title="token.display || token.target"
+        class="md-image md-embed-image"
+        loading="lazy"
+      />
+      <!-- Not found embed -->
+      <div v-else-if="token.exists === false" class="md-embed md-embed-not-found">
         <i class="fas fa-exclamation-triangle"></i>
         <span>Embed not found: {{ token.target }}</span>
       </div>
-      <div v-else class="md-embed-placeholder">
+      <!-- Other embeds (note, pdf, video, audio) -->
+      <div v-else class="md-embed md-embed-placeholder">
         <i class="fas fa-file-alt"></i>
         <span>{{ token.target }}</span>
       </div>
-    </div>
+    </template>
   </template>
 </template>
 
@@ -135,6 +158,7 @@ function flattenContent(content) {
 function handleWikilinkClick(token) {
   emit('wikilink-click', {
     fileId: token.file_id,
+    path: token.path,
     target: token.target,
     display: token.display,
     exists: token.exists
