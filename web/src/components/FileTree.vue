@@ -6,7 +6,11 @@
       :data-node-id="node.metadata.id"
       class="tree-node"
     >
-      <div class="node-header" @click="node.metadata.is_directory ? toggleExpand(node) : selectFile(node)">
+      <div
+        class="node-header"
+        :class="{ 'selected-file': !node.metadata.is_directory && selectedFileId === node.metadata.id }"
+        @click="node.metadata.is_directory ? toggleExpand(node) : selectFile(node)"
+      >
         <!-- Expand/Collapse indicator -->
         <span v-if="node.metadata.is_directory" class="expand-icon">
           <span v-if="expandedNodes[node.metadata.id]">▼</span>
@@ -42,6 +46,7 @@
           :nodes="node.children"
           :vault-id="vaultId"
           :expanded-nodes="expandedNodes"
+          :selected-file-id="selectedFileId"
           @toggle-expand="toggleExpand"
           @file-selected="selectFile"
           @create-clicked="handleCreateClick"
@@ -67,6 +72,10 @@ const props = defineProps({
   expandedNodes: {
     type: Object,
     default: () => ({}),
+  },
+  selectedFileId: {
+    type: String,
+    default: null,
   },
 });
 
@@ -177,6 +186,22 @@ const getFileIcon = (metadata) => {
 
 .node-header:hover {
   background-color: var(--hover-color, rgba(0, 0, 0, 0.05));
+}
+
+/* Selected file highlighting - theme-aware translucent background */
+.node-header.selected-file {
+  background-color: var(--selected-file-bg, rgba(59, 130, 246, 0.15));
+  border-left: 3px solid var(--primary-color, #3b82f6);
+  padding-left: calc(0.5rem - 3px); /* Adjust padding to account for border */
+}
+
+.node-header.selected-file:hover {
+  background-color: var(--selected-file-hover-bg, rgba(59, 130, 246, 0.25));
+}
+
+.node-header.selected-file .node-name {
+  font-weight: 500;
+  color: var(--primary-color, #3b82f6);
 }
 
 /* Expand/Collapse icon */
@@ -327,6 +352,19 @@ const getFileIcon = (metadata) => {
 
   .children {
     border-left-color: #444;
+  }
+
+  /* Selected file in dark mode */
+  .node-header.selected-file {
+    background-color: rgba(59, 130, 246, 0.2);
+  }
+
+  .node-header.selected-file:hover {
+    background-color: rgba(59, 130, 246, 0.3);
+  }
+
+  .node-header.selected-file .node-name {
+    color: #60a5fa;
   }
 }
 </style>

@@ -39,6 +39,7 @@
           :nodes="fileStore.treeData"
           :vault-id="fileStore.vaultId"
           :expanded-nodes="expandedNodes"
+          :selected-file-id="selectedFileId"
           @toggle-expand="handleToggleExpand"
           @file-selected="handleFileSelected"
           @create-clicked="handleCreateClick"
@@ -146,6 +147,7 @@ const expandedNodes = ref({});
 const connected = ref(false);
 const error = ref(null);
 const currentFileId = ref(null); // Track the ID of the currently selected file
+const selectedFileId = ref(null); // Track the selected file ID for visual highlighting in tree
 const showSearch = ref(false); // Toggle between file browser and search
 
 // Navigation history
@@ -215,6 +217,9 @@ const handleFileSelected = async (node) => {
     // Set current file ID - this should trigger StructuredRenderer watcher
     currentFileId.value = node.metadata.id;
 
+    // Highlight the selected file in the tree
+    selectedFileId.value = node.metadata.id;
+
     // Only fetch file content for browser and SSR renderers
     // Structured renderer fetches its own data via watcher
     if (!rendererStore.isStructuredRenderer) {
@@ -278,9 +283,31 @@ const handleSearchResultSelected = async (result) => {
     // Set current file ID
     currentFileId.value = fileId;
 
+    // Highlight the selected file in the tree
+    selectedFileId.value = fileId;
+
     // Set the current path for display (use relative path from fields)
     if (relativePath) {
       fileStore.setCurrentPath(relativePath);
+
+      // Expand folders to reveal the file in the tree
+      console.log('[VaultView] Expanding tree to reveal search result:', relativePath);
+      const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, relativePath);
+
+      // Update expandedNodes to trigger UI update
+      expandedNodeIds.forEach(nodeId => {
+        expandedNodes.value[nodeId] = true;
+      });
+
+      // Scroll to the file in the tree after a short delay
+      nextTick(() => {
+        setTimeout(() => {
+          const element = document.querySelector(`[data-node-id="${fileId}"]`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      });
     }
 
     // Fetch file content using file ID
@@ -304,7 +331,7 @@ const handleSearchResultSelected = async (result) => {
 
 /**
  * Handle wikilink navigation from markdown renderer
- * Simple approach: just load the file by ID, update breadcrumb
+ * Expands tree to file, highlights it, and loads content
  */
 const handleWikilinkNavigation = async (event) => {
   try {
@@ -322,6 +349,28 @@ const handleWikilinkNavigation = async (event) => {
 
     // Update current file ID - this triggers StructuredRenderer watcher to fetch content
     currentFileId.value = fileId;
+
+    // Highlight the selected file in the tree
+    selectedFileId.value = fileId;
+
+    // Expand folders to reveal the file in the tree
+    console.log('[VaultView] Expanding tree to reveal file:', path);
+    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, path);
+
+    // Update expandedNodes to trigger UI update
+    expandedNodeIds.forEach(nodeId => {
+      expandedNodes.value[nodeId] = true;
+    });
+
+    // Scroll to the file in the tree after a short delay
+    nextTick(() => {
+      setTimeout(() => {
+        const element = document.querySelector(`[data-node-id="${fileId}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    });
 
     // For structured renderer, set placeholder to show component
     if (rendererStore.isStructuredRenderer) {
@@ -452,6 +501,25 @@ const goBack = async () => {
     // Update current file ID - triggers fetch
     currentFileId.value = item.fileId;
 
+    // Highlight the file in the tree
+    selectedFileId.value = item.fileId;
+
+    // Expand folders to reveal the file
+    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, item.filePath);
+    expandedNodeIds.forEach(nodeId => {
+      expandedNodes.value[nodeId] = true;
+    });
+
+    // Scroll to the file
+    nextTick(() => {
+      setTimeout(() => {
+        const element = document.querySelector(`[data-node-id="${item.fileId}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    });
+
     // For structured renderer, set placeholder
     if (rendererStore.isStructuredRenderer) {
       fileStore.selectedFileContent = 'loading';
@@ -483,6 +551,25 @@ const goForward = async () => {
 
     // Update current file ID - triggers fetch
     currentFileId.value = item.fileId;
+
+    // Highlight the file in the tree
+    selectedFileId.value = item.fileId;
+
+    // Expand folders to reveal the file
+    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, item.filePath);
+    expandedNodeIds.forEach(nodeId => {
+      expandedNodes.value[nodeId] = true;
+    });
+
+    // Scroll to the file
+    nextTick(() => {
+      setTimeout(() => {
+        const element = document.querySelector(`[data-node-id="${item.fileId}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    });
 
     // For structured renderer, set placeholder
     if (rendererStore.isStructuredRenderer) {
