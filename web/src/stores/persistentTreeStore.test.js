@@ -77,7 +77,12 @@ describe('PersistentTreeStore', () => {
       const rootChildren = [
         {
           metadata: { id: '1', name: 'folder1', path: 'folder1', is_directory: true },
-          children: [],
+          children: [
+            {
+              metadata: { id: '1-1', name: 'subfolder', path: 'folder1/subfolder', is_directory: true },
+              children: [],
+            },
+          ],
         },
       ];
       store.initializeTree(vaultId, rootChildren);
@@ -88,18 +93,15 @@ describe('PersistentTreeStore', () => {
       expect(store.isExpanded(vaultId, '1')).toBe(true);
     });
 
-    it('should set children when expanding', () => {
-      const children = [
-        {
-          metadata: { id: '1-1', name: 'subfolder', path: 'folder1/subfolder', is_directory: true },
-          children: [],
-        },
-      ];
-
-      store.expandNode(vaultId, '1', children);
-
+    it('should preserve existing children when expanding', () => {
+      // Children are already loaded in the full tree
       const node = store.findNodeById(vaultId, '1');
-      expect(node.children).toEqual(children);
+      const originalChildren = node.children;
+
+      store.expandNode(vaultId, '1');
+
+      // Children should remain the same (already loaded)
+      expect(node.children).toEqual(originalChildren);
       expect(store.isExpanded(vaultId, '1')).toBe(true);
     });
 
@@ -207,19 +209,12 @@ describe('PersistentTreeStore', () => {
   });
 
   describe('navigateToPath', () => {
-    it('should expand all parent folders for a nested path', async () => {
+    it('should expand all parent folders for a nested path with full tree', () => {
+      // Initialize with full tree (all nodes have children pre-loaded)
       const tree = [
         {
           metadata: { id: '1', name: 'folder1', path: 'folder1', is_directory: true },
-          children: [],
-        },
-      ];
-      store.initializeTree(vaultId, tree);
-
-      // Mock fetchChildrenFn
-      const fetchChildrenFn = vi.fn((vaultId, nodeId) => {
-        if (nodeId === '1') {
-          return Promise.resolve([
+          children: [
             {
               metadata: {
                 id: '1-1',
@@ -227,30 +222,23 @@ describe('PersistentTreeStore', () => {
                 path: 'folder1/subfolder',
                 is_directory: true,
               },
-              children: [],
+              children: [
+                {
+                  metadata: {
+                    id: '1-1-1',
+                    name: 'file.md',
+                    path: 'folder1/subfolder/file.md',
+                    is_directory: false,
+                  },
+                },
+              ],
             },
-          ]);
-        }
-        if (nodeId === '1-1') {
-          return Promise.resolve([
-            {
-              metadata: {
-                id: '1-1-1',
-                name: 'file.md',
-                path: 'folder1/subfolder/file.md',
-                is_directory: false,
-              },
-            },
-          ]);
-        }
-        return Promise.resolve([]);
-      });
+          ],
+        },
+      ];
+      store.initializeTree(vaultId, tree);
 
-      const expandedNodes = await store.navigateToPath(
-        vaultId,
-        'folder1/subfolder/file.md',
-        fetchChildrenFn
-      );
+      const expandedNodes = store.navigateToPath(vaultId, 'folder1/subfolder/file.md');
 
       // Should have expanded folder1 and folder1/subfolder
       expect(expandedNodes).toHaveLength(2);
@@ -258,7 +246,7 @@ describe('PersistentTreeStore', () => {
       expect(store.isExpanded(vaultId, '1-1')).toBe(true);
     });
 
-    it('should not re-expand already expanded nodes', async () => {
+    it('should not re-expand already expanded nodes', () => {
       const tree = [
         {
           metadata: { id: '1', name: 'folder1', path: 'folder1', is_directory: true },
@@ -277,12 +265,11 @@ describe('PersistentTreeStore', () => {
       store.initializeTree(vaultId, tree);
       store.expandNode(vaultId, '1');
 
-      const fetchChildrenFn = vi.fn();
+      const expandedNodes = store.navigateToPath(vaultId, 'folder1/file.md');
 
-      await store.navigateToPath(vaultId, 'folder1/file.md', fetchChildrenFn);
-
-      // Should not have called fetchChildrenFn since folder1 is already expanded
-      expect(fetchChildrenFn).not.toHaveBeenCalled();
+      // Should not have expanded folder1 again
+      expect(expandedNodes).toHaveLength(0);
+      expect(store.isExpanded(vaultId, '1')).toBe(true);
     });
   });
 

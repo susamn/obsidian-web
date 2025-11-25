@@ -112,6 +112,125 @@ func TestGetTree_Root(t *testing.T) {
 	}
 }
 
+func TestGetFullTree(t *testing.T) {
+	tmpDir := setupTestDir(t)
+	ctx := context.Background()
+
+	svc, err := NewExplorerService(ctx, "test-vault", tmpDir, nil)
+	if err != nil {
+		t.Fatalf("Failed to create explorer service: %v", err)
+	}
+	defer svc.Stop()
+
+	// Get full recursive tree
+	nodes, err := svc.GetFullTree()
+	if err != nil {
+		t.Fatalf("Failed to get full tree: %v", err)
+	}
+
+	// Should have root level items: file1.md, file2.txt, folder1, folder2
+	// .hidden should be excluded
+	if len(nodes) < 3 {
+		t.Errorf("Expected at least 3 root nodes, got %d", len(nodes))
+	}
+
+	// Check that .hidden is not in nodes
+	for _, node := range nodes {
+		if node.Metadata.Name == ".hidden" {
+			t.Error("Hidden directory should not appear in tree")
+		}
+	}
+
+	// Find folder1 and verify it has children loaded
+	var folder1 *TreeNode
+	for _, node := range nodes {
+		if node.Metadata.Name == "folder1" {
+			folder1 = node
+			break
+		}
+	}
+
+	if folder1 == nil {
+		t.Fatal("folder1 not found in tree")
+	}
+
+	if !folder1.Loaded {
+		t.Error("folder1 should be marked as loaded in full tree")
+	}
+
+	if folder1.Children == nil {
+		t.Fatal("folder1 children should be loaded in full tree")
+	}
+
+	// folder1 should have: nested.md and subfolder1
+	if len(folder1.Children) < 2 {
+		t.Errorf("Expected folder1 to have at least 2 children, got %d", len(folder1.Children))
+	}
+
+	// Find subfolder1 and verify it has children loaded recursively
+	var subfolder1 *TreeNode
+	for _, child := range folder1.Children {
+		if child.Metadata.Name == "subfolder1" {
+			subfolder1 = child
+			break
+		}
+	}
+
+	if subfolder1 == nil {
+		t.Fatal("subfolder1 not found in folder1")
+	}
+
+	if !subfolder1.Loaded {
+		t.Error("subfolder1 should be marked as loaded in full tree")
+	}
+
+	if subfolder1.Children == nil {
+		t.Fatal("subfolder1 children should be loaded recursively")
+	}
+
+	// subfolder1 should have deep.md
+	foundDeep := false
+	for _, child := range subfolder1.Children {
+		if child.Metadata.Name == "deep.md" {
+			foundDeep = true
+			if child.Metadata.Type != NodeTypeFile {
+				t.Error("deep.md should be a file")
+			}
+		}
+	}
+
+	if !foundDeep {
+		t.Error("deep.md not found in subfolder1")
+	}
+
+	// Verify all nodes have correct paths
+	// Note: IDs will be empty without a DB service, which is fine
+	var verifyNode func(*TreeNode, string)
+	verifyNode = func(node *TreeNode, parentPath string) {
+		expectedPath := parentPath
+		if parentPath != "" {
+			expectedPath = parentPath + "/" + node.Metadata.Name
+		} else {
+			expectedPath = node.Metadata.Name
+		}
+
+		if node.Metadata.Path != expectedPath {
+			t.Errorf("Node %s has incorrect path: got %s, want %s",
+				node.Metadata.Name, node.Metadata.Path, expectedPath)
+		}
+
+		if node.Children != nil {
+			for _, child := range node.Children {
+				verifyNode(child, node.Metadata.Path)
+			}
+		}
+	}
+
+	for _, node := range nodes {
+		verifyNode(node, "")
+	}
+}
+
 func TestGetChildren(t *testing.T) {
 	tmpDir := setupTestDir(t)
 	ctx := context.Background()
