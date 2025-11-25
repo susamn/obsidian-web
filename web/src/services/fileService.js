@@ -4,18 +4,18 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1') + '/files';
 
 export default {
   /**
-   * Fetches the directory tree for a given vault and path.
+   * Fetches the full recursive directory tree for a given vault.
+   * Returns all files and folders with their complete hierarchy.
    * @param {string} vaultId - The ID of the vault.
-   * @param {string} [path=''] - The directory path (empty for root).
-   * @returns {Promise<object>} - A promise that resolves to the directory tree data.
+   * @returns {Promise<Array>} - A promise that resolves to an array of tree nodes.
    */
-  getTree(vaultId, path = '') {
-    return axios.get(`${BASE_URL}/tree/${vaultId}`, { params: { path } })
+  getTree(vaultId) {
+    return axios.get(`${BASE_URL}/tree/${vaultId}`)
       .then(response => {
-        // API returns: { data: { metadata, children, loaded } }
-        // We want to return the children array
-        if (response.data && response.data.data && response.data.data.children) {
-          return response.data.data.children;
+        // API returns: { data: { vault_id, nodes, count } }
+        // nodes is the full recursive tree structure
+        if (response.data && response.data.data && response.data.data.nodes) {
+          return response.data.data.nodes;
         }
         return [];
       });

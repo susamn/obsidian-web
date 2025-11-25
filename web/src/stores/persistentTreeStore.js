@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 
 /**
- * PersistentTreeStore manages the file tree structure across page refreshes
- * - Stores the full nested tree with all explored nodes
+ * PersistentTreeStore manages the full file tree structure across page refreshes
+ * - Stores the complete recursive tree with ALL files and folders
  * - Persists to localStorage
  * - Provides navigation methods for deep-linking to files
- * - Works in conjunction with treeWalkerStore for SSE event management
+ * - All nodes are available immediately, no lazy loading needed
  *
  * SECURITY NOTE: Paths stored here are READ-ONLY and used for UI navigation.
  * All API calls MUST use IDs only, never paths.
@@ -121,9 +121,9 @@ export const usePersistentTreeStore = defineStore('persistentTree', {
     },
 
     /**
-     * Expand a node and optionally set its children
+     * Expand a node (children are already present in full tree)
      */
-    expandNode(vaultId, nodeId, children = null) {
+    expandNode(vaultId, nodeId) {
       console.log(`[PersistentTree] Expanding node: ${vaultId}/${nodeId}`);
 
       // Mark as expanded
@@ -131,16 +131,6 @@ export const usePersistentTreeStore = defineStore('persistentTree', {
         this.expandedNodeIds.set(vaultId, new Set());
       }
       this.expandedNodeIds.get(vaultId).add(nodeId);
-
-      // Update children if provided
-      if (children !== null) {
-        const node = this.findNodeById(vaultId, nodeId);
-        if (node) {
-          node.children = children;
-          // Rebuild indices to include new children
-          this._buildIndices(vaultId, children);
-        }
-      }
 
       this.lastUpdated.set(vaultId, Date.now());
       this._persistToStorage();
@@ -207,8 +197,9 @@ export const usePersistentTreeStore = defineStore('persistentTree', {
     /**
      * Navigate to a file by expanding all parent folders
      * Returns a list of node IDs that were expanded
+     * Since the full tree is loaded, this just marks folders as expanded
      */
-    async navigateToPath(vaultId, path, fetchChildrenFn) {
+    navigateToPath(vaultId, path) {
       console.log(`[PersistentTree] Navigating to path: ${vaultId}/${path}`);
 
       const segments = this.getPathSegments(path);
@@ -232,22 +223,9 @@ export const usePersistentTreeStore = defineStore('persistentTree', {
           continue;
         }
 
-        // Need to expand - fetch children if not loaded
-        if (!node.children || node.children.length === 0) {
-          console.log(`[PersistentTree] Fetching children for: ${currentPath}`);
-          try {
-            const children = await fetchChildrenFn(vaultId, node.metadata.id);
-            this.expandNode(vaultId, node.metadata.id, children);
-            expandedNodes.push(node.metadata.id);
-          } catch (error) {
-            console.error(`[PersistentTree] Failed to fetch children for ${currentPath}:`, error);
-            break;
-          }
-        } else {
-          // Children already loaded, just expand
-          this.expandNode(vaultId, node.metadata.id);
-          expandedNodes.push(node.metadata.id);
-        }
+        // Mark as expanded (children are already loaded in full tree)
+        this.expandNode(vaultId, node.metadata.id);
+        expandedNodes.push(node.metadata.id);
       }
 
       return expandedNodes;

@@ -261,12 +261,12 @@ func (s *Server) readVaultFileInBinary(v interface{ VaultID() string }, filePath
 
 // handleGetTree godoc
 // @Summary Get directory tree
-// @Description Get the directory tree (lazy-loaded) for a path in a vault
+// @Description Get the full recursive directory tree for a vault. Returns all files and folders with their complete hierarchy.
 // @Tags files
 // @Produce json
 // @Param vault path string true "Vault ID"
-// @Param path query string false "Directory path (empty for root)"
-// @Success 200 {object} object "Tree node with metadata"
+// @Param path query string false "Directory path (deprecated - always returns full tree from root)"
+// @Success 200 {object} object "Array of tree nodes with full recursive children"
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Failure 405 {object} ErrorResponse
@@ -291,17 +291,19 @@ func (s *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get path from query parameter
-	path := r.URL.Query().Get("path")
-
-	// Get tree node
-	node, err := explorerSvc.GetTree(path)
+	// Get full recursive tree (ignoring path parameter for now)
+	// This returns the complete tree structure with all files and folders
+	nodes, err := explorerSvc.GetFullTree()
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("Failed to get tree: %v", err))
 		return
 	}
 
-	writeSuccess(w, node)
+	writeSuccess(w, map[string]interface{}{
+		"vault_id": vaultID,
+		"nodes":    nodes,
+		"count":    len(nodes),
+	})
 }
 
 // handleGetChildren godoc

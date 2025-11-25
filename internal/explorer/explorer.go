@@ -173,6 +173,97 @@ func (e *ExplorerService) GetTree(path string) (*TreeNode, error) {
 	return node, nil
 }
 
+// GetFullTree returns the complete recursive directory tree for the vault
+// This loads all directories and files recursively from the root
+func (e *ExplorerService) GetFullTree() ([]*TreeNode, error) {
+	logger.WithField("vault_id", e.vaultID).Info("Building full recursive tree")
+
+	// Start from root
+	fullPath := e.vaultPath
+
+	entries, err := os.ReadDir(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read vault root: %w", err)
+	}
+
+	nodes := make([]*TreeNode, 0, len(entries))
+	for _, entry := range entries {
+		// Skip hidden files/directories
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		childPath := entry.Name()
+		node, err := e.buildFullTreeNode(childPath)
+		if err != nil {
+			logger.WithError(err).WithFields(map[string]interface{}{
+				"vault_id": e.vaultID,
+				"path":     childPath,
+			}).Warn("Failed to build tree node")
+			continue
+		}
+
+		nodes = append(nodes, node)
+	}
+
+	logger.WithFields(map[string]interface{}{
+		"vault_id": e.vaultID,
+		"nodes":    len(nodes),
+	}).Info("Full tree built successfully")
+
+	return nodes, nil
+}
+
+// buildFullTreeNode recursively builds a tree node with all its children
+func (e *ExplorerService) buildFullTreeNode(relativePath string) (*TreeNode, error) {
+	fullPath := e.buildFullPath(relativePath)
+
+	// Get metadata for the node
+	metadata, err := e.getNodeMetadata(fullPath, relativePath)
+	if err != nil {
+		return nil, err
+	}
+
+	node := &TreeNode{
+		Metadata: *metadata,
+		Children: nil,
+		Loaded:   true, // Mark as loaded since we're building the full tree
+	}
+
+	// If directory, recursively load all children
+	if metadata.Type == NodeTypeDirectory {
+		entries, err := os.ReadDir(fullPath)
+		if err != nil {
+			logger.WithError(err).WithField("path", relativePath).Warn("Failed to read directory")
+			// Not a fatal error, just return node without children
+			return node, nil
+		}
+
+		children := make([]*TreeNode, 0, len(entries))
+		for _, entry := range entries {
+			// Skip hidden files/directories
+			if strings.HasPrefix(entry.Name(), ".") {
+				continue
+			}
+
+			childPath := filepath.Join(relativePath, entry.Name())
+			childNode, err := e.buildFullTreeNode(childPath)
+			if err != nil {
+				logger.WithError(err).WithField("path", childPath).Warn("Failed to build child node")
+				continue
+			}
+
+			children = append(children, childNode)
+		}
+
+		node.Children = children
+		node.Metadata.ChildCount = len(children)
+		node.Metadata.HasChildren = len(children) > 0
+	}
+
+	return node, nil
+}
+
 // GetChildren returns just the children of a directory (lazy load)
 func (e *ExplorerService) GetChildren(path string) ([]*TreeNode, error) {
 	node, err := e.GetTree(path)
