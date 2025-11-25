@@ -775,6 +775,14 @@ const sseCallbacks = {
     console.log('[VaultView] File created event:', event);
 
     const parentPath = getParentPath(event.path);
+    const parentNode = findNodeByPath(fileStore.treeData, parentPath);
+
+    // Only fetch children if parent folder is expanded (visible in UI)
+    // This prevents unnecessary API calls for files in collapsed folders
+    if (!parentNode || !expandedNodes.value[parentNode.metadata.id]) {
+      console.log('[VaultView] Parent folder not expanded, skipping update for:', event.path);
+      return;
+    }
 
     // Refresh parent's children to get the new file
     await fileStore.fetchChildren(fileStore.vaultId, parentPath);
@@ -793,7 +801,6 @@ const sseCallbacks = {
     fileStore.treeData = [...fileStore.treeData];
 
     // Get old children IDs for animation
-    const parentNode = findParentNode(fileStore.treeData, parentPath);
     const oldChildrenIds = new Set(
       (parentNode?.children || []).map(child => child.metadata?.id).filter(Boolean)
     );
@@ -804,7 +811,7 @@ const sseCallbacks = {
       const delayMs = 50 * (attempt + 1); // Progressive delay
 
       if (attempt >= maxAttempts) {
-        console.warn('[VaultView] Failed to animate new file after', maxAttempts, 'attempts:', fileName);
+        console.warn('[VaultView] Failed to animate new file after', maxAttempts, 'attempts');
         return;
       }
 
@@ -822,7 +829,7 @@ const sseCallbacks = {
       const element = document.querySelector(`[data-node-id="${newChild.metadata.id}"]`);
 
       if (element) {
-        console.log('[VaultView] Animating new file:', fileName, '(attempt', attempt + 1, ')');
+        console.log('[VaultView] Animating new file (attempt', attempt + 1, ')');
 
         // Start with opacity 0 and translate
         element.style.opacity = '0';
@@ -961,11 +968,53 @@ const sseCallbacks = {
       percentage: Math.round((data.changes.length / total) * 100)
     };
 
-    // Refresh the root tree to pick up all changes
-    await fileStore.fetchTree(route.params.id);
+    // Process changes in-place without re-fetching tree
+    // This is much more efficient than calling fetchTree for bulk operations
+    let treeModified = false;
+    for (const change of data.changes) {
+      const parentPath = getParentPath(change.path);
 
-    // Update persistent storage
-    persistentTreeStore.initializeTree(route.params.id, fileStore.treeData);
+      switch (change.type) {
+        case 'file_created':
+          // For created files, we need to fetch parent's children to get the new node
+          // But only if the parent is currently expanded in the UI
+          const parentNode = findNodeByPath(fileStore.treeData, parentPath);
+          if (parentNode && expandedNodes.value[parentNode.metadata.id]) {
+            await fileStore.fetchChildren(fileStore.vaultId, parentPath);
+            updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
+            persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
+            treeModified = true;
+          }
+          break;
+
+        case 'file_modified':
+          // For modified files, if it's the currently selected file, refresh its content
+          if (fileStore.currentPath === change.path && currentFileId.value) {
+            await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value);
+          }
+          break;
+
+        case 'file_deleted':
+          // Remove the node from tree
+          const removed = removeChildFromParent(fileStore.treeData, change.path);
+          if (removed) {
+            persistentTreeStore.removeNode(fileStore.vaultId, change.path);
+            treeModified = true;
+
+            // If deleted file was selected, clear it
+            if (fileStore.currentPath === change.path) {
+              fileStore.selectedFileContent = null;
+              currentFileId.value = null;
+            }
+          }
+          break;
+      }
+    }
+
+    // Only update the tree reference if we made changes (triggers Vue reactivity)
+    if (treeModified) {
+      fileStore.treeData = [...fileStore.treeData];
+    }
 
     // Clear progress after a delay
     setTimeout(() => {

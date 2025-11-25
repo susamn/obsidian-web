@@ -27,7 +27,7 @@ func NewEventBatcher(ctx context.Context, manager *Manager, flushInterval time.D
 		ctx:           batcherCtx,
 		cancel:        cancel,
 		manager:       manager,
-		eventChan:     make(chan Event, 1000),
+		eventChan:     make(chan Event, 10000),
 		flushInterval: flushInterval,
 		threshold:     threshold,
 	}

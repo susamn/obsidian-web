@@ -179,7 +179,8 @@ func (v *Vault) initializeServices() error {
 	}
 
 	// Create SSE batcher (will be started when SSE manager is set)
-	v.sseBatcher = sse.NewEventBatcher(v.ctx, nil, 2*time.Second, 5)
+	// Increased flush interval to 5s and threshold to 3 for better batching during bulk operations
+	v.sseBatcher = sse.NewEventBatcher(v.ctx, nil, 5*time.Second, 3)
 
 	// Create workers (10 workers)
 	const numWorkers = 10
@@ -334,7 +335,8 @@ func (v *Vault) SetSSEManager(manager *sse.Manager) {
 	})
 
 	// Update the batcher with the manager
-	v.sseBatcher = sse.NewEventBatcher(v.ctx, manager, 2*time.Second, 5)
+	// Use same config as initialization: 5s flush interval, threshold of 3
+	v.sseBatcher = sse.NewEventBatcher(v.ctx, manager, 5*time.Second, 3)
 	v.sseBatcher.Start()
 
 	// Update workers with new SSE channel

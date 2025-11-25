@@ -142,22 +142,32 @@ func (w *Worker) processEvent(event syncpkg.FileChangeEvent) {
 	w.explorerService.InvalidateCacheSync(event)
 
 	// Step 3: Update Index (best effort, synchronous) with file ID
-	switch event.EventType {
-	case syncpkg.FileCreated, syncpkg.FileModified:
-		if err := w.indexService.ReIndexSync(event.Path, fileID); err != nil {
-			logger.WithError(err).WithFields(map[string]interface{}{
-				"worker_id": w.id,
-				"path":      event.Path,
-				"file_id":   fileID,
-			}).Warn("Failed to update index")
-		}
-	case syncpkg.FileDeleted:
-		if err := w.indexService.DeleteFromIndexSync(event.Path, fileID); err != nil {
-			logger.WithError(err).WithFields(map[string]interface{}{
-				"worker_id": w.id,
-				"path":      event.Path,
-				"file_id":   fileID,
-			}).Warn("Failed to delete from index")
+	// Check if index service is ready first (avoids race condition during startup)
+	indexStatus := w.indexService.GetStatus()
+	if indexStatus != indexing.StatusReady {
+		logger.WithFields(map[string]interface{}{
+			"worker_id":    w.id,
+			"path":         event.Path,
+			"index_status": indexStatus.String(),
+		}).Debug("Skipping index update - service not ready yet")
+	} else {
+		switch event.EventType {
+		case syncpkg.FileCreated, syncpkg.FileModified:
+			if err := w.indexService.ReIndexSync(event.Path, fileID); err != nil {
+				logger.WithError(err).WithFields(map[string]interface{}{
+					"worker_id": w.id,
+					"path":      event.Path,
+					"file_id":   fileID,
+				}).Warn("Failed to update index")
+			}
+		case syncpkg.FileDeleted:
+			if err := w.indexService.DeleteFromIndexSync(event.Path, fileID); err != nil {
+				logger.WithError(err).WithFields(map[string]interface{}{
+					"worker_id": w.id,
+					"path":      event.Path,
+					"file_id":   fileID,
+				}).Warn("Failed to delete from index")
+			}
 		}
 	}
 
@@ -276,11 +286,15 @@ func (w *Worker) processDLQ() {
 					}).Warn("DLQ event still failing")
 				} else {
 					// Success! Process remaining steps (synchronous) with file ID
-					switch event.EventType {
-					case syncpkg.FileCreated, syncpkg.FileModified:
-						_ = w.indexService.ReIndexSync(event.Path, fileID)
-					case syncpkg.FileDeleted:
-						_ = w.indexService.DeleteFromIndexSync(event.Path, fileID)
+					// Check if index service is ready before updating index
+					indexStatus := w.indexService.GetStatus()
+					if indexStatus == indexing.StatusReady {
+						switch event.EventType {
+						case syncpkg.FileCreated, syncpkg.FileModified:
+							_ = w.indexService.ReIndexSync(event.Path, fileID)
+						case syncpkg.FileDeleted:
+							_ = w.indexService.DeleteFromIndexSync(event.Path, fileID)
+						}
 					}
 					w.explorerService.InvalidateCacheSync(event)
 					w.queueSSEEvent(event)
