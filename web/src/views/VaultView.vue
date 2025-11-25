@@ -148,6 +148,7 @@ import SearchResults from '../components/SearchResults.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import SSRRenderer from '../components/SSRRenderer.vue';
 import StructuredRenderer from '../components/StructuredRenderer.vue';
+import CanvasRenderer from '../components/CanvasRenderer.vue';
 import CreateNoteDialog from '../components/CreateNoteDialog.vue';
 
 const route = useRoute();
@@ -194,8 +195,19 @@ const markdownResult = ref({
   stats: { words: 0, chars: 0, readingTime: 0 }
 });
 
+// Check if current file is a canvas file
+const isCanvasFile = computed(() => {
+  if (!fileStore.currentPath) return false;
+  return fileStore.currentPath.toLowerCase().endsWith('.canvas');
+});
+
 // Dynamic renderer component
 const currentRendererComponent = computed(() => {
+  // Check if it's a canvas file first
+  if (isCanvasFile.value) {
+    return CanvasRenderer;
+  }
+
   if (rendererStore.isStructuredRenderer) {
     return StructuredRenderer;
   }
@@ -237,9 +249,13 @@ const handleFileSelected = async (node) => {
     // Highlight the selected file in the tree
     selectedFileId.value = node.metadata.id;
 
-    // Only fetch file content for browser and SSR renderers
-    // Structured renderer fetches its own data via watcher
-    if (!rendererStore.isStructuredRenderer) {
+    // Check if this is a canvas file
+    const isCanvas = filePath.toLowerCase().endsWith('.canvas');
+
+    // Fetch content for:
+    // - Canvas files (always need content)
+    // - Browser/SSR renderers (not structured renderer)
+    if (isCanvas || !rendererStore.isStructuredRenderer) {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
 
       // Update the path from server response if available (contains relative path)
@@ -328,7 +344,8 @@ const handleSearchResultSelected = async (result) => {
     }
 
     // Fetch file content using file ID
-    if (!rendererStore.isStructuredRenderer) {
+    const isCanvas = relativePath.toLowerCase().endsWith('.canvas');
+    if (isCanvas || !rendererStore.isStructuredRenderer) {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
 
       // Update the path from server response if available
@@ -389,11 +406,14 @@ const handleWikilinkNavigation = async (event) => {
       }, 100);
     });
 
-    // For structured renderer, set placeholder to show component
-    if (rendererStore.isStructuredRenderer) {
+    // Check if this is a canvas file
+    const isCanvas = path.toLowerCase().endsWith('.canvas');
+
+    // For structured renderer (non-canvas), set placeholder to show component
+    if (!isCanvas && rendererStore.isStructuredRenderer) {
       fileStore.selectedFileContent = 'loading';
     } else {
-      // For other renderers, fetch content
+      // For other renderers and canvas files, fetch content
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path);
@@ -537,8 +557,11 @@ const goBack = async () => {
       }, 100);
     });
 
-    // For structured renderer, set placeholder
-    if (rendererStore.isStructuredRenderer) {
+    // Check if this is a canvas file
+    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas');
+
+    // For structured renderer (non-canvas), set placeholder
+    if (!isCanvas && rendererStore.isStructuredRenderer) {
       fileStore.selectedFileContent = 'loading';
     } else {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);
@@ -588,8 +611,11 @@ const goForward = async () => {
       }, 100);
     });
 
-    // For structured renderer, set placeholder
-    if (rendererStore.isStructuredRenderer) {
+    // Check if this is a canvas file
+    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas');
+
+    // For structured renderer (non-canvas), set placeholder
+    if (!isCanvas && rendererStore.isStructuredRenderer) {
       fileStore.selectedFileContent = 'loading';
     } else {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);

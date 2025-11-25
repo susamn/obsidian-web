@@ -107,6 +107,9 @@ const getFileIcon = (metadata) => {
 
   // Icon mapping based on file extension
   const iconMap = {
+    // Obsidian Canvas
+    'canvas': 'fas fa-project-diagram',
+
     // Images
     'png': 'fas fa-file-image',
     'jpg': 'fas fa-file-image',
@@ -244,6 +247,10 @@ const getFileIcon = (metadata) => {
 }
 
 /* Specific icon colors */
+.fa-project-diagram {
+  color: #bd93f9; /* Purple for canvas files */
+}
+
 .fa-file-image {
   color: #c678dd; /* Purple for images */
 }
