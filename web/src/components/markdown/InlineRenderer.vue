@@ -1,12 +1,23 @@
 <template>
-  <template v-for="(token, index) in safeTokens" :key="`token-${index}`">
+  <template
+    v-for="(token, index) in safeTokens"
+    :key="`token-${index}`"
+  >
     <!-- Text -->
-    <template v-if="token.type === 'text'">{{ token.content }}</template>
+    <template v-if="token.type === 'text'">
+      {{ token.content }}
+    </template>
 
     <!-- Bold -->
-    <strong v-else-if="token.type === 'bold'" class="md-bold">
+    <strong
+      v-else-if="token.type === 'bold'"
+      class="md-bold"
+    >
       <template v-if="Array.isArray(token.content)">
-        <template v-for="(child, cIndex) in token.content" :key="`bold-${index}-${cIndex}`">
+        <template
+          v-for="(child, cIndex) in token.content"
+          :key="`bold-${index}-${cIndex}`"
+        >
           <template v-if="child.type === 'text'">{{ child.content }}</template>
           <em v-else-if="child.type === 'italic'">{{ flattenContent(child.content) }}</em>
           <template v-else>{{ flattenContent(child.content) }}</template>
@@ -16,9 +27,15 @@
     </strong>
 
     <!-- Italic -->
-    <em v-else-if="token.type === 'italic'" class="md-italic">
+    <em
+      v-else-if="token.type === 'italic'"
+      class="md-italic"
+    >
       <template v-if="Array.isArray(token.content)">
-        <template v-for="(child, cIndex) in token.content" :key="`italic-${index}-${cIndex}`">
+        <template
+          v-for="(child, cIndex) in token.content"
+          :key="`italic-${index}-${cIndex}`"
+        >
           <template v-if="child.type === 'text'">{{ child.content }}</template>
           <strong v-else-if="child.type === 'bold'">{{ flattenContent(child.content) }}</strong>
           <template v-else>{{ flattenContent(child.content) }}</template>
@@ -28,17 +45,26 @@
     </em>
 
     <!-- Strikethrough -->
-    <del v-else-if="token.type === 'strikethrough'" class="md-strikethrough">
+    <del
+      v-else-if="token.type === 'strikethrough'"
+      class="md-strikethrough"
+    >
       {{ flattenContent(token.content) }}
     </del>
 
     <!-- Highlight -->
-    <mark v-else-if="token.type === 'highlight'" class="md-highlight">
+    <mark
+      v-else-if="token.type === 'highlight'"
+      class="md-highlight"
+    >
       {{ flattenContent(token.content) }}
     </mark>
 
     <!-- Code -->
-    <code v-else-if="token.type === 'code'" class="md-code-inline">{{ token.content }}</code>
+    <code
+      v-else-if="token.type === 'code'"
+      class="md-code-inline"
+    >{{ token.content }}</code>
 
     <!-- Link -->
     <a
@@ -61,7 +87,7 @@
         :title="token.display || token.target"
         class="md-image md-wikilink-image"
         loading="lazy"
-      />
+      >
       <!-- Regular wikilink: [[note]] -->
       <span
         v-else
@@ -83,7 +109,10 @@
     </template>
 
     <!-- Tag -->
-    <span v-else-if="token.type === 'tag'" class="md-tag">#{{ token.tag }}</span>
+    <span
+      v-else-if="token.type === 'tag'"
+      class="md-tag"
+    >#{{ token.tag }}</span>
 
     <!-- Image -->
     <img
@@ -94,7 +123,7 @@
       :width="token.width || null"
       class="md-image"
       loading="lazy"
-    />
+    >
 
     <!-- Embed - check file_type and render accordingly -->
     <template v-else-if="token.type === 'embed'">
@@ -106,15 +135,21 @@
         :title="token.display || token.target"
         class="md-image md-embed-image"
         loading="lazy"
-      />
+      >
       <!-- Not found embed -->
-      <div v-else-if="token.exists === false" class="md-embed md-embed-not-found">
-        <i class="fas fa-exclamation-triangle"></i>
+      <div
+        v-else-if="token.exists === false"
+        class="md-embed md-embed-not-found"
+      >
+        <i class="fas fa-exclamation-triangle" />
         <span>Embed not found: {{ token.target }}</span>
       </div>
       <!-- Other embeds (note, pdf, video, audio) -->
-      <div v-else class="md-embed md-embed-placeholder">
-        <i class="fas fa-file-alt"></i>
+      <div
+        v-else
+        class="md-embed md-embed-placeholder"
+      >
+        <i class="fas fa-file-alt" />
         <span>{{ token.target }}</span>
       </div>
     </template>

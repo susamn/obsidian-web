@@ -1,23 +1,54 @@
 <template>
   <div class="top-bar">
-    <div class="logo">Obsidian Web</div>
+    <div class="logo">
+      Obsidian Web
+    </div>
     <div class="actions">
       <!-- Combined status indicator: connection + progress -->
-      <div class="status-widget" :class="statusClass" :title="statusTitle">
+      <div
+        class="status-widget"
+        :class="statusClass"
+        :title="statusTitle"
+      >
         <div class="status-icon">
-          <i v-if="pendingEvents > 0" class="fas fa-sync fa-spin"></i>
-          <i v-else-if="connected && !error" class="fas fa-circle"></i>
-          <i v-else-if="error" class="fas fa-exclamation-circle"></i>
-          <i v-else class="fas fa-circle-notch fa-spin"></i>
+          <i
+            v-if="pendingEvents > 0"
+            class="fas fa-sync fa-spin"
+          />
+          <i
+            v-else-if="connected && !error"
+            class="fas fa-circle"
+          />
+          <i
+            v-else-if="error"
+            class="fas fa-exclamation-circle"
+          />
+          <i
+            v-else
+            class="fas fa-circle-notch fa-spin"
+          />
         </div>
         <div class="status-text">
-          <template v-if="pendingEvents > 0"> Syncing ({{ pendingEvents }}) </template>
-          <template v-else-if="connected && !error"> Live </template>
-          <template v-else-if="error"> Offline </template>
-          <template v-else> Connecting </template>
+          <template v-if="pendingEvents > 0">
+            Syncing ({{ pendingEvents }})
+          </template>
+          <template v-else-if="connected && !error">
+            Live
+          </template>
+          <template v-else-if="error">
+            Offline
+          </template>
+          <template v-else>
+            Connecting
+          </template>
         </div>
       </div>
-      <div class="settings-icon" @click="goToSettings">⚙️</div>
+      <div
+        class="settings-icon"
+        @click="goToSettings"
+      >
+        ⚙️
+      </div>
     </div>
   </div>
 </template>
@@ -87,17 +118,12 @@ export default {
       return 'Connecting to server...'
     })
 
-    const goToSettings = (router) => {
-      router.push({ name: 'settings' })
-    }
-
     return {
       pendingEvents,
       connected,
       error,
       statusClass,
       statusTitle,
-      goToSettings,
     }
   },
   methods: {

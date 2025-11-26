@@ -1,7 +1,17 @@
 <template>
-  <component :is="listTag" class="md-list">
-    <li v-for="(item, index) in node.items" :key="index" class="md-list-item">
-      <InlineRenderer :tokens="item.content" @wikilink-click="$emit('wikilink-click', $event)" />
+  <component
+    :is="listTag"
+    class="md-list"
+  >
+    <li
+      v-for="(item, index) in node.items"
+      :key="index"
+      class="md-list-item"
+    >
+      <InlineRenderer
+        :tokens="item.content"
+        @wikilink-click="$emit('wikilink-click', $event)"
+      />
     </li>
   </component>
 </template>

@@ -1,10 +1,18 @@
 <template>
-  <div v-if="show" class="dialog-overlay" @click.self="handleCancel">
+  <div
+    v-if="show"
+    class="dialog-overlay"
+    @click.self="handleCancel"
+  >
     <div class="dialog-container">
       <div class="dialog-header">
         <h2>{{ isFolder ? 'Create New Folder' : 'Create New Note' }}</h2>
-        <button class="close-button" @click="handleCancel" title="Close">
-          <i class="fas fa-times"></i>
+        <button
+          class="close-button"
+          title="Close"
+          @click="handleCancel"
+        >
+          <i class="fas fa-times" />
         </button>
       </div>
 
@@ -12,13 +20,23 @@
         <!-- Type Selection -->
         <div class="type-selector">
           <label class="type-option">
-            <input type="radio" v-model="isFolder" :value="false" name="item-type" />
-            <i class="fas fa-file-alt"></i>
+            <input
+              v-model="isFolder"
+              type="radio"
+              :value="false"
+              name="item-type"
+            >
+            <i class="fas fa-file-alt" />
             <span>Note</span>
           </label>
           <label class="type-option">
-            <input type="radio" v-model="isFolder" :value="true" name="item-type" />
-            <i class="fas fa-folder"></i>
+            <input
+              v-model="isFolder"
+              type="radio"
+              :value="true"
+              name="item-type"
+            >
+            <i class="fas fa-folder" />
             <span>Folder</span>
           </label>
         </div>
@@ -27,50 +45,72 @@
         <div class="form-group">
           <label for="filename">{{ isFolder ? 'Folder Name' : 'File Name' }}</label>
           <input
-            ref="filenameInput"
             id="filename"
-            type="text"
+            ref="filenameInput"
             v-model="filename"
-            @keydown.enter="handleSave"
-            @keydown.esc="handleCancel"
+            type="text"
             :placeholder="isFolder ? 'Enter folder name' : 'Enter file name (without .md)'"
             class="filename-input"
-          />
-          <div v-if="!isFolder && filename" class="filename-preview">
+            @keydown.enter="handleSave"
+            @keydown.esc="handleCancel"
+          >
+          <div
+            v-if="!isFolder && filename"
+            class="filename-preview"
+          >
             Will be saved as: <strong>{{ filenameWithExtension }}</strong>
           </div>
-          <div v-if="error" class="error-message">
-            <i class="fas fa-exclamation-circle"></i>
+          <div
+            v-if="error"
+            class="error-message"
+          >
+            <i class="fas fa-exclamation-circle" />
             {{ error }}
           </div>
         </div>
 
         <!-- Markdown Editor (only for files) -->
-        <div v-if="!isFolder" class="form-group">
+        <div
+          v-if="!isFolder"
+          class="form-group"
+        >
           <label for="content">Content (optional)</label>
           <textarea
             id="content"
             ref="contentEditor"
             v-model="content"
-            @keydown.tab.prevent="handleTab"
             placeholder="Start typing your markdown content..."
             class="content-editor"
-          ></textarea>
+            @keydown.tab.prevent="handleTab"
+          />
           <div class="editor-hint">
-            <i class="fas fa-info-circle"></i>
+            <i class="fas fa-info-circle" />
             Use Markdown syntax for formatting. Press Tab for indentation.
           </div>
         </div>
       </div>
 
       <div class="dialog-footer">
-        <button @click="handleCancel" class="button button-secondary">
-          <i class="fas fa-times"></i>
+        <button
+          class="button button-secondary"
+          @click="handleCancel"
+        >
+          <i class="fas fa-times" />
           Cancel
         </button>
-        <button @click="handleSave" class="button button-primary" :disabled="!filename || saving">
-          <i v-if="!saving" class="fas fa-save"></i>
-          <i v-else class="fas fa-spinner fa-spin"></i>
+        <button
+          class="button button-primary"
+          :disabled="!filename || saving"
+          @click="handleSave"
+        >
+          <i
+            v-if="!saving"
+            class="fas fa-save"
+          />
+          <i
+            v-else
+            class="fas fa-spinner fa-spin"
+          />
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
       </div>

@@ -3,22 +3,27 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div class="header-top">
-          <h2 class="vault-name">{{ vaultName }}</h2>
+          <h2 class="vault-name">
+            {{ vaultName }}
+          </h2>
           <div class="header-actions">
             <button
               class="search-toggle-button"
               :class="{ active: showSearch }"
-              @click="toggleSearch"
               :title="showSearch ? 'Show file browser' : 'Search notes'"
+              @click="toggleSearch"
             >
-              <i :class="showSearch ? 'fas fa-folder' : 'fas fa-search'"></i>
+              <i :class="showSearch ? 'fas fa-folder' : 'fas fa-search'" />
             </button>
           </div>
         </div>
       </div>
 
       <!-- Search Panel -->
-      <div v-if="showSearch" class="search-section">
+      <div
+        v-if="showSearch"
+        class="search-section"
+      >
         <SearchPanel
           :vault-id="fileStore.vaultId"
           @close="closeSearch"
@@ -31,9 +36,19 @@
       </div>
 
       <!-- File Tree -->
-      <div v-else class="file-tree">
-        <p v-if="fileStore.loading">Loading file tree...</p>
-        <p v-else-if="fileStore.error" class="text-red-500">Error: {{ fileStore.error }}</p>
+      <div
+        v-else
+        class="file-tree"
+      >
+        <p v-if="fileStore.loading">
+          Loading file tree...
+        </p>
+        <p
+          v-else-if="fileStore.error"
+          class="text-red-500"
+        >
+          Error: {{ fileStore.error }}
+        </p>
         <FileTree
           v-else
           :nodes="fileStore.treeData"
@@ -48,55 +63,90 @@
     </aside>
 
     <main class="main-content">
-      <div v-if="fileStore.loading" class="loading-spinner">
-        <i class="fas fa-spinner fa-spin"></i>
+      <div
+        v-if="fileStore.loading"
+        class="loading-spinner"
+      >
+        <i class="fas fa-spinner fa-spin" />
         <p>Loading file content...</p>
       </div>
-      <div v-else-if="fileStore.error" class="error-message">
-        <i class="fas fa-exclamation-circle"></i>
+      <div
+        v-else-if="fileStore.error"
+        class="error-message"
+      >
+        <i class="fas fa-exclamation-circle" />
         <p>Error: {{ fileStore.error }}</p>
       </div>
-      <div v-else-if="fileStore.selectedFileContent" class="file-viewer">
+      <div
+        v-else-if="fileStore.selectedFileContent"
+        class="file-viewer"
+      >
         <!-- Breadcrumb and Header -->
         <div class="file-header-section">
           <div class="navigation-bar">
             <div class="nav-buttons">
-              <button class="nav-button" :disabled="!canGoBack" @click="goBack" title="Go back">
-                <i class="fas fa-arrow-left"></i>
+              <button
+                class="nav-button"
+                :disabled="!canGoBack"
+                title="Go back"
+                @click="goBack"
+              >
+                <i class="fas fa-arrow-left" />
               </button>
               <button
                 class="nav-button"
                 :disabled="!canGoForward"
-                @click="goForward"
                 title="Go forward"
+                @click="goForward"
               >
-                <i class="fas fa-arrow-right"></i>
+                <i class="fas fa-arrow-right" />
               </button>
             </div>
             <div class="breadcrumb">
-              <span v-for="(part, index) in breadcrumbParts" :key="index" class="breadcrumb-item">
-                <span v-if="index > 0" class="breadcrumb-separator">/</span>
+              <span
+                v-for="(part, index) in breadcrumbParts"
+                :key="index"
+                class="breadcrumb-item"
+              >
+                <span
+                  v-if="index > 0"
+                  class="breadcrumb-separator"
+                >/</span>
                 <span>{{ part }}</span>
               </span>
             </div>
           </div>
           <div class="title-stats-row">
-            <h1 class="file-title">{{ currentFileName }}</h1>
-            <div v-if="markdownResult.stats && markdownResult.stats.words > 0" class="file-stats">
-              <span class="stat-chip" title="Word count">
-                <i class="fas fa-font"></i>
+            <h1 class="file-title">
+              {{ currentFileName }}
+            </h1>
+            <div
+              v-if="markdownResult.stats && markdownResult.stats.words > 0"
+              class="file-stats"
+            >
+              <span
+                class="stat-chip"
+                title="Word count"
+              >
+                <i class="fas fa-font" />
                 {{ markdownResult.stats.words.toLocaleString() }}
               </span>
-              <span class="stat-chip" title="Character count">
-                <i class="fas fa-text-width"></i>
+              <span
+                class="stat-chip"
+                title="Character count"
+              >
+                <i class="fas fa-text-width" />
                 {{
                   markdownResult.stats.chars
                     ? markdownResult.stats.chars.toLocaleString()
                     : markdownResult.stats.characters?.toLocaleString()
                 }}
               </span>
-              <span class="stat-chip" title="Reading time">
-                <i class="far fa-clock"></i>
+              <span
+                class="stat-chip"
+                title="Reading time"
+              >
+                <i class="far fa-clock" />
                 {{
                   typeof markdownResult.stats.readingTime === 'number'
                     ? `${markdownResult.stats.readingTime} min`
@@ -114,13 +164,16 @@
           :content="fileStore.selectedFileContent"
           :vault-id="fileStore.vaultId"
           :file-id="currentFileId"
-          @update:markdownResult="markdownResult = $event"
+          @update:markdown-result="markdownResult = $event"
           @wikilink-click="handleWikilinkNavigation"
         />
       </div>
-      <div v-else class="file-viewer">
+      <div
+        v-else
+        class="file-viewer"
+      >
         <div class="no-content-message">
-          <i class="fas fa-file"></i>
+          <i class="fas fa-file" />
           <p>Select a file to view its content.</p>
         </div>
       </div>

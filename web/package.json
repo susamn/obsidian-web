@@ -12,7 +12,7 @@
     "test:coverage": "vitest --coverage",
     "test:bdd": "node e2e/run-tests.cjs",
     "test:bdd:watch": "node e2e/run-tests.cjs",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix",
     "format": "prettier --write src/"
   },
   "dependencies": {

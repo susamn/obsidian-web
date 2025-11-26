@@ -47,6 +47,8 @@ func TestHandleHealth(t *testing.T) {
 	}
 }
 
+// COMMENTED OUT - handleMetrics is currently disabled
+/*
 func TestHandleMetrics_VaultSpecific(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
@@ -105,7 +107,10 @@ func TestHandleMetrics_VaultSpecific(t *testing.T) {
 		t.Errorf("Expected status 404, got %d", w.Code)
 	}
 }
+*/
 
+// COMMENTED OUT - handleMetrics is currently disabled
+/*
 func TestHandleSystemMetrics(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
@@ -172,3 +177,4 @@ func TestHandleSystemMetrics(t *testing.T) {
 		t.Error("Expected 'uptime' field in response")
 	}
 }
+*/

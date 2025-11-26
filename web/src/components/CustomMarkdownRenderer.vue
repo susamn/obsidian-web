@@ -1,9 +1,9 @@
 <template>
   <div class="custom-markdown-renderer">
     <component
+      :is="getNodeComponent(node)"
       v-for="(node, index) in nodes"
       :key="index"
-      :is="getNodeComponent(node)"
       :node="node"
       @wikilink-click="handleWikilinkClick"
     />

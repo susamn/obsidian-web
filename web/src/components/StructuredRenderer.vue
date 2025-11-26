@@ -1,33 +1,49 @@
 <template>
   <div class="structured-renderer-wrapper">
     <!-- Loading State -->
-    <div v-if="loading" class="sr-loading">
-      <i class="fas fa-spinner fa-spin"></i>
+    <div
+      v-if="loading"
+      class="sr-loading"
+    >
+      <i class="fas fa-spinner fa-spin" />
       <p>Loading structured data...</p>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="sr-error">
-      <i class="fas fa-exclamation-circle"></i>
+    <div
+      v-else-if="error"
+      class="sr-error"
+    >
+      <i class="fas fa-exclamation-circle" />
       <p>Error loading file</p>
-      <p class="error-details">{{ error }}</p>
+      <p class="error-details">
+        {{ error }}
+      </p>
     </div>
 
     <!-- Rendered Content -->
-    <div v-else-if="structuredData" class="sr-content-container">
+    <div
+      v-else-if="structuredData"
+      class="sr-content-container"
+    >
       <!-- Outline Toggle Button -->
       <button
         v-if="outline.length > 0"
         class="outline-toggle"
-        @click="showOutline = !showOutline"
         title="Toggle outline"
+        @click="showOutline = !showOutline"
       >
-        <i class="fas fa-list"></i>
+        <i class="fas fa-list" />
       </button>
 
       <!-- Outline Panel -->
-      <div v-if="showOutline && outline.length > 0" class="outline-panel">
-        <div class="outline-header">Outline</div>
+      <div
+        v-if="showOutline && outline.length > 0"
+        class="outline-panel"
+      >
+        <div class="outline-header">
+          Outline
+        </div>
         <nav class="outline-list">
           <a
             v-for="heading in outline"
@@ -42,16 +58,28 @@
       </div>
 
       <!-- Main Content -->
-      <div class="sr-markdown-content" ref="markdownContentRef">
-        <CustomMarkdownRenderer :nodes="parsedNodes" @wikilink-click="handleWikilinkClick" />
+      <div
+        ref="markdownContentRef"
+        class="sr-markdown-content"
+      >
+        <CustomMarkdownRenderer
+          :nodes="parsedNodes"
+          @wikilink-click="handleWikilinkClick"
+        />
       </div>
 
       <!-- Metadata Panels (optional) -->
-      <div v-if="showMetadata" class="sr-metadata-panels">
+      <div
+        v-if="showMetadata"
+        class="sr-metadata-panels"
+      >
         <!-- Tags -->
-        <div v-if="tags.length > 0" class="sr-metadata-panel">
+        <div
+          v-if="tags.length > 0"
+          class="sr-metadata-panel"
+        >
           <h3 class="metadata-title">
-            <i class="fas fa-tags"></i>
+            <i class="fas fa-tags" />
             Tags
           </h3>
           <div class="tag-list">
@@ -67,9 +95,12 @@
         </div>
 
         <!-- Backlinks -->
-        <div v-if="backlinks.length > 0" class="sr-metadata-panel">
+        <div
+          v-if="backlinks.length > 0"
+          class="sr-metadata-panel"
+        >
           <h3 class="metadata-title">
-            <i class="fas fa-link"></i>
+            <i class="fas fa-link" />
             Backlinks ({{ backlinks.length }})
           </h3>
           <div class="backlink-list">
@@ -80,7 +111,7 @@
               class="backlink-item"
               :title="backlink.path"
             >
-              <i class="fas fa-file-alt"></i>
+              <i class="fas fa-file-alt" />
               <span>{{ backlink.name }}</span>
             </a>
           </div>
@@ -91,8 +122,11 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else class="sr-placeholder">
-      <i class="fas fa-file-alt"></i>
+    <div
+      v-else
+      class="sr-placeholder"
+    >
+      <i class="fas fa-file-alt" />
       <p>Structured renderer ready</p>
     </div>
   </div>

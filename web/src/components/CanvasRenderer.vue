@@ -1,29 +1,50 @@
 <template>
   <div class="canvas-viewer w-full h-full overflow-hidden relative bg-[#111]">
     <!-- Loading State -->
-    <div v-if="!content || content === 'loading'" class="loading-state">
-      <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+    <div
+      v-if="!content || content === 'loading'"
+      class="loading-state"
+    >
+      <i class="fas fa-spinner fa-spin text-4xl mb-4" />
       <p>Loading canvas...</p>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="nodes.length === 0 && edges.length === 0" class="empty-state">
-      <i class="fas fa-project-diagram text-4xl mb-4 opacity-50"></i>
+    <div
+      v-else-if="nodes.length === 0 && edges.length === 0"
+      class="empty-state"
+    >
+      <i class="fas fa-project-diagram text-4xl mb-4 opacity-50" />
       <p>Empty canvas or failed to parse</p>
-      <p class="text-sm text-gray-500 mt-2">Check console for details</p>
+      <p class="text-sm text-gray-500 mt-2">
+        Check console for details
+      </p>
     </div>
 
     <!-- Canvas Content -->
     <template v-else>
       <!-- Controls -->
       <div class="controls">
-        <button @click="zoomOut" title="Zoom Out"><i class="fas fa-minus"></i></button>
+        <button
+          title="Zoom Out"
+          @click="zoomOut"
+        >
+          <i class="fas fa-minus" />
+        </button>
         <div class="flex items-center justify-center w-12 text-sm text-gray-300">
           {{ Math.round(scale * 100) }}%
         </div>
-        <button @click="zoomIn" title="Zoom In"><i class="fas fa-plus"></i></button>
-        <button @click="resetView" title="Reset View">
-          <i class="fas fa-compress-arrows-alt"></i>
+        <button
+          title="Zoom In"
+          @click="zoomIn"
+        >
+          <i class="fas fa-plus" />
+        </button>
+        <button
+          title="Reset View"
+          @click="resetView"
+        >
+          <i class="fas fa-compress-arrows-alt" />
         </button>
       </div>
 
@@ -37,7 +58,10 @@
         @wheel="handleWheel"
       >
         <!-- Edges Layer (SVG) -->
-        <svg :width="canvasDimensions.width" :height="canvasDimensions.height">
+        <svg
+          :width="canvasDimensions.width"
+          :height="canvasDimensions.height"
+        >
           <path
             v-for="edge in processedEdges"
             :key="edge.id"
@@ -54,7 +78,10 @@
               refY="3.5"
               orient="auto"
             >
-              <polygon points="0 0, 10 3.5, 0 7" fill="#555" />
+              <polygon
+                points="0 0, 10 3.5, 0 7"
+                fill="#555"
+              />
             </marker>
           </defs>
         </svg>
@@ -73,21 +100,30 @@
           }"
         >
           <!-- Group Label -->
-          <div v-if="node.type === 'group'" class="group-label">
+          <div
+            v-if="node.type === 'group'"
+            class="group-label"
+          >
             {{ node.label }}
           </div>
 
           <!-- Text Node Content -->
-          <div v-if="node.type === 'text'" class="w-full h-full flex flex-col">
+          <div
+            v-if="node.type === 'text'"
+            class="w-full h-full flex flex-col"
+          >
             <div class="prose prose-invert prose-sm max-w-none p-4 overflow-auto">
               {{ node.text }}
             </div>
           </div>
 
           <!-- File Node Content -->
-          <div v-if="node.type === 'file'" class="w-full h-full flex flex-col">
+          <div
+            v-if="node.type === 'file'"
+            class="w-full h-full flex flex-col"
+          >
             <div class="file-header">
-              <i class="fas fa-file-alt"></i>
+              <i class="fas fa-file-alt" />
               <span :title="node.file">{{ getFileName(node.file) }}</span>
             </div>
             <div class="file-content bg-[#202020] flex-1">
@@ -96,23 +132,39 @@
                 class="w-full h-full flex items-center justify-center overflow-hidden"
               >
                 <div class="text-center p-4">
-                  <i class="fas fa-image text-4xl mb-2 text-gray-600"></i>
-                  <div class="text-xs text-gray-500">Image: {{ getFileName(node.file) }}</div>
-                  <div class="text-[10px] text-gray-600 mt-1">(Image preview)</div>
+                  <i class="fas fa-image text-4xl mb-2 text-gray-600" />
+                  <div class="text-xs text-gray-500">
+                    Image: {{ getFileName(node.file) }}
+                  </div>
+                  <div class="text-[10px] text-gray-600 mt-1">
+                    (Image preview)
+                  </div>
                 </div>
               </div>
-              <div v-else class="text-center p-4">
-                <i class="fas fa-file-code text-4xl mb-2 text-gray-600"></i>
-                <div class="text-xs text-gray-500">{{ getFileName(node.file) }}</div>
+              <div
+                v-else
+                class="text-center p-4"
+              >
+                <i class="fas fa-file-code text-4xl mb-2 text-gray-600" />
+                <div class="text-xs text-gray-500">
+                  {{ getFileName(node.file) }}
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Link Node Content -->
-          <div v-if="node.type === 'link'" class="w-full h-full flex flex-col">
+          <div
+            v-if="node.type === 'link'"
+            class="w-full h-full flex flex-col"
+          >
             <div class="file-header bg-red-900/20 border-red-900/30">
-              <i class="fas fa-link"></i>
-              <a :href="node.url" target="_blank" class="hover:underline text-blue-400 truncate">{{
+              <i class="fas fa-link" />
+              <a
+                :href="node.url"
+                target="_blank"
+                class="hover:underline text-blue-400 truncate"
+              >{{
                 node.url
               }}</a>
             </div>
@@ -122,10 +174,13 @@
                 class="w-full h-full absolute inset-0 border-0"
                 :src="getYoutubeEmbed(node.url)"
                 allowfullscreen
-              ></iframe>
-              <div v-else class="w-full h-full flex items-center justify-center">
+              />
+              <div
+                v-else
+                class="w-full h-full flex items-center justify-center"
+              >
                 <div class="text-center">
-                  <i class="fas fa-external-link-alt text-2xl mb-2"></i>
+                  <i class="fas fa-external-link-alt text-2xl mb-2" />
                   <div>External Link</div>
                 </div>
               </div>

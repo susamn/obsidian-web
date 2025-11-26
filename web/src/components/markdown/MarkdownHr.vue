@@ -1,5 +1,5 @@
 <template>
-  <hr class="md-hr" />
+  <hr class="md-hr">
 </template>
 
 <script setup>

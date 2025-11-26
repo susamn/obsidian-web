@@ -1,6 +1,9 @@
 <template>
   <p class="md-paragraph">
-    <InlineRenderer :tokens="node.content" @wikilink-click="$emit('wikilink-click', $event)" />
+    <InlineRenderer
+      :tokens="node.content"
+      @wikilink-click="$emit('wikilink-click', $event)"
+    />
   </p>
 </template>
 

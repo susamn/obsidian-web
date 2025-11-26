@@ -14,18 +14,30 @@
         @click="node.metadata.is_directory ? toggleExpand(node) : selectFile(node)"
       >
         <!-- Expand/Collapse indicator -->
-        <span v-if="node.metadata.is_directory" class="expand-icon">
+        <span
+          v-if="node.metadata.is_directory"
+          class="expand-icon"
+        >
           <span v-if="expandedNodes[node.metadata.id]">▼</span>
           <span v-else>▶</span>
         </span>
-        <span v-else class="expand-icon-placeholder"></span>
+        <span
+          v-else
+          class="expand-icon-placeholder"
+        />
 
         <!-- File/Folder icon -->
-        <span v-if="node.metadata.is_directory" class="icon folder-icon">
-          <i :class="['fas', expandedNodes[node.metadata.id] ? 'fa-folder-open' : 'fa-folder']"></i>
+        <span
+          v-if="node.metadata.is_directory"
+          class="icon folder-icon"
+        >
+          <i :class="['fas', expandedNodes[node.metadata.id] ? 'fa-folder-open' : 'fa-folder']" />
         </span>
-        <span v-else class="icon file-icon">
-          <i :class="getFileIcon(node.metadata)"></i>
+        <span
+          v-else
+          class="icon file-icon"
+        >
+          <i :class="getFileIcon(node.metadata)" />
         </span>
 
         <!-- Node name -->
@@ -35,10 +47,10 @@
         <button
           v-if="node.metadata.is_directory"
           class="create-button"
-          @click.stop="handleCreateClick(node)"
           title="Create new file or folder"
+          @click.stop="handleCreateClick(node)"
         >
-          <i class="fas fa-plus"></i>
+          <i class="fas fa-plus" />
         </button>
       </div>
 
