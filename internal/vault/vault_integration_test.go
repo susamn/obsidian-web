@@ -24,6 +24,7 @@ func setupTestVault(t *testing.T) (string, *config.VaultConfig) {
 		"notes/personal",
 		"notes/work",
 		"docs",
+		"db", // Add db directory
 	}
 
 	for _, dir := range dirs {

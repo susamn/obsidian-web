@@ -23,6 +23,7 @@ func TestHandleVaults(t *testing.T) {
 		Name:      "Vault 1",
 		Enabled:   true,
 		IndexPath: indexDir1 + "/test.bleve",
+		DBPath:    tempDir1 + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -36,6 +37,7 @@ func TestHandleVaults(t *testing.T) {
 		Name:      "Vault 2",
 		Enabled:   true,
 		IndexPath: indexDir2 + "/test.bleve",
+		DBPath:    tempDir2 + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -97,6 +99,7 @@ func TestHandleGetVaultInfo(t *testing.T) {
 		Name:      "Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    tempDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -151,6 +154,7 @@ func TestHandleVaultOperation(t *testing.T) {
 		Name:      "Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    tempDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
@@ -228,6 +232,7 @@ func TestStartStopVault(t *testing.T) {
 		Name:      "Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    tempDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{

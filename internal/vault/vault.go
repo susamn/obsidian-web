@@ -228,7 +228,7 @@ func (v *Vault) Start() error {
 	}
 
 	// Monitor index and start search
-	go v.monitorIndexAndStartSearch()
+	go v.monitorIndexAndStartSearch(v.ctx)
 
 	// Start explorer service
 	if err := v.explorerService.Start(); err != nil {
@@ -275,7 +275,7 @@ func (v *Vault) Resume() error {
 }
 
 // monitorIndexAndStartSearch waits for index ready, then starts search
-func (v *Vault) monitorIndexAndStartSearch() {
+func (v *Vault) monitorIndexAndStartSearch(ctx context.Context) {
 	timeout := time.After(5 * time.Minute)
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -284,7 +284,7 @@ func (v *Vault) monitorIndexAndStartSearch() {
 
 	for {
 		select {
-		case <-v.ctx.Done():
+		case <-ctx.Done():
 			return
 		case <-timeout:
 			v.setStatus(VaultStatusError)

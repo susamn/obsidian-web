@@ -563,8 +563,8 @@ func TestSyncIndexIntegration_MetricsAccuracy(t *testing.T) {
 	}
 
 	// Verify metric fields
-	if finalMetrics.BufferSize != 1000 {
-		t.Errorf("BufferSize = %d, want 1000", finalMetrics.BufferSize)
+	if finalMetrics.BufferSize != 10000 {
+		t.Errorf("BufferSize = %d, want 10000", finalMetrics.BufferSize)
 	}
 	if finalMetrics.BatchSize != 50 {
 		t.Errorf("BatchSize = %d, want 50", finalMetrics.BatchSize)

@@ -30,6 +30,7 @@ func TestHandleSearch(t *testing.T) {
 		Name:      "Test Vault",
 		Enabled:   true,
 		IndexPath: indexDir + "/test.bleve",
+		DBPath:    tempDir + "/test.db",
 		Storage: config.StorageConfig{
 			Type: "local",
 			Local: &config.LocalStorageConfig{
