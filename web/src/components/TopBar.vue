@@ -1,15 +1,9 @@
 <template>
   <div class="top-bar">
-    <div class="logo">
-      Obsidian Web
-    </div>
+    <div class="logo">Obsidian Web</div>
     <div class="actions">
       <!-- Combined status indicator: connection + progress -->
-      <div
-        class="status-widget"
-        :class="statusClass"
-        :title="statusTitle"
-      >
+      <div class="status-widget" :class="statusClass" :title="statusTitle">
         <div class="status-icon">
           <i v-if="pendingEvents > 0" class="fas fa-sync fa-spin"></i>
           <i v-else-if="connected && !error" class="fas fa-circle"></i>
@@ -17,39 +11,29 @@
           <i v-else class="fas fa-circle-notch fa-spin"></i>
         </div>
         <div class="status-text">
-          <template v-if="pendingEvents > 0">
-            Syncing ({{ pendingEvents }})
-          </template>
-          <template v-else-if="connected && !error">
-            Live
-          </template>
-          <template v-else-if="error">
-            Offline
-          </template>
-          <template v-else>
-            Connecting
-          </template>
+          <template v-if="pendingEvents > 0"> Syncing ({{ pendingEvents }}) </template>
+          <template v-else-if="connected && !error"> Live </template>
+          <template v-else-if="error"> Offline </template>
+          <template v-else> Connecting </template>
         </div>
       </div>
-      <div class="settings-icon" @click="goToSettings">
-        ⚙️
-      </div>
+      <div class="settings-icon" @click="goToSettings">⚙️</div>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import { useSSE } from '../composables/useSSE';
+import { ref, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useSSE } from '../composables/useSSE'
 
 export default {
   name: 'TopBar',
   setup() {
-    const route = useRoute();
-    const pendingEvents = ref(0);
-    const connected = ref(false);
-    const error = ref(null);
+    const route = useRoute()
+    const pendingEvents = ref(0)
+    const connected = ref(false)
+    const error = ref(null)
 
     // Setup SSE connection
     const {
@@ -57,51 +41,55 @@ export default {
       error: sseError,
       pendingEvents: ssePendingEvents,
       connect,
-      disconnect
-    } = useSSE({});
+      disconnect,
+    } = useSSE({})
 
     // Watch for route changes to connect/disconnect SSE
-    watch(() => route.params.id, (newVaultId, oldVaultId) => {
-      if (oldVaultId) {
-        disconnect();
-      }
+    watch(
+      () => route.params.id,
+      (newVaultId, oldVaultId) => {
+        if (oldVaultId) {
+          disconnect()
+        }
 
-      if (newVaultId) {
-        connect(newVaultId);
-      }
-    }, { immediate: true });
+        if (newVaultId) {
+          connect(newVaultId)
+        }
+      },
+      { immediate: true }
+    )
 
     // Watch SSE state and update local refs
     watch(ssePendingEvents, (newValue) => {
-      pendingEvents.value = newValue;
-    });
+      pendingEvents.value = newValue
+    })
 
     watch(sseConnected, (newValue) => {
-      connected.value = newValue;
-    });
+      connected.value = newValue
+    })
 
     watch(sseError, (newValue) => {
-      error.value = newValue;
-    });
+      error.value = newValue
+    })
 
     // Computed properties for status
     const statusClass = computed(() => {
-      if (pendingEvents.value > 0) return 'syncing';
-      if (error.value) return 'error';
-      if (connected.value) return 'connected';
-      return 'connecting';
-    });
+      if (pendingEvents.value > 0) return 'syncing'
+      if (error.value) return 'error'
+      if (connected.value) return 'connected'
+      return 'connecting'
+    })
 
     const statusTitle = computed(() => {
-      if (pendingEvents.value > 0) return `Syncing ${pendingEvents.value} events`;
-      if (error.value) return `Offline: ${error.value}`;
-      if (connected.value) return 'Live updates enabled';
-      return 'Connecting to server...';
-    });
+      if (pendingEvents.value > 0) return `Syncing ${pendingEvents.value} events`
+      if (error.value) return `Offline: ${error.value}`
+      if (connected.value) return 'Live updates enabled'
+      return 'Connecting to server...'
+    })
 
     const goToSettings = (router) => {
-      router.push({ name: 'settings' });
-    };
+      router.push({ name: 'settings' })
+    }
 
     return {
       pendingEvents,
@@ -110,14 +98,14 @@ export default {
       statusClass,
       statusTitle,
       goToSettings,
-    };
+    }
   },
   methods: {
     goToSettings() {
-      this.$router.push({ name: 'settings' });
+      this.$router.push({ name: 'settings' })
     },
   },
-};
+}
 </script>
 
 <style scoped>

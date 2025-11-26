@@ -8,7 +8,9 @@
     >
       <div
         class="node-header"
-        :class="{ 'selected-file': !node.metadata.is_directory && selectedFileId === node.metadata.id }"
+        :class="{
+          'selected-file': !node.metadata.is_directory && selectedFileId === node.metadata.id,
+        }"
         @click="node.metadata.is_directory ? toggleExpand(node) : selectFile(node)"
       >
         <!-- Expand/Collapse indicator -->
@@ -41,7 +43,10 @@
       </div>
 
       <!-- Children (recursively) -->
-      <div v-if="node.metadata.is_directory && expandedNodes[node.metadata.id] && node.children" class="children">
+      <div
+        v-if="node.metadata.is_directory && expandedNodes[node.metadata.id] && node.children"
+        class="children"
+      >
         <FileTree
           :nodes="node.children"
           :vault-id="vaultId"
@@ -57,8 +62,8 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
-import { useFileStore } from '../stores/fileStore';
+import { ref, watch } from 'vue'
+import { useFileStore } from '../stores/fileStore'
 
 const props = defineProps({
   nodes: {
@@ -77,90 +82,90 @@ const props = defineProps({
     type: String,
     default: null,
   },
-});
+})
 
-const emit = defineEmits(['toggle-expand', 'file-selected', 'create-clicked']);
+const emit = defineEmits(['toggle-expand', 'file-selected', 'create-clicked'])
 
-const fileStore = useFileStore();
+const fileStore = useFileStore()
 
 const toggleExpand = async (node) => {
-  emit('toggle-expand', node);
-};
+  emit('toggle-expand', node)
+}
 
 const selectFile = (node) => {
-  emit('file-selected', node);
-};
+  emit('file-selected', node)
+}
 
 const handleCreateClick = (node) => {
-  emit('create-clicked', node);
-};
+  emit('create-clicked', node)
+}
 
 /**
  * Get appropriate icon class based on file type
  */
 const getFileIcon = (metadata) => {
   if (metadata.is_markdown) {
-    return 'fas fa-file-alt'; // Markdown file icon
+    return 'fas fa-file-alt' // Markdown file icon
   }
 
-  const extension = metadata.name.split('.').pop().toLowerCase();
+  const extension = metadata.name.split('.').pop().toLowerCase()
 
   // Icon mapping based on file extension
   const iconMap = {
     // Obsidian Canvas
-    'canvas': 'fas fa-project-diagram',
+    canvas: 'fas fa-project-diagram',
 
     // Images
-    'png': 'fas fa-file-image',
-    'jpg': 'fas fa-file-image',
-    'jpeg': 'fas fa-file-image',
-    'gif': 'fas fa-file-image',
-    'svg': 'fas fa-file-image',
-    'webp': 'fas fa-file-image',
+    png: 'fas fa-file-image',
+    jpg: 'fas fa-file-image',
+    jpeg: 'fas fa-file-image',
+    gif: 'fas fa-file-image',
+    svg: 'fas fa-file-image',
+    webp: 'fas fa-file-image',
 
     // Documents
-    'pdf': 'fas fa-file-pdf',
-    'doc': 'fas fa-file-word',
-    'docx': 'fas fa-file-word',
+    pdf: 'fas fa-file-pdf',
+    doc: 'fas fa-file-word',
+    docx: 'fas fa-file-word',
 
     // Code files
-    'js': 'fas fa-file-code',
-    'ts': 'fas fa-file-code',
-    'jsx': 'fas fa-file-code',
-    'tsx': 'fas fa-file-code',
-    'vue': 'fas fa-file-code',
-    'html': 'fas fa-file-code',
-    'css': 'fas fa-file-code',
-    'json': 'fas fa-file-code',
-    'yaml': 'fas fa-file-code',
-    'yml': 'fas fa-file-code',
-    'xml': 'fas fa-file-code',
+    js: 'fas fa-file-code',
+    ts: 'fas fa-file-code',
+    jsx: 'fas fa-file-code',
+    tsx: 'fas fa-file-code',
+    vue: 'fas fa-file-code',
+    html: 'fas fa-file-code',
+    css: 'fas fa-file-code',
+    json: 'fas fa-file-code',
+    yaml: 'fas fa-file-code',
+    yml: 'fas fa-file-code',
+    xml: 'fas fa-file-code',
 
     // Archives
-    'zip': 'fas fa-file-archive',
-    'tar': 'fas fa-file-archive',
-    'gz': 'fas fa-file-archive',
-    'rar': 'fas fa-file-archive',
+    zip: 'fas fa-file-archive',
+    tar: 'fas fa-file-archive',
+    gz: 'fas fa-file-archive',
+    rar: 'fas fa-file-archive',
 
     // Text files
-    'txt': 'fas fa-file-alt',
-    'log': 'fas fa-file-alt',
+    txt: 'fas fa-file-alt',
+    log: 'fas fa-file-alt',
 
     // Video
-    'mp4': 'fas fa-file-video',
-    'avi': 'fas fa-file-video',
-    'mov': 'fas fa-file-video',
-    'mkv': 'fas fa-file-video',
+    mp4: 'fas fa-file-video',
+    avi: 'fas fa-file-video',
+    mov: 'fas fa-file-video',
+    mkv: 'fas fa-file-video',
 
     // Audio
-    'mp3': 'fas fa-file-audio',
-    'wav': 'fas fa-file-audio',
-    'flac': 'fas fa-file-audio',
-    'ogg': 'fas fa-file-audio',
-  };
+    mp3: 'fas fa-file-audio',
+    wav: 'fas fa-file-audio',
+    flac: 'fas fa-file-audio',
+    ogg: 'fas fa-file-audio',
+  }
 
-  return iconMap[extension] || 'fas fa-file'; // Default file icon
-};
+  return iconMap[extension] || 'fas fa-file' // Default file icon
+}
 </script>
 
 <style scoped>

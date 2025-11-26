@@ -9,7 +9,12 @@
       <div class="vaults-section">
         <h2 class="section-title">Your Vaults</h2>
         <ul v-if="vaults.length" class="vault-list">
-          <li v-for="vault in vaults" :key="vault.id" class="vault-item" @click="openVault(vault.id)">
+          <li
+            v-for="vault in vaults"
+            :key="vault.id"
+            class="vault-item"
+            @click="openVault(vault.id)"
+          >
             <span class="vault-name">{{ vault.name }}</span>
             <span class="vault-status" :class="vault.status.toLowerCase()">{{ vault.status }}</span>
           </li>
@@ -20,8 +25,20 @@
       <div class="create-vault-section">
         <h2 class="section-title">Create New Vault</h2>
         <form @submit.prevent="createVault" class="create-vault-form">
-          <input type="text" v-model="newVault.name" placeholder="Vault Name" class="form-input" required />
-          <input type="text" v-model="newVault.path" placeholder="Vault Path" class="form-input" required />
+          <input
+            type="text"
+            v-model="newVault.name"
+            placeholder="Vault Name"
+            class="form-input"
+            required
+          />
+          <input
+            type="text"
+            v-model="newVault.path"
+            placeholder="Vault Path"
+            class="form-input"
+            required
+          />
           <button type="submit" class="form-button">Create Vault</button>
         </form>
       </div>
@@ -30,7 +47,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import axios from 'axios'
 
 export default {
   name: 'HomeView',
@@ -41,30 +58,30 @@ export default {
         name: '',
         path: '',
       },
-    };
+    }
   },
   async created() {
-    await this.fetchVaults();
+    await this.fetchVaults()
   },
   methods: {
     async fetchVaults() {
       try {
-        const response = await axios.get('/api/v1/vaults');
-        this.vaults = response.data.data.vaults;
+        const response = await axios.get('/api/v1/vaults')
+        this.vaults = response.data.data.vaults
       } catch (error) {
-        console.error('Error fetching vaults:', error);
+        console.error('Error fetching vaults:', error)
       }
     },
     openVault(vaultId) {
-      this.$router.push({ name: 'vault', params: { id: vaultId } });
+      this.$router.push({ name: 'vault', params: { id: vaultId } })
     },
     async createVault() {
       // This is a placeholder. The backend API for creating vaults is not yet implemented.
-      console.log('Creating vault:', this.newVault);
-      alert('Creating vaults is not yet implemented.');
+      console.log('Creating vault:', this.newVault)
+      alert('Creating vaults is not yet implemented.')
     },
   },
-};
+}
 </script>
 
 <style scoped>

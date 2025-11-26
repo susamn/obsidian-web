@@ -5,16 +5,16 @@
 </template>
 
 <script setup>
-import InlineRenderer from './InlineRenderer.vue';
+import InlineRenderer from './InlineRenderer.vue'
 
 defineProps({
   node: {
     type: Object,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
-defineEmits(['wikilink-click']);
+defineEmits(['wikilink-click'])
 </script>
 
 <style scoped>

@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { mount } from '@vue/test-utils';
-import { createPinia } from 'pinia';
-import Settings from '../Settings.vue';
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
+import Settings from '../Settings.vue'
 
 describe('Settings', () => {
   it('renders properly', () => {
@@ -9,7 +9,7 @@ describe('Settings', () => {
       global: {
         plugins: [createPinia()],
       },
-    });
-    expect(wrapper.text()).toContain('Settings');
-  });
-});
+    })
+    expect(wrapper.text()).toContain('Settings')
+  })
+})

@@ -6,8 +6,8 @@
 </template>
 
 <script>
-import TopBar from './components/TopBar.vue';
-import { useThemeStore } from './stores/theme';
+import TopBar from './components/TopBar.vue'
+import { useThemeStore } from './stores/theme'
 
 export default {
   name: 'App',
@@ -15,10 +15,10 @@ export default {
     TopBar,
   },
   setup() {
-    const themeStore = useThemeStore();
-    themeStore.loadThemeFromLocalStorage();
+    const themeStore = useThemeStore()
+    themeStore.loadThemeFromLocalStorage()
   },
-};
+}
 </script>
 
 <style>

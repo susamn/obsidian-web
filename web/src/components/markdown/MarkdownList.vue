@@ -7,19 +7,19 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import InlineRenderer from './InlineRenderer.vue';
+import { computed } from 'vue'
+import InlineRenderer from './InlineRenderer.vue'
 
 const props = defineProps({
   node: {
     type: Object,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
-defineEmits(['wikilink-click']);
+defineEmits(['wikilink-click'])
 
-const listTag = computed(() => props.node.type);
+const listTag = computed(() => props.node.type)
 </script>
 
 <style scoped>

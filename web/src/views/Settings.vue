@@ -12,21 +12,20 @@
         </option>
       </select>
     </div>
-
   </div>
 </template>
 
 <script>
-import { useThemeStore } from '../stores/theme';
+import { useThemeStore } from '../stores/theme'
 
 export default {
   name: 'SettingsView',
   setup() {
-    const themeStore = useThemeStore();
+    const themeStore = useThemeStore()
 
     return {
       themeStore,
-    };
+    }
   },
   data() {
     return {
@@ -41,27 +40,27 @@ export default {
         { id: 'nord-inspired', name: 'Nord Inspired' },
         { id: 'tokyo-night', name: 'Tokyo Night' },
       ],
-    };
+    }
   },
   computed: {
     selectedTheme: {
       get() {
-        return this.themeStore.currentTheme;
+        return this.themeStore.currentTheme
       },
       set(value) {
-        this.themeStore.setTheme(value);
+        this.themeStore.setTheme(value)
       },
     },
   },
   methods: {
     setTheme(event) {
-      this.themeStore.setTheme(event.target.value);
+      this.themeStore.setTheme(event.target.value)
     },
     goBack() {
-      this.$router.push('/');
+      this.$router.push('/')
     },
   },
-};
+}
 </script>
 
 <style scoped>

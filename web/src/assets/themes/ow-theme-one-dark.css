@@ -1,23 +1,23 @@
 :root {
-    --background-color: #282c34;
-    --background-color-light: #353b45;
-    --text-color: #abb2bf;
-    --primary-color: #61afef;
-    --border-color: #4b5263;
+  --background-color: #282c34;
+  --background-color-light: #353b45;
+  --text-color: #abb2bf;
+  --primary-color: #61afef;
+  --border-color: #4b5263;
 
-    /* Markdown-specific variables */
-    --md-code-bg: #353b45;
-    --md-code-text: #e06c75;
-    --md-code-border: #4b5263;
-    --md-pre-bg: #353b45;
-    --md-pre-border: #4b5263;
-    --md-blockquote-border: #61afef;
-    --md-blockquote-text: #98c379;
-    --md-link-color: #56b6c2;
-    --md-link-hover: #85d4e8;
-    --md-heading-color: #61afef;
-    --md-inline-code-bg: rgba(97, 175, 239, 0.1);
-    --md-table-border: #4b5263;
-    --md-table-header-bg: #353b45;
-    --md-hr-color: #4b5263;
+  /* Markdown-specific variables */
+  --md-code-bg: #353b45;
+  --md-code-text: #e06c75;
+  --md-code-border: #4b5263;
+  --md-pre-bg: #353b45;
+  --md-pre-border: #4b5263;
+  --md-blockquote-border: #61afef;
+  --md-blockquote-text: #98c379;
+  --md-link-color: #56b6c2;
+  --md-link-hover: #85d4e8;
+  --md-heading-color: #61afef;
+  --md-inline-code-bg: rgba(97, 175, 239, 0.1);
+  --md-table-border: #4b5263;
+  --md-table-header-bg: #353b45;
+  --md-hr-color: #4b5263;
 }

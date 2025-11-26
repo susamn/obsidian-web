@@ -18,286 +18,293 @@
  * @returns {Array<Object>} - Array of parsed nodes
  */
 export function parseMarkdown(markdown, wikilinks = [], embeds = [], options = {}) {
-  if (!markdown) return [];
+  if (!markdown) return []
 
-  const lines = markdown.split('\n');
-  const nodes = [];
-  let i = 0;
-  const maxIterations = lines.length * 2; // Safety limit
-  let iterations = 0;
+  const lines = markdown.split('\n')
+  const nodes = []
+  let i = 0
+  const maxIterations = lines.length * 2 // Safety limit
+  let iterations = 0
 
   while (i < lines.length) {
-    iterations++;
+    iterations++
     if (iterations > maxIterations) {
-      console.error('Parser stuck in infinite loop at line', i, ':', lines[i]);
-      break;
+      console.error('Parser stuck in infinite loop at line', i, ':', lines[i])
+      break
     }
 
-    const line = lines[i];
+    const line = lines[i]
 
     // Skip empty lines (but track them for paragraph breaks)
     if (line.trim() === '') {
-      i++;
-      continue;
+      i++
+      continue
     }
 
     // Code blocks (fenced with ```)
     if (line.trim().startsWith('```')) {
-      const result = parseCodeBlock(lines, i);
-      nodes.push(result.node);
-      i = result.nextIndex;
-      continue;
+      const result = parseCodeBlock(lines, i)
+      nodes.push(result.node)
+      i = result.nextIndex
+      continue
     }
 
     // Headings
     if (line.match(/^#{1,6}\s/)) {
-      nodes.push(parseHeading(line));
-      i++;
-      continue;
+      nodes.push(parseHeading(line))
+      i++
+      continue
     }
 
     // Blockquotes (including callouts)
     if (line.trim().startsWith('>')) {
-      const result = parseBlockquote(lines, i);
-      nodes.push(result.node);
-      i = result.nextIndex;
-      continue;
+      const result = parseBlockquote(lines, i)
+      nodes.push(result.node)
+      i = result.nextIndex
+      continue
     }
 
     // Unordered lists
     if (line.match(/^\s*[-*+]\s/)) {
-      const result = parseList(lines, i, 'ul');
-      nodes.push(result.node);
-      i = result.nextIndex;
-      continue;
+      const result = parseList(lines, i, 'ul')
+      nodes.push(result.node)
+      i = result.nextIndex
+      continue
     }
 
     // Ordered lists
     if (line.match(/^\s*\d+\.\s/)) {
-      const result = parseList(lines, i, 'ol');
-      nodes.push(result.node);
-      i = result.nextIndex;
-      continue;
+      const result = parseList(lines, i, 'ol')
+      nodes.push(result.node)
+      i = result.nextIndex
+      continue
     }
 
     // Horizontal rule
     if (line.match(/^[-*_]{3,}$/)) {
-      nodes.push({ type: 'hr' });
-      i++;
-      continue;
+      nodes.push({ type: 'hr' })
+      i++
+      continue
     }
 
     // Tables
     if (line.includes('|') && i < lines.length - 1 && lines[i + 1].match(/^\|?\s*:?-+:?\s*\|/)) {
-      const result = parseTable(lines, i);
-      nodes.push(result.node);
-      i = result.nextIndex;
-      continue;
+      const result = parseTable(lines, i)
+      nodes.push(result.node)
+      i = result.nextIndex
+      continue
     }
 
     // Default: paragraph
-    const result = parseParagraph(lines, i);
-    nodes.push(result.node);
-    i = result.nextIndex;
+    const result = parseParagraph(lines, i)
+    nodes.push(result.node)
+    i = result.nextIndex
   }
 
   // Post-process: inject wikilink and embed data, and convert image paths to asset URLs
-  return postProcessNodes(nodes, wikilinks, embeds, options);
+  return postProcessNodes(nodes, wikilinks, embeds, options)
 }
 
 /**
  * Parse a heading
  */
 function parseHeading(line) {
-  const match = line.match(/^(#{1,6})\s+(.+)$/);
-  if (!match) return { type: 'paragraph', content: line };
+  const match = line.match(/^(#{1,6})\s+(.+)$/)
+  if (!match) return { type: 'paragraph', content: line }
 
-  const level = match[1].length;
-  const text = match[2].trim();
-  const id = slugify(text);
+  const level = match[1].length
+  const text = match[2].trim()
+  const id = slugify(text)
 
   return {
     type: 'heading',
     level,
     id,
-    content: parseInline(text)
-  };
+    content: parseInline(text),
+  }
 }
 
 /**
  * Parse a code block
  */
 function parseCodeBlock(lines, startIndex) {
-  const firstLine = lines[startIndex].trim();
-  const language = firstLine.slice(3).trim() || 'text';
-  let i = startIndex + 1;
-  const codeLines = [];
+  const firstLine = lines[startIndex].trim()
+  const language = firstLine.slice(3).trim() || 'text'
+  let i = startIndex + 1
+  const codeLines = []
 
   while (i < lines.length && !lines[i].trim().startsWith('```')) {
-    codeLines.push(lines[i]);
-    i++;
+    codeLines.push(lines[i])
+    i++
   }
 
   return {
     node: {
       type: 'code_block',
       language,
-      content: codeLines.join('\n')
+      content: codeLines.join('\n'),
     },
-    nextIndex: i + 1
-  };
+    nextIndex: i + 1,
+  }
 }
 
 /**
  * Parse a blockquote (or callout)
  */
 function parseBlockquote(lines, startIndex) {
-  const quoteLines = [];
-  let i = startIndex;
+  const quoteLines = []
+  let i = startIndex
 
   // Collect all consecutive quote lines
   while (i < lines.length && lines[i].trim().startsWith('>')) {
-    const line = lines[i].trim().slice(1).trim();
-    quoteLines.push(line);
-    i++;
+    const line = lines[i].trim().slice(1).trim()
+    quoteLines.push(line)
+    i++
   }
 
-  const fullContent = quoteLines.join('\n');
+  const fullContent = quoteLines.join('\n')
 
   // Check if it's a callout: [!TYPE] Title
-  const calloutMatch = fullContent.match(/^\[!(\w+)\](.*?)$/m);
+  const calloutMatch = fullContent.match(/^\[!(\w+)\](.*?)$/m)
 
   if (calloutMatch) {
-    const type = calloutMatch[1].toLowerCase();
-    const titleLine = calloutMatch[2].trim();
-    const title = titleLine || getCalloutLabel(type);
-    const content = fullContent.replace(/^\[!(\w+)\].*$/m, '').trim();
+    const type = calloutMatch[1].toLowerCase()
+    const titleLine = calloutMatch[2].trim()
+    const title = titleLine || getCalloutLabel(type)
+    const content = fullContent.replace(/^\[!(\w+)\].*$/m, '').trim()
 
     return {
       node: {
         type: 'callout',
         calloutType: type,
         title: title || getCalloutLabel(type),
-        content: parseInline(content)
+        content: parseInline(content),
       },
-      nextIndex: i
-    };
+      nextIndex: i,
+    }
   }
 
   return {
     node: {
       type: 'blockquote',
-      content: parseInline(fullContent)
+      content: parseInline(fullContent),
     },
-    nextIndex: i
-  };
+    nextIndex: i,
+  }
 }
 
 /**
  * Parse a list (ul or ol)
  */
 function parseList(lines, startIndex, listType) {
-  const items = [];
-  let i = startIndex;
-  const baseIndent = lines[i].match(/^\s*/)[0].length;
+  const items = []
+  let i = startIndex
+  const baseIndent = lines[i].match(/^\s*/)[0].length
 
   while (i < lines.length) {
-    const line = lines[i];
-    const indent = line.match(/^\s*/)[0].length;
+    const line = lines[i]
+    const indent = line.match(/^\s*/)[0].length
 
     // Check if this is a list item
-    const match = listType === 'ul'
-      ? line.match(/^\s*[-*+]\s+(.+)$/)
-      : line.match(/^\s*\d+\.\s+(.+)$/);
+    const match =
+      listType === 'ul' ? line.match(/^\s*[-*+]\s+(.+)$/) : line.match(/^\s*\d+\.\s+(.+)$/)
 
-    if (!match) break;
-    if (indent < baseIndent) break;
+    if (!match) break
+    if (indent < baseIndent) break
 
     items.push({
-      content: parseInline(match[1].trim())
-    });
+      content: parseInline(match[1].trim()),
+    })
 
-    i++;
+    i++
   }
 
   return {
     node: {
       type: listType,
-      items
+      items,
     },
-    nextIndex: i
-  };
+    nextIndex: i,
+  }
 }
 
 /**
  * Parse a table
  */
 function parseTable(lines, startIndex) {
-  const rows = [];
-  let i = startIndex;
+  const rows = []
+  let i = startIndex
 
   // Parse header
-  const headerCells = lines[i].split('|').map(c => c.trim()).filter(c => c);
+  const headerCells = lines[i]
+    .split('|')
+    .map((c) => c.trim())
+    .filter((c) => c)
   rows.push({
     type: 'header',
-    cells: headerCells.map(c => parseInline(c))
-  });
+    cells: headerCells.map((c) => parseInline(c)),
+  })
 
-  i++; // Skip separator line
-  i++; // Move to first data row
+  i++ // Skip separator line
+  i++ // Move to first data row
 
   // Parse data rows
   while (i < lines.length && lines[i].includes('|')) {
-    const cells = lines[i].split('|').map(c => c.trim()).filter(c => c);
+    const cells = lines[i]
+      .split('|')
+      .map((c) => c.trim())
+      .filter((c) => c)
     rows.push({
       type: 'row',
-      cells: cells.map(c => parseInline(c))
-    });
-    i++;
+      cells: cells.map((c) => parseInline(c)),
+    })
+    i++
   }
 
   return {
     node: {
       type: 'table',
-      rows
+      rows,
     },
-    nextIndex: i
-  };
+    nextIndex: i,
+  }
 }
 
 /**
  * Parse a paragraph
  */
 function parseParagraph(lines, startIndex) {
-  const paragraphLines = [];
-  let i = startIndex;
+  const paragraphLines = []
+  let i = startIndex
 
   while (i < lines.length) {
-    const line = lines[i];
+    const line = lines[i]
 
     // Stop at empty line
-    if (line.trim() === '') break;
+    if (line.trim() === '') break
 
     // Stop at block elements
-    if (line.match(/^#{1,6}\s/) ||
-        line.trim().startsWith('>') ||
-        line.match(/^\s*[-*+]\s/) ||
-        line.match(/^\s*\d+\.\s/) ||
-        line.trim().startsWith('```')) {
-      break;
+    if (
+      line.match(/^#{1,6}\s/) ||
+      line.trim().startsWith('>') ||
+      line.match(/^\s*[-*+]\s/) ||
+      line.match(/^\s*\d+\.\s/) ||
+      line.trim().startsWith('```')
+    ) {
+      break
     }
 
-    paragraphLines.push(line);
-    i++;
+    paragraphLines.push(line)
+    i++
   }
 
   return {
     node: {
       type: 'paragraph',
-      content: parseInline(paragraphLines.join('\n'))
+      content: parseInline(paragraphLines.join('\n')),
     },
-    nextIndex: i
-  };
+    nextIndex: i,
+  }
 }
 
 /**
@@ -305,334 +312,339 @@ function parseParagraph(lines, startIndex) {
  * Returns an array of text and inline nodes
  */
 function parseInline(text) {
-  if (!text) return [];
+  if (!text) return []
 
-  const tokens = [];
-  let remaining = text;
-  let pos = 0;
-  const maxIterations = text.length * 2; // Safety limit
-  let iterations = 0;
+  const tokens = []
+  let remaining = text
+  let pos = 0
+  const maxIterations = text.length * 2 // Safety limit
+  let iterations = 0
 
   while (remaining.length > 0) {
-    iterations++;
+    iterations++
     if (iterations > maxIterations) {
-      console.error('Inline parser stuck in loop at position', pos, 'remaining:', remaining.substring(0, 50));
+      console.error(
+        'Inline parser stuck in loop at position',
+        pos,
+        'remaining:',
+        remaining.substring(0, 50)
+      )
       // Add remaining text as plain text and break
-      tokens.push({ type: 'text', content: remaining });
-      break;
+      tokens.push({ type: 'text', content: remaining })
+      break
     }
 
     // Try to match inline patterns
-    let matched = false;
+    let matched = false
 
     // Wikilinks [[link]]
-    const wikilinkMatch = remaining.match(/^\[\[([^\]]+)\]\]/);
+    const wikilinkMatch = remaining.match(/^\[\[([^\]]+)\]\]/)
     if (wikilinkMatch) {
-      const fullMatch = wikilinkMatch[0];
-      const content = wikilinkMatch[1];
-      const parts = content.split('|');
-      const target = parts[0].trim();
-      const display = parts[1] ? parts[1].trim() : target;
+      const fullMatch = wikilinkMatch[0]
+      const content = wikilinkMatch[1]
+      const parts = content.split('|')
+      const target = parts[0].trim()
+      const display = parts[1] ? parts[1].trim() : target
 
       tokens.push({
         type: 'wikilink',
         target,
         display,
-        original: fullMatch
-      });
+        original: fullMatch,
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Embeds ![[embed]] or ![[embed|display]]
-    const embedMatch = remaining.match(/^!\[\[([^\]]+)\]\]/);
+    const embedMatch = remaining.match(/^!\[\[([^\]]+)\]\]/)
     if (embedMatch) {
-      const fullMatch = embedMatch[0];
-      const inner = embedMatch[1];
+      const fullMatch = embedMatch[0]
+      const inner = embedMatch[1]
 
       // Split by pipe for display/sizing (e.g., |500)
-      const parts = inner.split('|');
-      const target = parts[0].trim();
-      const display = parts[1] ? parts[1].trim() : '';
+      const parts = inner.split('|')
+      const target = parts[0].trim()
+      const display = parts[1] ? parts[1].trim() : ''
 
       // All ![[...]] syntax uses type 'embed'
       tokens.push({
         type: 'embed',
         target,
         display,
-        original: fullMatch
-      });
+        original: fullMatch,
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Tags #tag
-    const tagMatch = remaining.match(/^#([\w-/]+)/);
+    const tagMatch = remaining.match(/^#([\w-/]+)/)
     if (tagMatch) {
-      const fullMatch = tagMatch[0];
-      const tag = tagMatch[1];
+      const fullMatch = tagMatch[0]
+      const tag = tagMatch[1]
 
       tokens.push({
         type: 'tag',
-        tag
-      });
+        tag,
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Code `code`
-    const codeMatch = remaining.match(/^`([^`]+)`/);
+    const codeMatch = remaining.match(/^`([^`]+)`/)
     if (codeMatch) {
-      const fullMatch = codeMatch[0];
-      const code = codeMatch[1];
+      const fullMatch = codeMatch[0]
+      const code = codeMatch[1]
 
       tokens.push({
         type: 'code',
-        content: code
-      });
+        content: code,
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Bold **text** or __text__
-    const boldMatch = remaining.match(/^(\*\*|__)(.+?)\1/);
+    const boldMatch = remaining.match(/^(\*\*|__)(.+?)\1/)
     if (boldMatch) {
-      const fullMatch = boldMatch[0];
-      const content = boldMatch[2];
+      const fullMatch = boldMatch[0]
+      const content = boldMatch[2]
 
       tokens.push({
         type: 'bold',
-        content: parseInline(content)
-      });
+        content: parseInline(content),
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Italic *text* or _text_
-    const italicMatch = remaining.match(/^(\*|_)(.+?)\1/);
+    const italicMatch = remaining.match(/^(\*|_)(.+?)\1/)
     if (italicMatch) {
-      const fullMatch = italicMatch[0];
-      const content = italicMatch[2];
+      const fullMatch = italicMatch[0]
+      const content = italicMatch[2]
 
       tokens.push({
         type: 'italic',
-        content: parseInline(content)
-      });
+        content: parseInline(content),
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Strikethrough ~~text~~
-    const strikeMatch = remaining.match(/^~~(.+?)~~/);
+    const strikeMatch = remaining.match(/^~~(.+?)~~/)
     if (strikeMatch) {
-      const fullMatch = strikeMatch[0];
-      const content = strikeMatch[1];
+      const fullMatch = strikeMatch[0]
+      const content = strikeMatch[1]
 
       tokens.push({
         type: 'strikethrough',
-        content: parseInline(content)
-      });
+        content: parseInline(content),
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Highlight ==text==
-    const highlightMatch = remaining.match(/^==(.+?)==/);
+    const highlightMatch = remaining.match(/^==(.+?)==/)
     if (highlightMatch) {
-      const fullMatch = highlightMatch[0];
-      const content = highlightMatch[1];
+      const fullMatch = highlightMatch[0]
+      const content = highlightMatch[1]
 
       tokens.push({
         type: 'highlight',
-        content: parseInline(content)
-      });
+        content: parseInline(content),
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Images ![alt](url) - Must come BEFORE links since both use brackets
-    const imageMatch = remaining.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+    const imageMatch = remaining.match(/^!\[([^\]]*)\]\(([^)]+)\)/)
     if (imageMatch) {
-      const fullMatch = imageMatch[0];
-      const alt = imageMatch[1];
-      const url = imageMatch[2].trim();
+      const fullMatch = imageMatch[0]
+      const alt = imageMatch[1]
+      const url = imageMatch[2].trim()
 
       tokens.push({
         type: 'image',
         alt,
         url,
-        original: fullMatch
-      });
+        original: fullMatch,
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // Links [text](url)
-    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/)
     if (linkMatch) {
-      const fullMatch = linkMatch[0];
-      const text = linkMatch[1];
-      const url = linkMatch[2];
+      const fullMatch = linkMatch[0]
+      const text = linkMatch[1]
+      const url = linkMatch[2]
 
       tokens.push({
         type: 'link',
         text,
-        url
-      });
+        url,
+      })
 
-      remaining = remaining.slice(fullMatch.length);
-      pos += fullMatch.length;
-      matched = true;
-      continue;
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
     }
 
     // No match, consume one character as text
     if (!matched) {
-      const char = remaining[0];
+      const char = remaining[0]
 
       // Merge consecutive text
       if (tokens.length > 0 && tokens[tokens.length - 1].type === 'text') {
-        tokens[tokens.length - 1].content += char;
+        tokens[tokens.length - 1].content += char
       } else {
         tokens.push({
           type: 'text',
-          content: char
-        });
+          content: char,
+        })
       }
 
-      remaining = remaining.slice(1);
-      pos++;
+      remaining = remaining.slice(1)
+      pos++
     }
   }
 
-  return tokens;
+  return tokens
 }
 
 /**
  * Post-process nodes to inject wikilink and embed metadata and convert image paths
  */
 function postProcessNodes(nodes, wikilinks, embeds, options = {}) {
-  const { vaultId } = options;
+  const { vaultId } = options
 
-  return nodes.map(node => {
+  return nodes.map((node) => {
     if (node.content && Array.isArray(node.content)) {
-      node.content = node.content.map(inline => {
+      node.content = node.content.map((inline) => {
         if (inline.type === 'wikilink') {
-          const metadata = wikilinks.find(wl => wl.original === inline.original);
-          const merged = { ...inline, ...metadata };
+          const metadata = wikilinks.find((wl) => wl.original === inline.original)
+          const merged = { ...inline, ...metadata }
 
           // Add asset_url for image wikilinks
           if (merged.file_type === 'image' && merged.file_id && vaultId) {
-            merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+            merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`
           }
 
-          return merged;
+          return merged
         }
         if (inline.type === 'embed') {
-          const metadata = embeds.find(em => em.target === inline.target);
+          const metadata = embeds.find((em) => em.target === inline.target)
           // Preserve the 'embed' type even if metadata has a different type field
-          const { file_type, ...metadataWithoutFileType } = metadata || {};
-          const merged = { ...inline, ...metadataWithoutFileType, file_type };
+          const { file_type, ...metadataWithoutFileType } = metadata || {}
+          const merged = { ...inline, ...metadataWithoutFileType, file_type }
 
           // Add asset_url for image embeds
           if (merged.file_type === 'image' && merged.file_id && vaultId) {
-            merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+            merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`
           }
 
-          return merged;
+          return merged
         }
         if (inline.type === 'image') {
           // Convert relative image paths to asset URLs if vaultId and images metadata provided
-          return processImageUrl(inline, options);
+          return processImageUrl(inline, options)
         }
         if (inline.content && Array.isArray(inline.content)) {
-          inline.content = postProcessInline(inline.content, wikilinks, embeds, options);
+          inline.content = postProcessInline(inline.content, wikilinks, embeds, options)
         }
-        return inline;
-      });
+        return inline
+      })
     }
 
     if (node.type === 'ul' || node.type === 'ol') {
-      node.items = node.items.map(item => ({
+      node.items = node.items.map((item) => ({
         ...item,
-        content: postProcessInline(item.content, wikilinks, embeds, options)
-      }));
+        content: postProcessInline(item.content, wikilinks, embeds, options),
+      }))
     }
 
     if (node.type === 'table') {
-      node.rows = node.rows.map(row => ({
+      node.rows = node.rows.map((row) => ({
         ...row,
-        cells: row.cells.map(cell => postProcessInline(cell, wikilinks, embeds, options))
-      }));
+        cells: row.cells.map((cell) => postProcessInline(cell, wikilinks, embeds, options)),
+      }))
     }
 
-    return node;
-  });
+    return node
+  })
 }
 
 function postProcessInline(inlineNodes, wikilinks, embeds, options = {}) {
-  const { vaultId } = options;
+  const { vaultId } = options
 
-  return inlineNodes.map(inline => {
+  return inlineNodes.map((inline) => {
     if (inline.type === 'wikilink') {
-      const metadata = wikilinks.find(wl => wl.original === inline.original);
-      const merged = { ...inline, ...metadata };
+      const metadata = wikilinks.find((wl) => wl.original === inline.original)
+      const merged = { ...inline, ...metadata }
 
       // Add asset_url for image wikilinks
       if (merged.file_type === 'image' && merged.file_id && vaultId) {
-        merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+        merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`
       }
 
-      return merged;
+      return merged
     }
     if (inline.type === 'embed') {
-      const metadata = embeds.find(em => em.target === inline.target);
+      const metadata = embeds.find((em) => em.target === inline.target)
       // Preserve the 'embed' type even if metadata has a different type field
-      const { file_type, ...metadataWithoutFileType } = metadata || {};
-      const merged = { ...inline, ...metadataWithoutFileType, file_type };
+      const { file_type, ...metadataWithoutFileType } = metadata || {}
+      const merged = { ...inline, ...metadataWithoutFileType, file_type }
 
       // Add asset_url for image embeds
       if (merged.file_type === 'image' && merged.file_id && vaultId) {
-        merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`;
+        merged.asset_url = `/api/v1/assets/${vaultId}/${merged.file_id}`
       }
 
-      return merged;
+      return merged
     }
     if (inline.type === 'image') {
-      return processImageUrl(inline, options);
+      return processImageUrl(inline, options)
     }
     if (inline.content && Array.isArray(inline.content)) {
-      inline.content = postProcessInline(inline.content, wikilinks, embeds, options);
+      inline.content = postProcessInline(inline.content, wikilinks, embeds, options)
     }
-    return inline;
-  });
+    return inline
+  })
 }
 
 /**
@@ -641,36 +653,39 @@ function postProcessInline(inlineNodes, wikilinks, embeds, options = {}) {
  * Otherwise, try to find metadata or keep the original path
  */
 function processImageUrl(imageInline, options = {}) {
-  const { vaultId } = options;
+  const { vaultId } = options
 
   // If URL is already absolute (http/https), return as-is
   if (imageInline.url.match(/^https?:\/\//)) {
-    return imageInline;
+    return imageInline
   }
 
   // Check if this is already a file ID (alphanumeric with hyphens/underscores, no path separators)
   // This happens when backend has already replaced the link
-  const isFileId = imageInline.url.match(/^[a-zA-Z0-9_-]+$/) && !imageInline.url.includes('/') && !imageInline.url.includes('\\');
+  const isFileId =
+    imageInline.url.match(/^[a-zA-Z0-9_-]+$/) &&
+    !imageInline.url.includes('/') &&
+    !imageInline.url.includes('\\')
 
   if (isFileId && vaultId) {
     // Already a file ID, convert to asset URL
     return {
       ...imageInline,
       url: `/api/v1/assets/${vaultId}/${imageInline.url}`,
-      fileId: imageInline.url
-    };
+      fileId: imageInline.url,
+    }
   }
 
   // If we have a fileId field set (from embed parsing), use it
   if (imageInline.fileId && vaultId) {
     return {
       ...imageInline,
-      url: `/api/v1/assets/${vaultId}/${imageInline.fileId}`
-    };
+      url: `/api/v1/assets/${vaultId}/${imageInline.fileId}`,
+    }
   }
 
   // Return original if no processing needed
-  return imageInline;
+  return imageInline
 }
 
 /**
@@ -694,10 +709,10 @@ function getCalloutLabel(type) {
     failure: 'Failure',
     bug: 'Bug',
     example: 'Example',
-    quote: 'Quote'
-  };
+    quote: 'Quote',
+  }
 
-  return labels[type] || 'Note';
+  return labels[type] || 'Note'
 }
 
 /**
@@ -709,9 +724,9 @@ function slugify(text) {
     .trim()
     .replace(/[^\w\s-]/g, '')
     .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
+    .replace(/-+/g, '-')
 }
 
 export default {
-  parseMarkdown
-};
+  parseMarkdown,
+}

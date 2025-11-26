@@ -11,25 +11,25 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import MarkdownHeading from './markdown/MarkdownHeading.vue';
-import MarkdownParagraph from './markdown/MarkdownParagraph.vue';
-import MarkdownCodeBlock from './markdown/MarkdownCodeBlock.vue';
-import MarkdownBlockquote from './markdown/MarkdownBlockquote.vue';
-import MarkdownCallout from './markdown/MarkdownCallout.vue';
-import MarkdownList from './markdown/MarkdownList.vue';
-import MarkdownTable from './markdown/MarkdownTable.vue';
-import MarkdownHr from './markdown/MarkdownHr.vue';
+import { computed } from 'vue'
+import MarkdownHeading from './markdown/MarkdownHeading.vue'
+import MarkdownParagraph from './markdown/MarkdownParagraph.vue'
+import MarkdownCodeBlock from './markdown/MarkdownCodeBlock.vue'
+import MarkdownBlockquote from './markdown/MarkdownBlockquote.vue'
+import MarkdownCallout from './markdown/MarkdownCallout.vue'
+import MarkdownList from './markdown/MarkdownList.vue'
+import MarkdownTable from './markdown/MarkdownTable.vue'
+import MarkdownHr from './markdown/MarkdownHr.vue'
 
 const props = defineProps({
   nodes: {
     type: Array,
     required: true,
-    default: () => []
-  }
-});
+    default: () => [],
+  },
+})
 
-const emit = defineEmits(['wikilink-click']);
+const emit = defineEmits(['wikilink-click'])
 
 const componentMap = {
   heading: MarkdownHeading,
@@ -40,15 +40,15 @@ const componentMap = {
   ul: MarkdownList,
   ol: MarkdownList,
   table: MarkdownTable,
-  hr: MarkdownHr
-};
+  hr: MarkdownHr,
+}
 
 function getNodeComponent(node) {
-  return componentMap[node.type] || MarkdownParagraph;
+  return componentMap[node.type] || MarkdownParagraph
 }
 
 function handleWikilinkClick(event) {
-  emit('wikilink-click', event);
+  emit('wikilink-click', event)
 }
 </script>
 

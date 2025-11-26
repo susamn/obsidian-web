@@ -12,22 +12,12 @@
         <!-- Type Selection -->
         <div class="type-selector">
           <label class="type-option">
-            <input
-              type="radio"
-              v-model="isFolder"
-              :value="false"
-              name="item-type"
-            />
+            <input type="radio" v-model="isFolder" :value="false" name="item-type" />
             <i class="fas fa-file-alt"></i>
             <span>Note</span>
           </label>
           <label class="type-option">
-            <input
-              type="radio"
-              v-model="isFolder"
-              :value="true"
-              name="item-type"
-            />
+            <input type="radio" v-model="isFolder" :value="true" name="item-type" />
             <i class="fas fa-folder"></i>
             <span>Folder</span>
           </label>
@@ -78,11 +68,7 @@
           <i class="fas fa-times"></i>
           Cancel
         </button>
-        <button
-          @click="handleSave"
-          class="button button-primary"
-          :disabled="!filename || saving"
-        >
+        <button @click="handleSave" class="button button-primary" :disabled="!filename || saving">
           <i v-if="!saving" class="fas fa-save"></i>
           <i v-else class="fas fa-spinner fa-spin"></i>
           {{ saving ? 'Saving...' : 'Save' }}
@@ -93,121 +79,124 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue'
 
 const props = defineProps({
   show: {
     type: Boolean,
-    required: true
+    required: true,
   },
   vaultId: {
     type: String,
-    required: true
+    required: true,
   },
   parentId: {
     type: String,
-    default: null
-  }
-});
+    default: null,
+  },
+})
 
-const emit = defineEmits(['close', 'created']);
+const emit = defineEmits(['close', 'created'])
 
-const filenameInput = ref(null);
-const contentEditor = ref(null);
-const filename = ref('');
-const content = ref('');
-const isFolder = ref(false);
-const saving = ref(false);
-const error = ref('');
+const filenameInput = ref(null)
+const contentEditor = ref(null)
+const filename = ref('')
+const content = ref('')
+const isFolder = ref(false)
+const saving = ref(false)
+const error = ref('')
 
 const filenameWithExtension = computed(() => {
-  if (!filename.value) return '';
-  const name = filename.value.trim();
+  if (!filename.value) return ''
+  const name = filename.value.trim()
   if (name.toLowerCase().endsWith('.md')) {
-    return name;
+    return name
   }
-  return `${name}.md`;
-});
+  return `${name}.md`
+})
 
 // Focus filename input when dialog opens
-watch(() => props.show, (newVal) => {
-  if (newVal) {
-    // Reset form
-    filename.value = '';
-    content.value = '';
-    isFolder.value = false;
-    error.value = '';
-    saving.value = false;
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal) {
+      // Reset form
+      filename.value = ''
+      content.value = ''
+      isFolder.value = false
+      error.value = ''
+      saving.value = false
 
-    // Focus input after DOM update
-    nextTick(() => {
-      if (filenameInput.value) {
-        filenameInput.value.focus();
-      }
-    });
+      // Focus input after DOM update
+      nextTick(() => {
+        if (filenameInput.value) {
+          filenameInput.value.focus()
+        }
+      })
+    }
   }
-});
+)
 
 const handleTab = (event) => {
   // Insert tab character in textarea
-  const textarea = event.target;
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
+  const textarea = event.target
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
 
   // Insert 2 spaces (or tab)
-  const spaces = '  ';
-  content.value = content.value.substring(0, start) + spaces + content.value.substring(end);
+  const spaces = '  '
+  content.value = content.value.substring(0, start) + spaces + content.value.substring(end)
 
   // Move cursor
   nextTick(() => {
-    textarea.selectionStart = textarea.selectionEnd = start + spaces.length;
-  });
-};
+    textarea.selectionStart = textarea.selectionEnd = start + spaces.length
+  })
+}
 
 const handleCancel = () => {
-  emit('close');
-};
+  emit('close')
+}
 
 const handleSave = async () => {
   if (!filename.value.trim()) {
-    error.value = 'Please enter a name';
-    return;
+    error.value = 'Please enter a name'
+    return
   }
 
-  error.value = '';
-  saving.value = true;
+  error.value = ''
+  saving.value = true
 
   try {
     const response = await fetch('/api/v1/file/create', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         vault_id: props.vaultId,
         parent_id: props.parentId,
         name: filename.value.trim(),
         is_folder: isFolder.value,
-        content: isFolder.value ? '' : content.value
-      })
-    });
+        content: isFolder.value ? '' : content.value,
+      }),
+    })
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Failed to create ${isFolder.value ? 'folder' : 'note'}`);
+      const errorData = await response.json()
+      throw new Error(errorData.error || `Failed to create ${isFolder.value ? 'folder' : 'note'}`)
     }
 
-    const result = await response.json();
+    const result = await response.json()
 
-    emit('created', result.data);
-    emit('close');
+    emit('created', result.data)
+    emit('close')
   } catch (err) {
-    console.error('Failed to create:', err);
-    error.value = err.message || 'Failed to create. Please try again.';
+    console.error('Failed to create:', err)
+    error.value = err.message || 'Failed to create. Please try again.'
   } finally {
-    saving.value = false;
+    saving.value = false
   }
-};
+}
 </script>
 
 <style scoped>
@@ -319,15 +308,15 @@ const handleSave = async () => {
   background-color: rgba(59, 130, 246, 0.05);
 }
 
-.type-option input[type="radio"] {
+.type-option input[type='radio'] {
   margin: 0;
 }
 
-.type-option input[type="radio"]:checked + i {
+.type-option input[type='radio']:checked + i {
   color: var(--primary-color);
 }
 
-.type-option:has(input[type="radio"]:checked) {
+.type-option:has(input[type='radio']:checked) {
   border-color: var(--primary-color);
   background-color: rgba(59, 130, 246, 0.1);
 }

@@ -12,19 +12,19 @@
 export function fadeIn(element, duration = 300) {
   return new Promise((resolve) => {
     // Set initial opacity and visibility
-    element.style.opacity = '0';
-    element.style.visibility = 'visible';
-    element.style.transition = `opacity ${duration}ms ease-in`;
+    element.style.opacity = '0'
+    element.style.visibility = 'visible'
+    element.style.transition = `opacity ${duration}ms ease-in`
 
     // Trigger reflow to ensure transition is applied
-    void element.offsetWidth;
+    void element.offsetWidth
 
     // Animate to full opacity
-    element.style.opacity = '1';
+    element.style.opacity = '1'
 
     // Resolve when animation completes
-    setTimeout(resolve, duration);
-  });
+    setTimeout(resolve, duration)
+  })
 }
 
 /**
@@ -35,22 +35,22 @@ export function fadeIn(element, duration = 300) {
  */
 export function fadeOut(element, duration = 300) {
   return new Promise((resolve) => {
-    element.style.opacity = '1';
-    element.style.transition = `opacity ${duration}ms ease-out`;
+    element.style.opacity = '1'
+    element.style.transition = `opacity ${duration}ms ease-out`
 
     // Trigger reflow to ensure transition is applied
-    void element.offsetWidth;
+    void element.offsetWidth
 
     // Animate to transparent
-    element.style.opacity = '0';
+    element.style.opacity = '0'
 
     // Resolve when animation completes
     setTimeout(() => {
-      element.style.visibility = 'hidden';
-      element.style.transition = '';
-      resolve();
-    }, duration);
-  });
+      element.style.visibility = 'hidden'
+      element.style.transition = ''
+      resolve()
+    }, duration)
+  })
 }
 
 /**
@@ -61,24 +61,24 @@ export function fadeOut(element, duration = 300) {
  */
 export function slideDown(element, duration = 300) {
   return new Promise((resolve) => {
-    const startHeight = 0;
-    const endHeight = element.scrollHeight;
+    const startHeight = 0
+    const endHeight = element.scrollHeight
 
-    element.style.height = `${startHeight}px`;
-    element.style.overflow = 'hidden';
-    element.style.transition = `height ${duration}ms ease-in`;
+    element.style.height = `${startHeight}px`
+    element.style.overflow = 'hidden'
+    element.style.transition = `height ${duration}ms ease-in`
 
     // Trigger reflow
-    void element.offsetWidth;
+    void element.offsetWidth
 
-    element.style.height = `${endHeight}px`;
+    element.style.height = `${endHeight}px`
 
     setTimeout(() => {
-      element.style.height = 'auto';
-      element.style.transition = '';
-      resolve();
-    }, duration);
-  });
+      element.style.height = 'auto'
+      element.style.transition = ''
+      resolve()
+    }, duration)
+  })
 }
 
 /**
@@ -89,24 +89,24 @@ export function slideDown(element, duration = 300) {
  */
 export function slideUp(element, duration = 300) {
   return new Promise((resolve) => {
-    const startHeight = element.scrollHeight;
-    const endHeight = 0;
+    const startHeight = element.scrollHeight
+    const endHeight = 0
 
-    element.style.height = `${startHeight}px`;
-    element.style.overflow = 'hidden';
-    element.style.transition = `height ${duration}ms ease-out`;
+    element.style.height = `${startHeight}px`
+    element.style.overflow = 'hidden'
+    element.style.transition = `height ${duration}ms ease-out`
 
     // Trigger reflow
-    void element.offsetWidth;
+    void element.offsetWidth
 
-    element.style.height = `${endHeight}px`;
+    element.style.height = `${endHeight}px`
 
     setTimeout(() => {
-      element.style.display = 'none';
-      element.style.transition = '';
-      resolve();
-    }, duration);
-  });
+      element.style.display = 'none'
+      element.style.transition = ''
+      resolve()
+    }, duration)
+  })
 }
 
 /**
@@ -118,21 +118,21 @@ export function slideUp(element, duration = 300) {
  */
 export function highlight(element, highlightColor = 'rgba(255, 255, 0, 0.3)', duration = 500) {
   return new Promise((resolve) => {
-    const originalBg = element.style.backgroundColor;
+    const originalBg = element.style.backgroundColor
 
-    element.style.backgroundColor = highlightColor;
-    element.style.transition = `background-color ${duration}ms ease-out`;
+    element.style.backgroundColor = highlightColor
+    element.style.transition = `background-color ${duration}ms ease-out`
 
     // Trigger reflow
-    void element.offsetWidth;
+    void element.offsetWidth
 
-    element.style.backgroundColor = originalBg;
+    element.style.backgroundColor = originalBg
 
     setTimeout(() => {
-      element.style.transition = '';
-      resolve();
-    }, duration);
-  });
+      element.style.transition = ''
+      resolve()
+    }, duration)
+  })
 }
 
 /**
@@ -142,25 +142,25 @@ export function highlight(element, highlightColor = 'rgba(255, 255, 0, 0.3)', du
  * @returns {Promise} Resolves when animation completes
  */
 export async function entryAnimation(element, duration = 300) {
-  element.style.opacity = '0';
-  element.style.height = '0px';
-  element.style.overflow = 'hidden';
-  element.style.transition = `opacity ${duration}ms ease-in, height ${duration}ms ease-in`;
+  element.style.opacity = '0'
+  element.style.height = '0px'
+  element.style.overflow = 'hidden'
+  element.style.transition = `opacity ${duration}ms ease-in, height ${duration}ms ease-in`
 
   // Trigger reflow
-  void element.offsetWidth;
+  void element.offsetWidth
 
-  const endHeight = element.scrollHeight;
-  element.style.opacity = '1';
-  element.style.height = `${endHeight}px`;
+  const endHeight = element.scrollHeight
+  element.style.opacity = '1'
+  element.style.height = `${endHeight}px`
 
   return new Promise((resolve) => {
     setTimeout(() => {
-      element.style.height = 'auto';
-      element.style.transition = '';
-      resolve();
-    }, duration);
-  });
+      element.style.height = 'auto'
+      element.style.transition = ''
+      resolve()
+    }, duration)
+  })
 }
 
 /**
@@ -170,24 +170,24 @@ export async function entryAnimation(element, duration = 300) {
  * @returns {Promise} Resolves when animation completes
  */
 export async function exitAnimation(element, duration = 300) {
-  const startHeight = element.scrollHeight;
+  const startHeight = element.scrollHeight
 
-  element.style.height = `${startHeight}px`;
-  element.style.overflow = 'hidden';
-  element.style.transition = `opacity ${duration}ms ease-out, height ${duration}ms ease-out`;
-  element.style.opacity = '1';
+  element.style.height = `${startHeight}px`
+  element.style.overflow = 'hidden'
+  element.style.transition = `opacity ${duration}ms ease-out, height ${duration}ms ease-out`
+  element.style.opacity = '1'
 
   // Trigger reflow
-  void element.offsetWidth;
+  void element.offsetWidth
 
-  element.style.opacity = '0';
-  element.style.height = '0px';
+  element.style.opacity = '0'
+  element.style.height = '0px'
 
   return new Promise((resolve) => {
     setTimeout(() => {
-      element.style.display = 'none';
-      element.style.transition = '';
-      resolve();
-    }, duration);
-  });
+      element.style.display = 'none'
+      element.style.transition = ''
+      resolve()
+    }, duration)
+  })
 }

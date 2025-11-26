@@ -12,7 +12,13 @@ install: ## Install dependencies (backend and frontend)
 	@echo "Installing frontend dependencies..."
 	cd web && npm install
 
-build: ## Build backend and frontend
+format: ## Format code both frontend and backend
+	@echo "Formatting Go code..."
+	go fmt ./...
+	@echo "Formatting frontend code..."
+	cd web && npm run format
+
+build: format ## Build backend and frontend
 	@echo "Building backend..."
 	go build -o bin/server ./cmd/server
 	@echo "Building frontend..."

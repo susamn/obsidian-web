@@ -66,7 +66,9 @@
       <span
         v-else
         :class="['md-wikilink-pill', token.exists === false ? 'md-wikilink-pill-broken' : '']"
-        :title="token.exists === false ? `File not found: ${token.display}` : `Open ${token.display}`"
+        :title="
+          token.exists === false ? `File not found: ${token.display}` : `Open ${token.display}`
+        "
       >
         <a
           href="#"
@@ -120,39 +122,41 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed } from 'vue'
 
 const props = defineProps({
   tokens: {
     type: Array,
     required: true,
-    default: () => []
-  }
-});
+    default: () => [],
+  },
+})
 
-const emit = defineEmits(['wikilink-click']);
+const emit = defineEmits(['wikilink-click'])
 
 // Ensure tokens is always an array to prevent infinite loops
 const safeTokens = computed(() => {
-  if (!props.tokens) return [];
+  if (!props.tokens) return []
   if (!Array.isArray(props.tokens)) {
-    console.warn('InlineRenderer received non-array tokens:', props.tokens);
-    return [];
+    console.warn('InlineRenderer received non-array tokens:', props.tokens)
+    return []
   }
-  return props.tokens;
-});
+  return props.tokens
+})
 
 // Flatten nested content to plain text (for deeply nested formatting)
 function flattenContent(content) {
-  if (!content) return '';
-  if (typeof content === 'string') return content;
-  if (!Array.isArray(content)) return String(content);
+  if (!content) return ''
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return String(content)
 
-  return content.map(item => {
-    if (item.type === 'text') return item.content;
-    if (item.content) return flattenContent(item.content);
-    return '';
-  }).join('');
+  return content
+    .map((item) => {
+      if (item.type === 'text') return item.content
+      if (item.content) return flattenContent(item.content)
+      return ''
+    })
+    .join('')
 }
 
 function handleWikilinkClick(token) {
@@ -161,8 +165,8 @@ function handleWikilinkClick(token) {
     path: token.path,
     target: token.target,
     display: token.display,
-    exists: token.exists
-  });
+    exists: token.exists,
+  })
 }
 </script>
 

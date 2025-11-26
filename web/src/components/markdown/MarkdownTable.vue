@@ -18,25 +18,25 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import InlineRenderer from './InlineRenderer.vue';
+import { computed } from 'vue'
+import InlineRenderer from './InlineRenderer.vue'
 
 const props = defineProps({
   node: {
     type: Object,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
-defineEmits(['wikilink-click']);
+defineEmits(['wikilink-click'])
 
 const headerRow = computed(() => {
-  return props.node.rows.find(row => row.type === 'header');
-});
+  return props.node.rows.find((row) => row.type === 'header')
+})
 
 const dataRows = computed(() => {
-  return props.node.rows.filter(row => row.type === 'row');
-});
+  return props.node.rows.filter((row) => row.type === 'row')
+})
 </script>
 
 <style scoped>

@@ -15,12 +15,7 @@
           @keyup.enter="handleSearch"
           @input="handleInput"
         />
-        <button
-          v-if="searchQuery"
-          class="clear-button"
-          @click="clearQuery"
-          title="Clear search"
-        >
+        <button v-if="searchQuery" class="clear-button" @click="clearQuery" title="Clear search">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -49,101 +44,101 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useSearchStore } from '../stores/searchStore';
+import { ref, onMounted } from 'vue'
+import { useSearchStore } from '../stores/searchStore'
 
 const props = defineProps({
   vaultId: {
     type: String,
     required: true,
   },
-});
+})
 
-const emit = defineEmits(['close', 'search']);
+const emit = defineEmits(['close', 'search'])
 
-const searchStore = useSearchStore();
-const searchQuery = ref('');
-const selectedSearchType = ref('text');
-const searchInput = ref(null);
+const searchStore = useSearchStore()
+const searchQuery = ref('')
+const selectedSearchType = ref('text')
+const searchInput = ref(null)
 
 const getPlaceholder = () => {
   switch (selectedSearchType.value) {
     case 'tag':
-      return 'Search by tag (e.g., #important)...';
+      return 'Search by tag (e.g., #important)...'
     case 'wikilink':
-      return 'Search by wikilink (e.g., [[Note]])...';
+      return 'Search by wikilink (e.g., [[Note]])...'
     case 'fuzzy':
-      return 'Fuzzy search...';
+      return 'Fuzzy search...'
     case 'phrase':
-      return 'Search exact phrase...';
+      return 'Search exact phrase...'
     case 'prefix':
-      return 'Search by prefix...';
+      return 'Search by prefix...'
     case 'title':
-      return 'Search in titles only...';
+      return 'Search in titles only...'
     default:
-      return 'Search notes...';
+      return 'Search notes...'
   }
-};
+}
 
 const handleSearch = async () => {
-  if (!searchQuery.value.trim()) return;
+  if (!searchQuery.value.trim()) return
 
   try {
-    const query = searchQuery.value.trim();
+    const query = searchQuery.value.trim()
 
     switch (selectedSearchType.value) {
       case 'tag':
         // Parse tags from input (support both #tag and tag formats)
-        const tags = query.split(/[,\s]+/).map(t => t.replace(/^#/, ''));
-        await searchStore.searchByTags(props.vaultId, tags);
-        break;
+        const tags = query.split(/[,\s]+/).map((t) => t.replace(/^#/, ''))
+        await searchStore.searchByTags(props.vaultId, tags)
+        break
       case 'wikilink':
         // Parse wikilinks from input (support both [[link]] and link formats)
-        const wikilinks = query.split(/[,\s]+/).map(w => w.replace(/^\[\[|\]\]$/g, ''));
-        await searchStore.searchByWikilinks(props.vaultId, wikilinks);
-        break;
+        const wikilinks = query.split(/[,\s]+/).map((w) => w.replace(/^\[\[|\]\]$/g, ''))
+        await searchStore.searchByWikilinks(props.vaultId, wikilinks)
+        break
       case 'fuzzy':
-        await searchStore.fuzzySearch(props.vaultId, query);
-        break;
+        await searchStore.fuzzySearch(props.vaultId, query)
+        break
       case 'phrase':
-        await searchStore.phraseSearch(props.vaultId, query);
-        break;
+        await searchStore.phraseSearch(props.vaultId, query)
+        break
       case 'prefix':
-        await searchStore.prefixSearch(props.vaultId, query);
-        break;
+        await searchStore.prefixSearch(props.vaultId, query)
+        break
       case 'title':
-        await searchStore.searchByText(props.vaultId, query, true);
-        break;
+        await searchStore.searchByText(props.vaultId, query, true)
+        break
       default:
-        await searchStore.searchByText(props.vaultId, query, false);
+        await searchStore.searchByText(props.vaultId, query, false)
     }
 
-    emit('search');
+    emit('search')
   } catch (error) {
-    console.error('[SearchPanel] Search error:', error);
+    console.error('[SearchPanel] Search error:', error)
   }
-};
+}
 
 const handleInput = () => {
   // Optional: Implement debounced search here if desired
-};
+}
 
 const clearQuery = () => {
-  searchQuery.value = '';
-  searchStore.clearSearch();
-  searchInput.value?.focus();
-};
+  searchQuery.value = ''
+  searchStore.clearSearch()
+  searchInput.value?.focus()
+}
 
 const onClose = () => {
-  searchStore.clearSearch();
-  searchQuery.value = '';
-  emit('close');
-};
+  searchStore.clearSearch()
+  searchQuery.value = ''
+  emit('close')
+}
 
 onMounted(() => {
   // Auto-focus search input when panel opens
-  searchInput.value?.focus();
-});
+  searchInput.value?.focus()
+})
 </script>
 
 <style scoped>

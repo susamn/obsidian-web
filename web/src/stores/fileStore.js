@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia';
-import fileService from '../services/fileService';
+import { defineStore } from 'pinia'
+import fileService from '../services/fileService'
 
 export const useFileStore = defineStore('file', {
   state: () => ({
@@ -13,58 +13,58 @@ export const useFileStore = defineStore('file', {
   }),
   actions: {
     setVaultId(id) {
-      this.vaultId = id;
+      this.vaultId = id
     },
     setCurrentPath(path) {
-      this.currentPath = path;
+      this.currentPath = path
     },
     async fetchFileContent(vaultId, fileId) {
-      this.loading = true;
-      this.error = null;
+      this.loading = true
+      this.error = null
       try {
-        const response = await fileService.getFileContent(vaultId, fileId);
+        const response = await fileService.getFileContent(vaultId, fileId)
         // API returns object with { content, path, id, name }
         // Store just the content for rendering
         if (response) {
-          this.selectedFileContent = response.content;
+          this.selectedFileContent = response.content
           // Return full response for caller to use metadata (like path)
-          return response;
+          return response
         }
-        return null;
+        return null
       } catch (err) {
-        console.error('Error fetching file content:', err);
-        this.error = err.message || 'Failed to fetch file content';
-        return null;
+        console.error('Error fetching file content:', err)
+        this.error = err.message || 'Failed to fetch file content'
+        return null
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
     async fetchTree(vaultId, path = '') {
-      this.loading = true;
-      this.error = null;
+      this.loading = true
+      this.error = null
       try {
-        console.log('Fetching tree for vault:', vaultId, 'path:', path);
-        const response = await fileService.getTree(vaultId, path);
-        console.log('Tree response:', response);
-        this.treeData = response || [];
+        console.log('Fetching tree for vault:', vaultId, 'path:', path)
+        const response = await fileService.getTree(vaultId, path)
+        console.log('Tree response:', response)
+        this.treeData = response || []
       } catch (err) {
-        console.error('Error fetching tree:', err);
-        this.error = err.message || 'Failed to fetch tree';
+        console.error('Error fetching tree:', err)
+        this.error = err.message || 'Failed to fetch tree'
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
     async fetchMetadata(vaultId, path) {
-      this.loading = true;
-      this.error = null;
+      this.loading = true
+      this.error = null
       try {
-        const response = await fileService.getMetadata(vaultId, path);
-        this.metadata = response.data;
+        const response = await fileService.getMetadata(vaultId, path)
+        this.metadata = response.data
       } catch (err) {
-        this.error = err.message;
+        this.error = err.message
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
   },
-});
+})

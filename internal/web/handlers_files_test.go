@@ -82,6 +82,8 @@ func TestParseVaultPath(t *testing.T) {
 	}
 }
 
+// COMMENTED OUT - handleGetFile is commented out
+/*
 func TestHandleGetFile(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
@@ -177,7 +179,10 @@ func TestHandleGetFile(t *testing.T) {
 		t.Errorf("Expected status 405, got %d", w.Code)
 	}
 }
+*/
 
+// COMMENTED OUT - handleGetRaw is commented out
+/*
 func TestHandleGetRaw(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
@@ -250,6 +255,7 @@ func TestHandleGetRaw(t *testing.T) {
 		t.Errorf("Expected status 405, got %d", w.Code)
 	}
 }
+*/
 
 func TestExtractVaultID(t *testing.T) {
 	server := &Server{}

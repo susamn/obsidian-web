@@ -1,13 +1,12 @@
-
-import { mount } from '@vue/test-utils';
-import { describe, it, expect } from 'vitest';
-import MarkdownBlockquote from '../MarkdownBlockquote.vue';
+import { mount } from '@vue/test-utils'
+import { describe, it, expect } from 'vitest'
+import MarkdownBlockquote from '../MarkdownBlockquote.vue'
 
 describe('MarkdownBlockquote', () => {
   it('renders the blockquote with the correct content', () => {
     const node = {
-      content: [{ type: 'text', content: 'This is a blockquote.' }]
-    };
+      content: [{ type: 'text', content: 'This is a blockquote.' }],
+    }
 
     const InlineRendererStub = {
       props: ['tokens'],
@@ -17,45 +16,45 @@ describe('MarkdownBlockquote', () => {
             <span v-if="token.type === 'text'">{{ token.content }}</span>
           </template>
         </div>
-      `
-    };
+      `,
+    }
 
     const wrapper = mount(MarkdownBlockquote, {
       props: {
-        node
+        node,
       },
       global: {
         stubs: {
-          InlineRenderer: InlineRendererStub
-        }
-      }
-    });
+          InlineRenderer: InlineRendererStub,
+        },
+      },
+    })
 
-    expect(wrapper.find('blockquote').exists()).toBe(true);
-    expect(wrapper.text()).toContain('This is a blockquote.');
-  });
+    expect(wrapper.find('blockquote').exists()).toBe(true)
+    expect(wrapper.text()).toContain('This is a blockquote.')
+  })
 
   it('emits a wikilink-click event when InlineRenderer emits it', async () => {
     const node = {
-      content: [{ type: 'wikilink', content: '[[link]]' }]
-    };
+      content: [{ type: 'wikilink', content: '[[link]]' }],
+    }
 
     const wrapper = mount(MarkdownBlockquote, {
       props: {
-        node
+        node,
       },
       global: {
         stubs: {
           InlineRenderer: {
-            template: '<div @click="$emit(\'wikilink-click\', { href: \'link\' })"></div>',
-            props: ['tokens']
-          }
-        }
-      }
-    });
+            template: "<div @click=\"$emit('wikilink-click', { href: 'link' })\"></div>",
+            props: ['tokens'],
+          },
+        },
+      },
+    })
 
-    await wrapper.find('div').trigger('click');
-    expect(wrapper.emitted('wikilink-click')).toBeTruthy();
-    expect(wrapper.emitted('wikilink-click')[0][0]).toEqual({ href: 'link' });
-  });
-});
+    await wrapper.find('div').trigger('click')
+    expect(wrapper.emitted('wikilink-click')).toBeTruthy()
+    expect(wrapper.emitted('wikilink-click')[0][0]).toEqual({ href: 'link' })
+  })
+})

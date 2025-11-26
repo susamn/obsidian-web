@@ -8,7 +8,7 @@
  * @module structuredMarkdownRenderer
  */
 
-import MarkdownIt from 'markdown-it';
+import MarkdownIt from 'markdown-it'
 
 /**
  * Callout/Admonition type configuration
@@ -31,8 +31,8 @@ const CALLOUT_TYPES = {
   failure: { icon: '❌', class: 'md-callout-failure', label: 'Failure' },
   bug: { icon: '🐛', class: 'md-callout-bug', label: 'Bug' },
   example: { icon: '📊', class: 'md-callout-example', label: 'Example' },
-  quote: { icon: '💬', class: 'md-callout-quote', label: 'Quote' }
-};
+  quote: { icon: '💬', class: 'md-callout-quote', label: 'Quote' },
+}
 
 /**
  * Create a markdown-it instance for rendering with callout support
@@ -43,13 +43,13 @@ const createMarkdownInstance = () => {
     linkify: true,
     typographer: true,
     breaks: false,
-  });
+  })
 
   // Add callout rendering support
-  enhanceMarkdownWithCallouts(md);
+  enhanceMarkdownWithCallouts(md)
 
-  return md;
-};
+  return md
+}
 
 /**
  * Enhance markdown-it instance with Obsidian-style callout rendering
@@ -57,89 +57,89 @@ const createMarkdownInstance = () => {
 const enhanceMarkdownWithCallouts = (md) => {
   // Enhanced blockquote renderer for callouts
   md.renderer.rules.blockquote_open = (tokens, idx, options, env, self) => {
-    const token = tokens[idx];
+    const token = tokens[idx]
 
     // Look for the first inline token in this blockquote
-    let contentToken = null;
+    let contentToken = null
     for (let i = idx + 1; i < tokens.length; i++) {
-      if (tokens[i].type === 'blockquote_close') break;
+      if (tokens[i].type === 'blockquote_close') break
       if (tokens[i].type === 'inline') {
-        contentToken = tokens[i];
-        break;
+        contentToken = tokens[i]
+        break
       }
     }
 
     // Check if this is a callout (> [!TYPE] Title format)
     if (contentToken) {
-      const match = contentToken.content.match(/^\[!(\w+)\]\s*(.*)$/);
+      const match = contentToken.content.match(/^\[!(\w+)\]\s*(.*)$/)
       if (match) {
-        const type = match[1].toLowerCase();
-        const title = match[2] || '';
-        const calloutConfig = CALLOUT_TYPES[type] || CALLOUT_TYPES.note;
+        const type = match[1].toLowerCase()
+        const title = match[2] || ''
+        const calloutConfig = CALLOUT_TYPES[type] || CALLOUT_TYPES.note
 
-        token.meta = token.meta || {};
-        token.meta.isCallout = true;
-        token.meta.calloutType = type;
-        token.meta.calloutTitle = title;
-        token.meta.calloutConfig = calloutConfig;
+        token.meta = token.meta || {}
+        token.meta.isCallout = true
+        token.meta.calloutType = type
+        token.meta.calloutTitle = title
+        token.meta.calloutConfig = calloutConfig
 
         // Remove the callout marker from content
-        contentToken.content = contentToken.content.replace(/^\[!(\w+)\]\s*(.*)$/, '');
+        contentToken.content = contentToken.content.replace(/^\[!(\w+)\]\s*(.*)$/, '')
 
         // If the content is now empty, mark it
         if (contentToken.content.trim() === '') {
-          contentToken.content = '';
+          contentToken.content = ''
         }
 
-        const { icon, class: calloutClass, label } = calloutConfig;
-        const displayTitle = title || label;
+        const { icon, class: calloutClass, label } = calloutConfig
+        const displayTitle = title || label
 
         return `<div class="md-callout ${calloutClass}">
         <div class="md-callout-header">
           <span class="md-callout-icon">${icon}</span>
           <span class="md-callout-title">${escapeHtml(displayTitle)}</span>
         </div>
-        <div class="md-callout-content">`;
+        <div class="md-callout-content">`
       }
     }
 
-    return '<blockquote class="md-blockquote">';
-  };
+    return '<blockquote class="md-blockquote">'
+  }
 
   md.renderer.rules.blockquote_close = (tokens, idx, options, env, self) => {
     // Find the matching opening token
-    let openToken = null;
-    let nestLevel = 0;
+    let openToken = null
+    let nestLevel = 0
 
     for (let i = idx - 1; i >= 0; i--) {
       if (tokens[i].type === 'blockquote_close') {
-        nestLevel++;
+        nestLevel++
       } else if (tokens[i].type === 'blockquote_open') {
         if (nestLevel === 0) {
-          openToken = tokens[i];
-          break;
+          openToken = tokens[i]
+          break
         }
-        nestLevel--;
+        nestLevel--
       }
     }
 
     if (openToken && openToken.meta && openToken.meta.isCallout) {
-      return '</div></div>';
+      return '</div></div>'
     }
 
-    return '</blockquote>';
-  };
-};
+    return '</blockquote>'
+  }
+}
 
 // Cached markdown instance
-let cachedMdInstance = null;
+let cachedMdInstance = null
 
 const getMdInstance = () => {
   if (!cachedMdInstance) {
-    cachedMdInstance = createMarkdownInstance();
+    cachedMdInstance = createMarkdownInstance()
   }
-  return cachedMdInstance;
-};
+  return cachedMdInstance
+}
 
 /**
  * Render markdown content with resolved wikilinks and embeds
@@ -151,23 +151,23 @@ const getMdInstance = () => {
  */
 export const renderStructuredMarkdown = (rawMarkdown, wikilinks = [], embeds = []) => {
   if (!rawMarkdown) {
-    return '';
+    return ''
   }
 
-  let content = rawMarkdown;
+  let content = rawMarkdown
 
   // First, replace embeds with appropriate HTML (these need to be in markdown)
-  content = replaceEmbeds(content, embeds);
+  content = replaceEmbeds(content, embeds)
 
   // Render markdown to HTML first
-  const md = getMdInstance();
-  let html = md.render(content);
+  const md = getMdInstance()
+  let html = md.render(content)
 
   // Then replace wikilinks in the rendered HTML
-  html = replaceWikiLinksInHTML(html, wikilinks);
+  html = replaceWikiLinksInHTML(html, wikilinks)
 
-  return html;
-};
+  return html
+}
 
 /**
  * Replace wikilinks in rendered HTML
@@ -178,33 +178,33 @@ export const renderStructuredMarkdown = (rawMarkdown, wikilinks = [], embeds = [
  */
 const replaceWikiLinksInHTML = (html, wikilinks) => {
   if (!wikilinks || wikilinks.length === 0) {
-    return html;
+    return html
   }
 
-  let result = html;
+  let result = html
 
   for (const link of wikilinks) {
-    const { original, display, exists, file_id } = link;
+    const { original, display, exists, file_id } = link
 
-    if (!original) continue;
+    if (!original) continue
 
     // Create pill-shaped wiki link with "Backlink" label
-    const linkClass = exists ? 'md-wikilink-pill' : 'md-wikilink-pill-broken';
-    const href = exists && file_id ? `#file-${file_id}` : '#';
-    const title = exists ? `Open ${display}` : `File not found: ${display}`;
+    const linkClass = exists ? 'md-wikilink-pill' : 'md-wikilink-pill-broken'
+    const href = exists && file_id ? `#file-${file_id}` : '#'
+    const title = exists ? `Open ${display}` : `File not found: ${display}`
 
     // Create a pill with two parts: label and content
-    const replacement = `<span class="${linkClass}" title="${escapeHtml(title)}"><a href="${escapeHtml(href)}" class="md-wikilink-pill-link" data-file-id="${escapeHtml(file_id || '')}"><span class="md-wikilink-label">B</span><span class="md-wikilink-content">${escapeHtml(display)}</span></a></span>`;
+    const replacement = `<span class="${linkClass}" title="${escapeHtml(title)}"><a href="${escapeHtml(href)}" class="md-wikilink-pill-link" data-file-id="${escapeHtml(file_id || '')}"><span class="md-wikilink-label">B</span><span class="md-wikilink-content">${escapeHtml(display)}</span></a></span>`
 
     // Escape regex special characters in original wikilink syntax
-    const escapedOriginal = escapeRegex(original);
+    const escapedOriginal = escapeRegex(original)
 
     // Replace the wikilink pattern in the HTML (it appears as plain text in paragraphs)
-    result = result.replace(new RegExp(escapedOriginal, 'g'), replacement);
+    result = result.replace(new RegExp(escapedOriginal, 'g'), replacement)
   }
 
-  return result;
-};
+  return result
+}
 
 /**
  * Escape regex special characters
@@ -213,8 +213,8 @@ const replaceWikiLinksInHTML = (html, wikilinks) => {
  * @returns {string} - Escaped string
  */
 const escapeRegex = (str) => {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 /**
  * Replace embeds with HTML
@@ -225,29 +225,29 @@ const escapeRegex = (str) => {
  */
 const replaceEmbeds = (content, embeds) => {
   if (!embeds || embeds.length === 0) {
-    return content;
+    return content
   }
 
-  let result = content;
+  let result = content
 
   for (const embed of embeds) {
-    const { type, target, exists } = embed;
-    const original = `![[${target}]]`;
+    const { type, target, exists } = embed
+    const original = `![[${target}]]`
 
-    let replacement;
+    let replacement
 
     if (!exists) {
       // Embed not found
       replacement = `<div class="md-embed-not-found">
         <i class="fas fa-exclamation-triangle"></i>
         <span>Embed not found: ${escapeHtml(target)}</span>
-      </div>`;
+      </div>`
     } else if (type === 'image') {
       // Image embed - will be handled later when image URLs are implemented
       replacement = `<div class="md-embed-image">
         <img src="#" alt="${escapeHtml(target)}" data-embed="${escapeHtml(target)}" />
         <p class="md-embed-caption">${escapeHtml(target)}</p>
-      </div>`;
+      </div>`
     } else if (type === 'note') {
       // Note embed - placeholder for now
       replacement = `<div class="md-embed-note" data-embed="${escapeHtml(target)}">
@@ -258,22 +258,22 @@ const replaceEmbeds = (content, embeds) => {
         <div class="md-embed-note-placeholder">
           <p>Embedded note content will appear here</p>
         </div>
-      </div>`;
+      </div>`
     } else {
       // Other embeds (PDF, video, audio)
       replacement = `<div class="md-embed-${type}" data-embed="${escapeHtml(target)}">
         <i class="fas fa-file"></i>
         <span>${escapeHtml(target)}</span>
-      </div>`;
+      </div>`
     }
 
     // Escape regex special characters
-    const escapedOriginal = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    result = result.replace(new RegExp(escapedOriginal, 'g'), replacement);
+    const escapedOriginal = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    result = result.replace(new RegExp(escapedOriginal, 'g'), replacement)
   }
 
-  return result;
-};
+  return result
+}
 
 /**
  * Render tags as clickable elements
@@ -283,16 +283,16 @@ const replaceEmbeds = (content, embeds) => {
  */
 export const processTags = (tags) => {
   if (!tags || tags.length === 0) {
-    return [];
+    return []
   }
 
-  return tags.map(tag => ({
+  return tags.map((tag) => ({
     name: tag.name,
     count: tag.count,
     display: `#${tag.name}`,
-    clickable: true
-  }));
-};
+    clickable: true,
+  }))
+}
 
 /**
  * Build outline data structure from headings
@@ -302,17 +302,17 @@ export const processTags = (tags) => {
  */
 export const buildOutline = (headings) => {
   if (!headings || headings.length === 0) {
-    return [];
+    return []
   }
 
-  return headings.map(heading => ({
+  return headings.map((heading) => ({
     id: heading.id,
     text: heading.text,
     level: heading.level,
     line: heading.line,
-    indentClass: `outline-level-${heading.level}`
-  }));
-};
+    indentClass: `outline-level-${heading.level}`,
+  }))
+}
 
 /**
  * Format reading time
@@ -322,15 +322,15 @@ export const buildOutline = (headings) => {
  */
 export const formatReadingTime = (minutes) => {
   if (!minutes || minutes === 0) {
-    return 'Less than a minute';
+    return 'Less than a minute'
   }
 
   if (minutes === 1) {
-    return '1 minute';
+    return '1 minute'
   }
 
-  return `${minutes} minutes`;
-};
+  return `${minutes} minutes`
+}
 
 /**
  * Format file statistics
@@ -343,16 +343,16 @@ export const formatStats = (stats) => {
     return {
       words: 0,
       characters: 0,
-      readingTime: 'Less than a minute'
-    };
+      readingTime: 'Less than a minute',
+    }
   }
 
   return {
     words: stats.words || 0,
     characters: stats.characters || 0,
-    readingTime: formatReadingTime(stats.reading_time_minutes)
-  };
-};
+    readingTime: formatReadingTime(stats.reading_time_minutes),
+  }
+}
 
 /**
  * Escape HTML special characters
@@ -361,18 +361,18 @@ export const formatStats = (stats) => {
  * @returns {string} - Escaped text
  */
 const escapeHtml = (text) => {
-  if (!text) return '';
+  if (!text) return ''
 
   const htmlEscapeMap = {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
-    "'": '&#39;'
-  };
+    "'": '&#39;',
+  }
 
-  return String(text).replace(/[&<>"']/g, char => htmlEscapeMap[char]);
-};
+  return String(text).replace(/[&<>"']/g, (char) => htmlEscapeMap[char])
+}
 
 /**
  * Process backlinks for display
@@ -382,17 +382,17 @@ const escapeHtml = (text) => {
  */
 export const processBacklinks = (backlinks) => {
   if (!backlinks || backlinks.length === 0) {
-    return [];
+    return []
   }
 
-  return backlinks.map(backlink => ({
+  return backlinks.map((backlink) => ({
     id: backlink.file_id,
     name: backlink.file_name,
     path: backlink.file_path,
     context: backlink.context || '',
-    clickable: true
-  }));
-};
+    clickable: true,
+  }))
+}
 
 export default {
   renderStructuredMarkdown,
@@ -400,5 +400,5 @@ export default {
   buildOutline,
   formatStats,
   formatReadingTime,
-  processBacklinks
-};
+  processBacklinks,
+}

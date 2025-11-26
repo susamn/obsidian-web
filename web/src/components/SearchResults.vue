@@ -30,12 +30,11 @@
           </span>
         </div>
 
-        <div v-if="result.fragments && Object.keys(result.fragments).length > 0" class="result-fragments">
-          <div
-            v-for="(fragments, field) in result.fragments"
-            :key="field"
-            class="fragment-group"
-          >
+        <div
+          v-if="result.fragments && Object.keys(result.fragments).length > 0"
+          class="result-fragments"
+        >
+          <div v-for="(fragments, field) in result.fragments" :key="field" class="fragment-group">
             <div
               v-for="(fragment, index) in fragments"
               :key="index"
@@ -48,7 +47,9 @@
         <div v-if="result.fields" class="result-meta">
           <span v-if="result.fields.tags" class="meta-tags">
             <i class="fas fa-tag"></i>
-            {{ Array.isArray(result.fields.tags) ? result.fields.tags.join(', ') : result.fields.tags }}
+            {{
+              Array.isArray(result.fields.tags) ? result.fields.tags.join(', ') : result.fields.tags
+            }}
           </span>
           <span v-if="result.fields.path" class="meta-path">
             <i class="fas fa-folder"></i>
@@ -61,42 +62,42 @@
 </template>
 
 <script setup>
-import { useSearchStore } from '../stores/searchStore';
+import { useSearchStore } from '../stores/searchStore'
 
 const props = defineProps({
   vaultId: {
     type: String,
     required: true,
   },
-});
+})
 
-const emit = defineEmits(['result-selected']);
+const emit = defineEmits(['result-selected'])
 
-const searchStore = useSearchStore();
+const searchStore = useSearchStore()
 
 const getFileName = (result) => {
   // Use the path from fields if available, otherwise fallback to ID
-  const path = result.fields?.path || result.id;
-  const parts = path.split('/');
-  return parts[parts.length - 1] || path;
-};
+  const path = result.fields?.path || result.id
+  const parts = path.split('/')
+  return parts[parts.length - 1] || path
+}
 
 const formatScore = (score) => {
   // Format score as percentage
-  const percentage = Math.round(score * 100);
-  return `${percentage}%`;
-};
+  const percentage = Math.round(score * 100)
+  return `${percentage}%`
+}
 
 const sanitizeFragment = (fragment) => {
   // The fragment HTML from backend contains <mark> tags for highlighting
   // We trust the backend to provide safe HTML, but we can add additional sanitization if needed
-  return fragment;
-};
+  return fragment
+}
 
 const handleResultClick = (result) => {
-  console.log('[SearchResults] Result clicked:', result);
-  emit('result-selected', result);
-};
+  console.log('[SearchResults] Result clicked:', result)
+  emit('result-selected', result)
+}
 </script>
 
 <style scoped>

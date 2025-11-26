@@ -61,12 +61,7 @@
         <div class="file-header-section">
           <div class="navigation-bar">
             <div class="nav-buttons">
-              <button
-                class="nav-button"
-                :disabled="!canGoBack"
-                @click="goBack"
-                title="Go back"
-              >
+              <button class="nav-button" :disabled="!canGoBack" @click="goBack" title="Go back">
                 <i class="fas fa-arrow-left"></i>
               </button>
               <button
@@ -94,11 +89,19 @@
               </span>
               <span class="stat-chip" title="Character count">
                 <i class="fas fa-text-width"></i>
-                {{ markdownResult.stats.chars ? markdownResult.stats.chars.toLocaleString() : markdownResult.stats.characters?.toLocaleString() }}
+                {{
+                  markdownResult.stats.chars
+                    ? markdownResult.stats.chars.toLocaleString()
+                    : markdownResult.stats.characters?.toLocaleString()
+                }}
               </span>
               <span class="stat-chip" title="Reading time">
                 <i class="far fa-clock"></i>
-                {{ typeof markdownResult.stats.readingTime === 'number' ? `${markdownResult.stats.readingTime} min` : markdownResult.stats.readingTime }}
+                {{
+                  typeof markdownResult.stats.readingTime === 'number'
+                    ? `${markdownResult.stats.readingTime} min`
+                    : markdownResult.stats.readingTime
+                }}
               </span>
             </div>
           </div>
@@ -135,48 +138,48 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed, nextTick } from 'vue';
-import { useRoute } from 'vue-router';
-import { useFileStore } from '../stores/fileStore';
-import { usePersistentTreeStore } from '../stores/persistentTreeStore';
-import { useSearchStore } from '../stores/searchStore';
-import { useSSE } from '../composables/useSSE';
-import FileTree from '../components/FileTree.vue';
-import SearchPanel from '../components/SearchPanel.vue';
-import SearchResults from '../components/SearchResults.vue';
-import StructuredRenderer from '../components/StructuredRenderer.vue';
-import CanvasRenderer from '../components/CanvasRenderer.vue';
-import CreateNoteDialog from '../components/CreateNoteDialog.vue';
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
+import { useFileStore } from '../stores/fileStore'
+import { usePersistentTreeStore } from '../stores/persistentTreeStore'
+import { useSearchStore } from '../stores/searchStore'
+import { useSSE } from '../composables/useSSE'
+import FileTree from '../components/FileTree.vue'
+import SearchPanel from '../components/SearchPanel.vue'
+import SearchResults from '../components/SearchResults.vue'
+import StructuredRenderer from '../components/StructuredRenderer.vue'
+import CanvasRenderer from '../components/CanvasRenderer.vue'
+import CreateNoteDialog from '../components/CreateNoteDialog.vue'
 
-const route = useRoute();
-const fileStore = useFileStore();
-const persistentTreeStore = usePersistentTreeStore();
-const searchStore = useSearchStore();
+const route = useRoute()
+const fileStore = useFileStore()
+const persistentTreeStore = usePersistentTreeStore()
+const searchStore = useSearchStore()
 
-const vaultName = ref('');
-const expandedNodes = ref({});
-const connected = ref(false);
-const error = ref(null);
-const currentFileId = ref(null); // Track the ID of the currently selected file
-const selectedFileId = ref(null); // Track the selected file ID for visual highlighting in tree
-const showSearch = ref(false); // Toggle between file browser and search
+const vaultName = ref('')
+const expandedNodes = ref({})
+const connected = ref(false)
+const error = ref(null)
+const currentFileId = ref(null) // Track the ID of the currently selected file
+const selectedFileId = ref(null) // Track the selected file ID for visual highlighting in tree
+const showSearch = ref(false) // Toggle between file browser and search
 
 // Navigation history
-const navigationHistory = ref([]);
-const navigationIndex = ref(-1);
-const isNavigatingHistory = ref(false); // Flag to prevent adding to history during back/forward
+const navigationHistory = ref([])
+const navigationIndex = ref(-1)
+const isNavigatingHistory = ref(false) // Flag to prevent adding to history during back/forward
 
 // Create dialog state
-const showCreateDialog = ref(false);
-const createParentId = ref(null);
+const showCreateDialog = ref(false)
+const createParentId = ref(null)
 
 // Bulk operation progress tracking
 const bulkOperationProgress = ref({
   active: false,
   processed: 0,
   total: 0,
-  percentage: 0
-});
+  percentage: 0,
+})
 
 // Markdown rendering state
 const markdownResult = ref({
@@ -185,166 +188,166 @@ const markdownResult = ref({
   frontmatter: {},
   headings: [],
   wikilinks: [],
-  stats: { words: 0, chars: 0, readingTime: 0 }
-});
+  stats: { words: 0, chars: 0, readingTime: 0 },
+})
 
 // Check if current file is a canvas file
 const isCanvasFile = computed(() => {
-  if (!fileStore.currentPath) return false;
-  return fileStore.currentPath.toLowerCase().endsWith('.canvas');
-});
+  if (!fileStore.currentPath) return false
+  return fileStore.currentPath.toLowerCase().endsWith('.canvas')
+})
 
 // Dynamic renderer component - always use StructuredRenderer for markdown, CanvasRenderer for canvas files
 const currentRendererComponent = computed(() => {
-  return isCanvasFile.value ? CanvasRenderer : StructuredRenderer;
-});
+  return isCanvasFile.value ? CanvasRenderer : StructuredRenderer
+})
 
 const handleToggleExpand = (node) => {
   if (node.metadata.is_directory) {
     if (expandedNodes.value[node.metadata.id]) {
       // Collapse
-      delete expandedNodes.value[node.metadata.id];
-      console.log('[VaultView] Collapsed node:', node.metadata.name);
+      delete expandedNodes.value[node.metadata.id]
+      console.log('[VaultView] Collapsed node:', node.metadata.name)
 
       // Update persistent tree
-      persistentTreeStore.collapseNode(fileStore.vaultId, node.metadata.id);
+      persistentTreeStore.collapseNode(fileStore.vaultId, node.metadata.id)
     } else {
       // Expand
-      expandedNodes.value[node.metadata.id] = true;
-      console.log('[VaultView] Expanded node:', node.metadata.name);
+      expandedNodes.value[node.metadata.id] = true
+      console.log('[VaultView] Expanded node:', node.metadata.name)
 
       // Children are already loaded in the full tree, just mark as expanded
-      persistentTreeStore.expandNode(fileStore.vaultId, node.metadata.id);
+      persistentTreeStore.expandNode(fileStore.vaultId, node.metadata.id)
     }
   }
-};
+}
 
 const handleFileSelected = async (node) => {
   if (!node.metadata.is_directory) {
     // Use path if available, otherwise use filename
-    const filePath = node.metadata.path || node.metadata.name;
-    fileStore.setCurrentPath(filePath);
+    const filePath = node.metadata.path || node.metadata.name
+    fileStore.setCurrentPath(filePath)
 
     // Add to navigation history
-    addToNavigationHistory(node.metadata.id, filePath);
+    addToNavigationHistory(node.metadata.id, filePath)
 
     // Set current file ID - this should trigger StructuredRenderer watcher
-    currentFileId.value = node.metadata.id;
+    currentFileId.value = node.metadata.id
 
     // Highlight the selected file in the tree
-    selectedFileId.value = node.metadata.id;
+    selectedFileId.value = node.metadata.id
 
     // Check if this is a canvas file
-    const isCanvas = filePath.toLowerCase().endsWith('.canvas');
+    const isCanvas = filePath.toLowerCase().endsWith('.canvas')
 
     if (isCanvas) {
       // Canvas files need content fetched
-      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id)
 
       // Update the path from server response if available (contains relative path)
       // This path is READ-ONLY and used for UI navigation only
       if (fileData && fileData.path) {
-        fileStore.setCurrentPath(fileData.path);
+        fileStore.setCurrentPath(fileData.path)
         // Update history with correct path
         if (navigationHistory.value.length > 0) {
-          navigationHistory.value[navigationIndex.value].filePath = fileData.path;
+          navigationHistory.value[navigationIndex.value].filePath = fileData.path
         }
       }
     } else {
       // For StructuredRenderer, the watcher will handle fetching
       // Just set a placeholder to ensure the component is shown
-      fileStore.selectedFileContent = 'loading';
+      fileStore.selectedFileContent = 'loading'
     }
   }
-};
+}
 
 /**
  * Toggle search panel
  */
 const toggleSearch = () => {
-  showSearch.value = !showSearch.value;
+  showSearch.value = !showSearch.value
   if (!showSearch.value) {
     // Clear search when closing
-    searchStore.clearSearch();
+    searchStore.clearSearch()
   }
-};
+}
 
 /**
  * Close search panel and return to file browser
  */
 const closeSearch = () => {
-  showSearch.value = false;
-  searchStore.clearSearch();
-};
+  showSearch.value = false
+  searchStore.clearSearch()
+}
 
 /**
  * Handle when a search is executed
  */
 const handleSearchExecuted = () => {
-  console.log('[VaultView] Search executed, results:', searchStore.total);
-};
+  console.log('[VaultView] Search executed, results:', searchStore.total)
+}
 
 /**
  * Handle when a search result is selected
  */
 const handleSearchResultSelected = async (result) => {
-  console.log('[VaultView] Search result selected:', result);
+  console.log('[VaultView] Search result selected:', result)
 
   // The result.id is the file ID from database
   // The result.fields.path is the relative path
   try {
-    const fileId = result.id;
-    const relativePath = result.fields?.path || '';
+    const fileId = result.id
+    const relativePath = result.fields?.path || ''
 
     // Set current file ID
-    currentFileId.value = fileId;
+    currentFileId.value = fileId
 
     // Highlight the selected file in the tree
-    selectedFileId.value = fileId;
+    selectedFileId.value = fileId
 
     // Set the current path for display (use relative path from fields)
     if (relativePath) {
-      fileStore.setCurrentPath(relativePath);
+      fileStore.setCurrentPath(relativePath)
 
       // Expand folders to reveal the file in the tree
-      console.log('[VaultView] Expanding tree to reveal search result:', relativePath);
-      const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, relativePath);
+      console.log('[VaultView] Expanding tree to reveal search result:', relativePath)
+      const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, relativePath)
 
       // Update expandedNodes to trigger UI update
-      expandedNodeIds.forEach(nodeId => {
-        expandedNodes.value[nodeId] = true;
-      });
+      expandedNodeIds.forEach((nodeId) => {
+        expandedNodes.value[nodeId] = true
+      })
 
       // Scroll to the file in the tree after a short delay
       nextTick(() => {
         setTimeout(() => {
-          const element = document.querySelector(`[data-node-id="${fileId}"]`);
+          const element = document.querySelector(`[data-node-id="${fileId}"]`)
           if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
           }
-        }, 100);
-      });
+        }, 100)
+      })
     }
 
     // Fetch file content using file ID
-    const isCanvas = relativePath.toLowerCase().endsWith('.canvas');
+    const isCanvas = relativePath.toLowerCase().endsWith('.canvas')
     if (isCanvas) {
-      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId)
 
       // Update the path from server response if available
       if (fileData && fileData.path) {
-        fileStore.setCurrentPath(fileData.path);
+        fileStore.setCurrentPath(fileData.path)
       }
     } else {
       // For StructuredRenderer, just set a placeholder
-      fileStore.selectedFileContent = 'loading';
+      fileStore.selectedFileContent = 'loading'
     }
 
     // Keep search panel open - don't call closeSearch()
   } catch (error) {
-    console.error('[VaultView] Failed to load search result:', error);
+    console.error('[VaultView] Failed to load search result:', error)
   }
-};
+}
 
 /**
  * Handle wikilink navigation from markdown renderer
@@ -352,279 +355,275 @@ const handleSearchResultSelected = async (result) => {
  */
 const handleWikilinkNavigation = async (event) => {
   try {
-    const { fileId, path, exists } = event;
+    const { fileId, path, exists } = event
 
     if (!exists || !fileId || !path) {
-      return;
+      return
     }
 
     // Update breadcrumb/path
-    fileStore.setCurrentPath(path);
+    fileStore.setCurrentPath(path)
 
     // Add to navigation history
-    addToNavigationHistory(fileId, path);
+    addToNavigationHistory(fileId, path)
 
     // Update current file ID - this triggers StructuredRenderer watcher to fetch content
-    currentFileId.value = fileId;
+    currentFileId.value = fileId
 
     // Highlight the selected file in the tree
-    selectedFileId.value = fileId;
+    selectedFileId.value = fileId
 
     // Expand folders to reveal the file in the tree
-    console.log('[VaultView] Expanding tree to reveal file:', path);
-    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, path);
+    console.log('[VaultView] Expanding tree to reveal file:', path)
+    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, path)
 
     // Update expandedNodes to trigger UI update
-    expandedNodeIds.forEach(nodeId => {
-      expandedNodes.value[nodeId] = true;
-    });
+    expandedNodeIds.forEach((nodeId) => {
+      expandedNodes.value[nodeId] = true
+    })
 
     // Scroll to the file in the tree after a short delay
     nextTick(() => {
       setTimeout(() => {
-        const element = document.querySelector(`[data-node-id="${fileId}"]`);
+        const element = document.querySelector(`[data-node-id="${fileId}"]`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
-      }, 100);
-    });
+      }, 100)
+    })
 
     // Check if this is a canvas file
-    const isCanvas = path.toLowerCase().endsWith('.canvas');
+    const isCanvas = path.toLowerCase().endsWith('.canvas')
 
     if (isCanvas) {
       // Canvas files need content fetched
-      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId)
       if (fileData && fileData.path) {
-        fileStore.setCurrentPath(fileData.path);
+        fileStore.setCurrentPath(fileData.path)
       }
     } else {
       // For StructuredRenderer, set placeholder to show component
-      fileStore.selectedFileContent = 'loading';
+      fileStore.selectedFileContent = 'loading'
     }
   } catch (error) {
-    console.error('[VaultView] Failed to navigate to wikilink:', error);
+    console.error('[VaultView] Failed to navigate to wikilink:', error)
   }
-};
+}
 
 /**
  * Handle create button click on folder
  */
 const handleCreateClick = (node) => {
-  createParentId.value = node.metadata.id;
-  showCreateDialog.value = true;
-};
+  createParentId.value = node.metadata.id
+  showCreateDialog.value = true
+}
 
 /**
  * Close create dialog
  */
 const closeCreateDialog = () => {
-  showCreateDialog.value = false;
-  createParentId.value = null;
-};
+  showCreateDialog.value = false
+  createParentId.value = null
+}
 
 /**
  * Handle file/folder created
  */
 const handleFileCreated = async (result) => {
-  console.log('[VaultView] File/folder created:', result);
+  console.log('[VaultView] File/folder created:', result)
 
   // Refresh the entire tree to show the new item
-  await fileStore.fetchTree(fileStore.vaultId);
-  persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData);
-};
+  await fileStore.fetchTree(fileStore.vaultId)
+  persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData)
+}
 
 const currentFileName = computed(() => {
-  if (!fileStore.currentPath) return 'No file selected';
-  const lastSlash = fileStore.currentPath.lastIndexOf('/');
-  return lastSlash === -1 ? fileStore.currentPath : fileStore.currentPath.substring(lastSlash + 1);
-});
+  if (!fileStore.currentPath) return 'No file selected'
+  const lastSlash = fileStore.currentPath.lastIndexOf('/')
+  return lastSlash === -1 ? fileStore.currentPath : fileStore.currentPath.substring(lastSlash + 1)
+})
 
 const breadcrumbParts = computed(() => {
-  if (!fileStore.currentPath) return [];
-  return fileStore.currentPath.split('/');
-});
+  if (!fileStore.currentPath) return []
+  return fileStore.currentPath.split('/')
+})
 
 // Navigation history computed properties
-const canGoBack = computed(() => navigationIndex.value > 0);
-const canGoForward = computed(() => navigationIndex.value < navigationHistory.value.length - 1);
+const canGoBack = computed(() => navigationIndex.value > 0)
+const canGoForward = computed(() => navigationIndex.value < navigationHistory.value.length - 1)
 
 /**
  * Add file to navigation history
  */
 const addToNavigationHistory = (fileId, filePath) => {
   if (!fileId || !filePath || isNavigatingHistory.value) {
-    return;
+    return
   }
 
   // Don't add if it's the same as the current item
-  const currentItem = navigationHistory.value[navigationIndex.value];
+  const currentItem = navigationHistory.value[navigationIndex.value]
   if (currentItem && currentItem.fileId === fileId) {
-    return;
+    return
   }
 
   // Remove any forward history when navigating to a new file
-  navigationHistory.value = navigationHistory.value.slice(0, navigationIndex.value + 1);
+  navigationHistory.value = navigationHistory.value.slice(0, navigationIndex.value + 1)
 
   // Add new item
   navigationHistory.value.push({
     fileId,
     filePath,
-    timestamp: Date.now()
-  });
+    timestamp: Date.now(),
+  })
 
-  navigationIndex.value = navigationHistory.value.length - 1;
-};
+  navigationIndex.value = navigationHistory.value.length - 1
+}
 
 /**
  * Navigate back in history
  */
 const goBack = async () => {
-  if (!canGoBack.value) return;
+  if (!canGoBack.value) return
 
-  isNavigatingHistory.value = true;
+  isNavigatingHistory.value = true
 
   try {
-    navigationIndex.value--;
-    const item = navigationHistory.value[navigationIndex.value];
+    navigationIndex.value--
+    const item = navigationHistory.value[navigationIndex.value]
 
     // Update breadcrumb
-    fileStore.setCurrentPath(item.filePath);
+    fileStore.setCurrentPath(item.filePath)
 
     // Update current file ID - triggers fetch
-    currentFileId.value = item.fileId;
+    currentFileId.value = item.fileId
 
     // Highlight the file in the tree
-    selectedFileId.value = item.fileId;
+    selectedFileId.value = item.fileId
 
     // Expand folders to reveal the file
-    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, item.filePath);
-    expandedNodeIds.forEach(nodeId => {
-      expandedNodes.value[nodeId] = true;
-    });
+    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, item.filePath)
+    expandedNodeIds.forEach((nodeId) => {
+      expandedNodes.value[nodeId] = true
+    })
 
     // Scroll to the file
     nextTick(() => {
       setTimeout(() => {
-        const element = document.querySelector(`[data-node-id="${item.fileId}"]`);
+        const element = document.querySelector(`[data-node-id="${item.fileId}"]`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
-      }, 100);
-    });
+      }, 100)
+    })
 
     // Check if this is a canvas file
-    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas');
+    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas')
 
     if (isCanvas) {
-      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId)
       if (fileData && fileData.path) {
-        fileStore.setCurrentPath(fileData.path);
+        fileStore.setCurrentPath(fileData.path)
       }
     } else {
       // For StructuredRenderer, set placeholder
-      fileStore.selectedFileContent = 'loading';
+      fileStore.selectedFileContent = 'loading'
     }
   } finally {
-    isNavigatingHistory.value = false;
+    isNavigatingHistory.value = false
   }
-};
+}
 
 /**
  * Navigate forward in history
  */
 const goForward = async () => {
-  if (!canGoForward.value) return;
+  if (!canGoForward.value) return
 
-  isNavigatingHistory.value = true;
+  isNavigatingHistory.value = true
 
   try {
-    navigationIndex.value++;
-    const item = navigationHistory.value[navigationIndex.value];
+    navigationIndex.value++
+    const item = navigationHistory.value[navigationIndex.value]
 
     // Update breadcrumb
-    fileStore.setCurrentPath(item.filePath);
+    fileStore.setCurrentPath(item.filePath)
 
     // Update current file ID - triggers fetch
-    currentFileId.value = item.fileId;
+    currentFileId.value = item.fileId
 
     // Highlight the file in the tree
-    selectedFileId.value = item.fileId;
+    selectedFileId.value = item.fileId
 
     // Expand folders to reveal the file
-    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, item.filePath);
-    expandedNodeIds.forEach(nodeId => {
-      expandedNodes.value[nodeId] = true;
-    });
+    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, item.filePath)
+    expandedNodeIds.forEach((nodeId) => {
+      expandedNodes.value[nodeId] = true
+    })
 
     // Scroll to the file
     nextTick(() => {
       setTimeout(() => {
-        const element = document.querySelector(`[data-node-id="${item.fileId}"]`);
+        const element = document.querySelector(`[data-node-id="${item.fileId}"]`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
-      }, 100);
-    });
+      }, 100)
+    })
 
     // Check if this is a canvas file
-    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas');
+    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas')
 
     if (isCanvas) {
-      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId)
       if (fileData && fileData.path) {
-        fileStore.setCurrentPath(fileData.path);
+        fileStore.setCurrentPath(fileData.path)
       }
     } else {
       // For StructuredRenderer, set placeholder
-      fileStore.selectedFileContent = 'loading';
+      fileStore.selectedFileContent = 'loading'
     }
   } finally {
-    isNavigatingHistory.value = false;
+    isNavigatingHistory.value = false
   }
-};
-
-
+}
 
 // SSE event handlers
 const sseCallbacks = {
   onConnected: (data) => {
-    console.log('[VaultView] SSE connected:', data);
-    connected.value = true;
-    error.value = null;
+    console.log('[VaultView] SSE connected:', data)
+    connected.value = true
+    error.value = null
   },
 
   onBulkUpdate: async (data) => {
-    console.log('[VaultView] Bulk update received:', data.summary);
+    console.log('[VaultView] Bulk update received:', data.summary)
 
-    const total = data.summary.created + data.summary.modified + data.summary.deleted;
-    console.log(`[VaultView] Bulk update: ${total} files changed`);
+    const total = data.summary.created + data.summary.modified + data.summary.deleted
+    console.log(`[VaultView] Bulk update: ${total} files changed`)
 
     // Activate progress indicator
     bulkOperationProgress.value = {
       active: true,
       processed: 0,
       total: total,
-      percentage: 0
-    };
+      percentage: 0,
+    }
 
     // Refresh the entire tree from server
-    await fileStore.fetchTree(fileStore.vaultId);
-    persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData);
+    await fileStore.fetchTree(fileStore.vaultId)
+    persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData)
 
     // If currently selected file was modified or deleted, refresh its content
-    const currentFileChange = data.changes.find(change =>
-      fileStore.currentPath === change.path
-    );
+    const currentFileChange = data.changes.find((change) => fileStore.currentPath === change.path)
 
     if (currentFileChange) {
       if (currentFileChange.type === 'file_deleted') {
         // Clear content if file was deleted
-        fileStore.selectedFileContent = null;
-        currentFileId.value = null;
+        fileStore.selectedFileContent = null
+        currentFileId.value = null
       } else if (currentFileChange.type === 'file_modified' && currentFileId.value) {
         // Refresh content if file was modified
-        await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value);
+        await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value)
       }
     }
 
@@ -633,94 +632,97 @@ const sseCallbacks = {
       active: true,
       processed: total,
       total: total,
-      percentage: 100
-    };
+      percentage: 100,
+    }
 
     // Clear progress after a delay
     setTimeout(() => {
-      bulkOperationProgress.value.active = false;
-    }, 2000);
+      bulkOperationProgress.value.active = false
+    }, 2000)
   },
 
   onError: (err) => {
-    console.error('[VaultView] SSE error:', err);
-    error.value = err.message || 'SSE connection error';
-    connected.value = false;
+    console.error('[VaultView] SSE error:', err)
+    error.value = err.message || 'SSE connection error'
+    connected.value = false
   },
-};
+}
 
 // Initialize SSE connection (vaultId will be passed when calling connect())
-const sseHooks = useSSE(sseCallbacks);
-const sseConnect = sseHooks.connect;
-const sseDisconnect = sseHooks.disconnect;
-const sseReconnect = sseHooks.reconnect;
-
+const sseHooks = useSSE(sseCallbacks)
+const sseConnect = sseHooks.connect
+const sseDisconnect = sseHooks.disconnect
+const sseReconnect = sseHooks.reconnect
 
 // Watch for changes in the route params, specifically the 'id' for the vault
-watch(() => route.params.id, async (newId, oldId) => {
-  if (newId) {
-    // Disconnect old SSE connection if vault changes
-    if (oldId && oldId !== newId) {
-      sseDisconnect();
+watch(
+  () => route.params.id,
+  async (newId, oldId) => {
+    if (newId) {
+      // Disconnect old SSE connection if vault changes
+      if (oldId && oldId !== newId) {
+        sseDisconnect()
+      }
+
+      fileStore.setVaultId(newId)
+      vaultName.value = `Vault ${newId}`
+
+      // Try to restore tree from persistent storage first
+      const savedTree = persistentTreeStore.getTree(newId)
+      if (savedTree && savedTree.length > 0) {
+        console.log('[VaultView] Restoring tree from persistent storage')
+        fileStore.treeData = savedTree
+
+        // Restore expanded state
+        const expandedIds = persistentTreeStore.getExpandedNodeIds(newId)
+        expandedIds.forEach((id) => {
+          expandedNodes.value[id] = true
+        })
+      } else {
+        // No saved tree, fetch full tree from server
+        console.log('[VaultView] No saved tree, fetching full tree from server')
+        await fileStore.fetchTree(newId)
+
+        // Initialize persistent tree with fetched data
+        persistentTreeStore.initializeTree(newId, fileStore.treeData)
+      }
+
+      // Reset expanded nodes when vault changes if no saved state
+      if (!savedTree || savedTree.length === 0) {
+        expandedNodes.value = {}
+      }
+
+      fileStore.selectedFileContent = null // Clear selected file content
+      currentFileId.value = null // Clear selected file ID when vault changes
+
+      // Connect to SSE for the new vault
+      sseConnect(newId)
     }
-
-    fileStore.setVaultId(newId);
-    vaultName.value = `Vault ${newId}`;
-
-    // Try to restore tree from persistent storage first
-    const savedTree = persistentTreeStore.getTree(newId);
-    if (savedTree && savedTree.length > 0) {
-      console.log('[VaultView] Restoring tree from persistent storage');
-      fileStore.treeData = savedTree;
-
-      // Restore expanded state
-      const expandedIds = persistentTreeStore.getExpandedNodeIds(newId);
-      expandedIds.forEach((id) => {
-        expandedNodes.value[id] = true;
-      });
-    } else {
-      // No saved tree, fetch full tree from server
-      console.log('[VaultView] No saved tree, fetching full tree from server');
-      await fileStore.fetchTree(newId);
-
-      // Initialize persistent tree with fetched data
-      persistentTreeStore.initializeTree(newId, fileStore.treeData);
-    }
-
-    // Reset expanded nodes when vault changes if no saved state
-    if (!savedTree || savedTree.length === 0) {
-      expandedNodes.value = {};
-    }
-
-    fileStore.selectedFileContent = null; // Clear selected file content
-    currentFileId.value = null; // Clear selected file ID when vault changes
-
-    // Connect to SSE for the new vault
-    sseConnect(newId);
-  }
-}, { immediate: true }); // Immediate: true to run the watcher on initial component mount
+  },
+  { immediate: true }
+) // Immediate: true to run the watcher on initial component mount
 
 onMounted(() => {
   // Restore persistent tree state from localStorage on mount
-  persistentTreeStore.restoreFromStorage();
+  persistentTreeStore.restoreFromStorage()
 
   // Initial fetch if not already done by watcher (e.g., direct navigation)
   if (!fileStore.vaultId && route.params.id) {
-    fileStore.setVaultId(route.params.id);
-    vaultName.value = `Vault ${route.params.id}`;
+    fileStore.setVaultId(route.params.id)
+    vaultName.value = `Vault ${route.params.id}`
 
     // Check for saved tree
-    const savedTree = persistentTreeStore.getTree(route.params.id);
+    const savedTree = persistentTreeStore.getTree(route.params.id)
     if (savedTree && savedTree.length > 0) {
-      fileStore.treeData = savedTree;
+      fileStore.treeData = savedTree
     } else {
-      fileStore.fetchTree(route.params.id);
-      persistentTreeStore.initializeTree(route.params.id, fileStore.treeData);
+      fileStore.fetchTree(route.params.id)
+      persistentTreeStore.initializeTree(route.params.id, fileStore.treeData)
     }
 
-    sseConnect(route.params.id);
+    sseConnect(route.params.id)
   }
-});
+})
 </script>
 
 <style scoped>
@@ -773,7 +775,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
   font-size: 1rem;
 }
 
@@ -909,7 +913,7 @@ onMounted(() => {
 }
 
 .breadcrumb-separator::before {
-  content: "›";
+  content: '›';
   display: inline-block;
 }
 

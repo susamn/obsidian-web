@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
-import { createPinia } from 'pinia';
-import FileTree from '../FileTree.vue';
+import { describe, it, expect, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
+import FileTree from '../FileTree.vue'
 
 describe('FileTree', () => {
   const mockNodes = [
@@ -22,7 +22,7 @@ describe('FileTree', () => {
       },
       children: [],
     },
-  ];
+  ]
 
   it('renders file and folder nodes', () => {
     const wrapper = mount(FileTree, {
@@ -34,13 +34,13 @@ describe('FileTree', () => {
       global: {
         plugins: [createPinia()],
       },
-    });
+    })
 
-    expect(wrapper.text()).toContain('file1.md');
-    expect(wrapper.text()).toContain('folder1');
-    expect(wrapper.findAll('.fa-file-alt').length).toBe(1); // Markdown file icon
-    expect(wrapper.findAll('.fa-folder').length).toBe(1); // Closed folder icon
-  });
+    expect(wrapper.text()).toContain('file1.md')
+    expect(wrapper.text()).toContain('folder1')
+    expect(wrapper.findAll('.fa-file-alt').length).toBe(1) // Markdown file icon
+    expect(wrapper.findAll('.fa-folder').length).toBe(1) // Closed folder icon
+  })
 
   it('emits toggle-expand when a folder is clicked', async () => {
     const wrapper = mount(FileTree, {
@@ -52,12 +52,12 @@ describe('FileTree', () => {
       global: {
         plugins: [createPinia()],
       },
-    });
+    })
 
-    await wrapper.findAll('.node-header')[1].trigger('click'); // Click on folder1
-    expect(wrapper.emitted('toggle-expand')).toBeTruthy();
-    expect(wrapper.emitted('toggle-expand')[0][0]).toEqual(mockNodes[1]);
-  });
+    await wrapper.findAll('.node-header')[1].trigger('click') // Click on folder1
+    expect(wrapper.emitted('toggle-expand')).toBeTruthy()
+    expect(wrapper.emitted('toggle-expand')[0][0]).toEqual(mockNodes[1])
+  })
 
   it('renders expanded folder children', async () => {
     const folderNode = {
@@ -79,11 +79,11 @@ describe('FileTree', () => {
           },
         },
       ],
-    };
+    }
 
     const expandedNodes = {
       'folder1-id': true,
-    };
+    }
 
     const wrapper = mount(FileTree, {
       props: {
@@ -94,11 +94,11 @@ describe('FileTree', () => {
       global: {
         plugins: [createPinia()],
       },
-    });
+    })
 
-    expect(wrapper.text()).toContain('folder1');
-    expect(wrapper.text()).toContain('child-file.txt');
-    expect(wrapper.findAll('.fa-folder-open').length).toBe(1); // Open folder icon
-    expect(wrapper.findAll('.fa-file-alt').length).toBe(1); // Text file icon for txt
-  });
-});
+    expect(wrapper.text()).toContain('folder1')
+    expect(wrapper.text()).toContain('child-file.txt')
+    expect(wrapper.findAll('.fa-folder-open').length).toBe(1) // Open folder icon
+    expect(wrapper.findAll('.fa-file-alt').length).toBe(1) // Text file icon for txt
+  })
+})

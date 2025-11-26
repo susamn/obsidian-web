@@ -6,9 +6,9 @@
 defineProps({
   node: {
     type: Object,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 </script>
 
 <style scoped>

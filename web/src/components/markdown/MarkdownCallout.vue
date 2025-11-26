@@ -11,17 +11,17 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import InlineRenderer from './InlineRenderer.vue';
+import { computed } from 'vue'
+import InlineRenderer from './InlineRenderer.vue'
 
 const props = defineProps({
   node: {
     type: Object,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
-defineEmits(['wikilink-click']);
+defineEmits(['wikilink-click'])
 
 const CALLOUT_TYPES = {
   note: { icon: '📝', class: 'md-callout-note' },
@@ -40,15 +40,15 @@ const CALLOUT_TYPES = {
   failure: { icon: '❌', class: 'md-callout-failure' },
   bug: { icon: '🐛', class: 'md-callout-bug' },
   example: { icon: '📊', class: 'md-callout-example' },
-  quote: { icon: '💬', class: 'md-callout-quote' }
-};
+  quote: { icon: '💬', class: 'md-callout-quote' },
+}
 
 const calloutConfig = computed(() => {
-  return CALLOUT_TYPES[props.node.calloutType] || CALLOUT_TYPES.note;
-});
+  return CALLOUT_TYPES[props.node.calloutType] || CALLOUT_TYPES.note
+})
 
-const calloutIcon = computed(() => calloutConfig.value.icon);
-const calloutClass = computed(() => calloutConfig.value.class);
+const calloutIcon = computed(() => calloutConfig.value.icon)
+const calloutClass = computed(() => calloutConfig.value.class)
 </script>
 
 <style scoped>

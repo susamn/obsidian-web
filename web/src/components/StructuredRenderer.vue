@@ -43,10 +43,7 @@
 
       <!-- Main Content -->
       <div class="sr-markdown-content" ref="markdownContentRef">
-        <CustomMarkdownRenderer
-          :nodes="parsedNodes"
-          @wikilink-click="handleWikilinkClick"
-        />
+        <CustomMarkdownRenderer :nodes="parsedNodes" @wikilink-click="handleWikilinkClick" />
       </div>
 
       <!-- Metadata Panels (optional) -->
@@ -102,39 +99,39 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
-import { parseMarkdown } from '../utils/customMarkdownParser';
-import CustomMarkdownRenderer from './CustomMarkdownRenderer.vue';
+import { ref, computed, watch, nextTick } from 'vue'
+import { parseMarkdown } from '../utils/customMarkdownParser'
+import CustomMarkdownRenderer from './CustomMarkdownRenderer.vue'
 import {
   processTags,
   buildOutline,
   formatStats,
-  processBacklinks
-} from '../utils/structuredMarkdownRenderer';
+  processBacklinks,
+} from '../utils/structuredMarkdownRenderer'
 
 const props = defineProps({
   vaultId: {
     type: String,
-    required: true
+    required: true,
   },
   fileId: {
     type: String,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
-const emit = defineEmits(['update:markdownResult', 'wikilink-click']);
+const emit = defineEmits(['update:markdownResult', 'wikilink-click'])
 
-const loading = ref(false);
-const error = ref(null);
-const structuredData = ref(null);
-const markdownContentRef = ref(null);
-const showOutline = ref(false);
-const showMetadata = ref(true);
+const loading = ref(false)
+const error = ref(null)
+const structuredData = ref(null)
+const markdownContentRef = ref(null)
+const showOutline = ref(false)
+const showMetadata = ref(true)
 
 // Computed properties
 const parsedNodes = computed(() => {
-  if (!structuredData.value) return [];
+  if (!structuredData.value) return []
 
   try {
     const nodes = parseMarkdown(
@@ -143,67 +140,67 @@ const parsedNodes = computed(() => {
       structuredData.value.embeds,
       {
         vaultId: props.vaultId,
-        images: structuredData.value.embeds || [] // Pass embeds as images metadata
+        images: structuredData.value.embeds || [], // Pass embeds as images metadata
       }
-    );
-    console.log('[StructuredRenderer] Parsed nodes:', nodes);
-    return nodes;
+    )
+    console.log('[StructuredRenderer] Parsed nodes:', nodes)
+    return nodes
   } catch (err) {
-    console.error('[StructuredRenderer] Parse error:', err);
-    return [];
+    console.error('[StructuredRenderer] Parse error:', err)
+    return []
   }
-});
+})
 
 const tags = computed(() => {
-  if (!structuredData.value?.tags) return [];
-  return processTags(structuredData.value.tags);
-});
+  if (!structuredData.value?.tags) return []
+  return processTags(structuredData.value.tags)
+})
 
 const outline = computed(() => {
-  if (!structuredData.value?.headings) return [];
-  return buildOutline(structuredData.value.headings);
-});
+  if (!structuredData.value?.headings) return []
+  return buildOutline(structuredData.value.headings)
+})
 
 const backlinks = computed(() => {
-  if (!structuredData.value?.backlinks) return [];
-  return processBacklinks(structuredData.value.backlinks);
-});
+  if (!structuredData.value?.backlinks) return []
+  return processBacklinks(structuredData.value.backlinks)
+})
 
 const stats = computed(() => {
-  if (!structuredData.value?.stats) return null;
-  return formatStats(structuredData.value.stats);
-});
+  if (!structuredData.value?.stats) return null
+  return formatStats(structuredData.value.stats)
+})
 
 // Fetch structured data from backend
 const fetchStructuredData = async () => {
   if (!props.vaultId || !props.fileId) {
-    error.value = null;
-    structuredData.value = null;
-    return;
+    error.value = null
+    structuredData.value = null
+    return
   }
 
-  console.log('[StructuredRenderer] Fetching file:', props.vaultId, props.fileId);
-  loading.value = true;
-  error.value = null;
+  console.log('[StructuredRenderer] Fetching file:', props.vaultId, props.fileId)
+  loading.value = true
+  error.value = null
 
   try {
-    const url = `/api/v1/files/sr/by-id/${props.vaultId}/${props.fileId}`;
-    console.log('[StructuredRenderer] Fetching URL:', url);
+    const url = `/api/v1/files/sr/by-id/${props.vaultId}/${props.fileId}`
+    console.log('[StructuredRenderer] Fetching URL:', url)
 
-    const response = await fetch(url);
-    console.log('[StructuredRenderer] Response status:', response.status);
+    const response = await fetch(url)
+    console.log('[StructuredRenderer] Response status:', response.status)
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to load file');
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to load file')
     }
 
-    const data = await response.json();
-    console.log('[StructuredRenderer] Received data:', data);
+    const data = await response.json()
+    console.log('[StructuredRenderer] Received data:', data)
 
     // Backend returns {data: {...}} structure
     if (data.data) {
-      structuredData.value = data.data;
+      structuredData.value = data.data
 
       // Emit markdown result for parent component
       emit('update:markdownResult', {
@@ -212,47 +209,54 @@ const fetchStructuredData = async () => {
         frontmatter: data.data.frontmatter || {},
         headings: data.data.headings || [],
         wikilinks: data.data.wikilinks || [],
-        stats: formatStats(data.data.stats)
-      });
+        stats: formatStats(data.data.stats),
+      })
     } else {
-      throw new Error('Invalid response format');
+      throw new Error('Invalid response format')
     }
   } catch (err) {
-    console.error('[StructuredRenderer] Error fetching data:', err);
-    error.value = err.message || 'Failed to load structured data';
-    structuredData.value = null;
+    console.error('[StructuredRenderer] Error fetching data:', err)
+    error.value = err.message || 'Failed to load structured data'
+    structuredData.value = null
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 
 // Scroll to heading
 const scrollToHeading = (headingId) => {
   nextTick(() => {
-    const element = document.getElementById(headingId);
+    const element = document.getElementById(headingId)
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
-  });
-};
+  })
+}
 
 // Handle wikilink clicks
 const handleWikilinkClick = (event) => {
-  emit('wikilink-click', event);
-};
+  emit('wikilink-click', event)
+}
 
 // Watch for file ID changes
-watch(() => props.fileId, (newFileId) => {
-  if (newFileId) {
-    fetchStructuredData();
-  }
-}, { immediate: true });
+watch(
+  () => props.fileId,
+  (newFileId) => {
+    if (newFileId) {
+      fetchStructuredData()
+    }
+  },
+  { immediate: true }
+)
 
 // Watch for vault ID changes
-watch(() => props.vaultId, () => {
-  structuredData.value = null;
-  error.value = null;
-});
+watch(
+  () => props.vaultId,
+  () => {
+    structuredData.value = null
+    error.value = null
+  }
+)
 </script>
 
 <style scoped>
@@ -396,7 +400,7 @@ watch(() => props.vaultId, () => {
 }
 
 .outline-level-1::before {
-  content: "•";
+  content: '•';
 }
 
 .outline-level-2 {
@@ -404,7 +408,7 @@ watch(() => props.vaultId, () => {
 }
 
 .outline-level-2::before {
-  content: "*";
+  content: '*';
 }
 
 .outline-level-3 {
@@ -412,7 +416,7 @@ watch(() => props.vaultId, () => {
 }
 
 .outline-level-3::before {
-  content: "**";
+  content: '**';
 }
 
 .outline-level-4 {
@@ -420,7 +424,7 @@ watch(() => props.vaultId, () => {
 }
 
 .outline-level-4::before {
-  content: "***";
+  content: '***';
 }
 
 .outline-level-5 {
@@ -428,7 +432,7 @@ watch(() => props.vaultId, () => {
 }
 
 .outline-level-5::before {
-  content: "–";
+  content: '–';
 }
 
 .outline-level-6 {
@@ -436,7 +440,7 @@ watch(() => props.vaultId, () => {
 }
 
 .outline-level-6::before {
-  content: "·";
+  content: '·';
 }
 
 /* Markdown Content Container */
