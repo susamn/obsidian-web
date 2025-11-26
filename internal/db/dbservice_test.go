@@ -551,3 +551,119 @@ func TestParentIDPointer(t *testing.T) {
 		t.Errorf("Expected ParentID %s, got %s", rootEntry.ID, *childRetrieved.ParentID)
 	}
 }
+
+func TestDetectFileType(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		isDir    bool
+		expected FileType
+	}{
+		{"Directory", "folder", true, FileTypeDirectory},
+		{"Markdown", "note.md", false, FileTypeMarkdown},
+		{"Markdown alt", "note.markdown", false, FileTypeMarkdown},
+		{"PNG", "image.png", false, FileTypePNG},
+		{"JPEG", "image.jpg", false, FileTypeJPG},
+		{"Text", "file.txt", false, FileTypeTXT},
+		{"Unknown", "file.unknown", false, FileTypeUnknown},
+		{"No extension", "file", false, FileTypeUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectFileType(tt.filename, tt.isDir)
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetFileTypeID(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	svc, err := NewDBService(context.Background(), &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create DBService: %v", err)
+	}
+
+	if err := svc.Start(); err != nil {
+		t.Fatalf("Failed to start DBService: %v", err)
+	}
+	defer svc.Stop()
+
+	// Test getting ID for known type
+	id, err := svc.GetFileTypeID(FileTypeMarkdown)
+	if err != nil {
+		t.Fatalf("Failed to get file type ID: %v", err)
+	}
+	if id == nil {
+		t.Fatal("Expected non-nil ID for Markdown")
+	}
+
+	// Test getting ID for another known type
+	id2, err := svc.GetFileTypeID(FileTypeDirectory)
+	if err != nil {
+		t.Fatalf("Failed to get file type ID: %v", err)
+	}
+	if id2 == nil {
+		t.Fatal("Expected non-nil ID for Directory")
+	}
+	if *id == *id2 {
+		t.Error("Expected different IDs for different types")
+	}
+
+	// Test getting ID for non-existent type (should return nil, nil or error depending on impl)
+	// Based on code, it queries by name string. If seed works, it should be fine.
+	// If I ask for a type that wasn't seeded...
+	id3, err := svc.GetFileTypeID("NON_EXISTENT_TYPE")
+	if err != nil {
+		// It might return error or nil if not found (code returns nil, nil on sql.ErrNoRows)
+	}
+	if id3 != nil {
+		t.Error("Expected nil ID for non-existent type")
+	}
+}
+
+func TestGetFileTypeByID(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	svc, err := NewDBService(context.Background(), &dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create DBService: %v", err)
+	}
+
+	if err := svc.Start(); err != nil {
+		t.Fatalf("Failed to start DBService: %v", err)
+	}
+	defer svc.Stop()
+
+	// Get ID first
+	id, err := svc.GetFileTypeID(FileTypeMarkdown)
+	if err != nil || id == nil {
+		t.Fatalf("Failed to get markdown ID: %v", err)
+	}
+
+	// Get Type by ID
+	ft, err := svc.GetFileTypeByID(*id)
+	if err != nil {
+		t.Fatalf("Failed to get file type by ID: %v", err)
+	}
+	if ft == nil {
+		t.Fatal("Expected non-nil file type")
+	}
+	if *ft != FileTypeMarkdown {
+		t.Errorf("Expected %s, got %s", FileTypeMarkdown, *ft)
+	}
+
+	// Test non-existent ID
+	ft2, err := svc.GetFileTypeByID(999999)
+	if err != nil {
+		// nil, nil on ErrNoRows
+	}
+	if ft2 != nil {
+		t.Error("Expected nil for non-existent ID")
+	}
+}

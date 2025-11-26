@@ -280,8 +280,15 @@ func (m *Manager) pingClients() {
 			for _, vaultID := range vaultIDs {
 				pendingCount := m.getPendingCount(vaultID)
 
+				// Copy clients to avoid holding lock while sending
+				var clients []*Client
 				m.vaultClientsMu.RLock()
-				clients := m.vaultClients[vaultID]
+				if vaultMap, exists := m.vaultClients[vaultID]; exists {
+					clients = make([]*Client, 0, len(vaultMap))
+					for _, client := range vaultMap {
+						clients = append(clients, client)
+					}
+				}
 				m.vaultClientsMu.RUnlock()
 
 				for _, client := range clients {

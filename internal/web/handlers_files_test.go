@@ -755,3 +755,65 @@ func TestHandleCreateFile(t *testing.T) {
 		}
 	})
 }
+
+func TestReadVaultFile(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+	indexDir := t.TempDir()
+
+	// Create a test file
+	testFile := filepath.Join(tempDir, "test.md")
+	testContent := "test content"
+	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	vaultCfg := &config.VaultConfig{
+		ID:        "test-vault",
+		Name:      "Test Vault",
+		Enabled:   true,
+		IndexPath: indexDir + "/test.bleve",
+		Storage: config.StorageConfig{
+			Type: "local",
+			Local: &config.LocalStorageConfig{
+				Path: tempDir,
+			},
+		},
+	}
+
+	v, _ := vault.NewVault(ctx, vaultCfg)
+	cfg := &config.Config{
+		Vaults: []config.VaultConfig{*vaultCfg},
+	}
+	server := NewServer(ctx, cfg, map[string]*vault.Vault{"test-vault": v})
+
+	// Test readVaultFile
+	content, size, err := server.readVaultFile(v, "test.md")
+	if err != nil {
+		t.Errorf("readVaultFile failed: %v", err)
+	}
+	if content != testContent {
+		t.Errorf("Expected content '%s', got '%s'", testContent, content)
+	}
+	if size != int64(len(testContent)) {
+		t.Errorf("Expected size %d, got %d", len(testContent), size)
+	}
+
+	// Test readVaultFileInBinary
+	data, size, err := server.readVaultFileInBinary(v, "test.md")
+	if err != nil {
+		t.Errorf("readVaultFileInBinary failed: %v", err)
+	}
+	if string(data) != testContent {
+		t.Errorf("Expected binary content '%s', got '%s'", testContent, string(data))
+	}
+	if size != int64(len(testContent)) {
+		t.Errorf("Expected size %d, got %d", len(testContent), size)
+	}
+
+	// Test missing file
+	_, _, err = server.readVaultFile(v, "missing.md")
+	if err == nil {
+		t.Error("Expected error for missing file")
+	}
+}
