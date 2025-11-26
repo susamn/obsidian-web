@@ -20,6 +20,7 @@ type FileResponse struct {
 	Size    int64  `json:"size"`
 }
 
+// COMMENTED OUT - UNUSED: Path-based file access (replaced by ID-based handleGetFileByID)
 // handleGetFile godoc
 // @Summary Get a file from a vault
 // @Description Get the content of a file from a vault
@@ -33,6 +34,7 @@ type FileResponse struct {
 // @Failure 405 {object} ErrorResponse
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v1/files/{vault}/{path} [get]
+/*
 func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -73,7 +75,9 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 		Size:    size,
 	})
 }
+*/
 
+// COMMENTED OUT - UNUSED: Raw file serving (not used by frontend)
 // handleGetRaw godoc
 // @Summary Get a raw file from a vault
 // @Description Get the raw content of a file from a vault
@@ -87,6 +91,7 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 // @Failure 405 {object} ErrorResponse
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v1/raw/{vault}/{path} [get]
+/*
 func (s *Server) handleGetRaw(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -119,6 +124,7 @@ func (s *Server) handleGetRaw(w http.ResponseWriter, r *http.Request) {
 	// Serve raw file
 	http.ServeFile(w, r, fullPath)
 }
+*/
 
 // handleGetFileByID godoc
 // @Summary Get a file from a vault by node ID
@@ -306,6 +312,7 @@ func (s *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// COMMENTED OUT - UNUSED: Lazy-loaded children (frontend now uses full tree)
 // handleGetChildren godoc
 // @Summary Get directory children
 // @Description Get the direct children of a directory (lazy-loaded)
@@ -319,6 +326,7 @@ func (s *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 // @Failure 405 {object} ErrorResponse
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v1/files/children/{vault} [get]
+/*
 func (s *Server) handleGetChildren(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -354,6 +362,7 @@ func (s *Server) handleGetChildren(w http.ResponseWriter, r *http.Request) {
 		"count":    len(children),
 	})
 }
+*/
 
 // handleGetMetadata godoc
 // @Summary Get file/directory metadata
@@ -418,6 +427,7 @@ func (s *Server) handleGetMetadata(w http.ResponseWriter, r *http.Request) {
 	writeSuccess(w, metadata)
 }
 
+// COMMENTED OUT - UNUSED: Manual tree refresh (removed from frontend)
 // handleRefreshTree godoc
 // @Summary Refresh directory tree
 // @Description Manually refresh the cached directory tree for a path
@@ -431,6 +441,7 @@ func (s *Server) handleGetMetadata(w http.ResponseWriter, r *http.Request) {
 // @Failure 405 {object} ErrorResponse
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v1/files/refresh/{vault} [post]
+/*
 func (s *Server) handleRefreshTree(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -478,7 +489,9 @@ func (s *Server) handleRefreshTree(w http.ResponseWriter, r *http.Request) {
 		"path":    path,
 	})
 }
+*/
 
+// COMMENTED OUT - UNUSED: Lazy-loaded children by ID (frontend now uses full tree)
 // handleGetChildrenByID godoc
 // @Summary Get directory children by ID
 // @Description Get the direct children of a directory by node ID
@@ -492,6 +505,7 @@ func (s *Server) handleRefreshTree(w http.ResponseWriter, r *http.Request) {
 // @Failure 405 {object} ErrorResponse
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v1/files/children-by-id/{vault}/{id} [get]
+/*
 func (s *Server) handleGetChildrenByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -552,7 +566,9 @@ func (s *Server) handleGetChildrenByID(w http.ResponseWriter, r *http.Request) {
 		"count":    len(nodes),
 	})
 }
+*/
 
+// COMMENTED OUT - UNUSED: Lazy-loaded tree by ID (frontend now uses full tree)
 // handleGetTreeByID godoc
 // @Summary Get directory tree by ID
 // @Description Get the directory tree (lazy-loaded) for a node ID
@@ -566,6 +582,7 @@ func (s *Server) handleGetChildrenByID(w http.ResponseWriter, r *http.Request) {
 // @Failure 405 {object} ErrorResponse
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v1/files/tree-by-id/{vault}/{id} [get]
+/*
 func (s *Server) handleGetTreeByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -639,6 +656,7 @@ func (s *Server) handleGetTreeByID(w http.ResponseWriter, r *http.Request) {
 		"loaded":   true,
 	})
 }
+*/
 
 // handleForceReindex godoc
 // @Summary Force reindex vault

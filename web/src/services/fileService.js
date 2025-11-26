@@ -22,40 +22,6 @@ export default {
   },
 
   /**
-   * Fetches the direct children of a directory for a given vault and path.
-   * @param {string} vaultId - The ID of the vault.
-   * @param {string} [path=''] - The directory path (empty for root).
-   * @returns {Promise<Array<object>>} - A promise that resolves to an array of child nodes.
-   */
-  getChildren(vaultId, path = '') {
-    return axios.get(`${BASE_URL}/children/${vaultId}`, { params: { path } })
-      .then(response => {
-        // API returns: { data: { path, children, count } }
-        if (response.data && response.data.data && response.data.data.children) {
-          return response.data.data.children;
-        }
-        return [];
-      });
-  },
-
-  /**
-   * Fetches the direct children of a directory by node ID.
-   * @param {string} vaultId - The ID of the vault.
-   * @param {string} nodeId - The node ID (parent directory ID).
-   * @returns {Promise<Array<object>>} - A promise that resolves to an array of child nodes.
-   */
-  getChildrenByID(vaultId, nodeId) {
-    return axios.get(`${BASE_URL}/children-by-id/${vaultId}/${nodeId}`)
-      .then(response => {
-        // API returns: { data: { id, children, count } }
-        if (response.data && response.data.data && response.data.data.children) {
-          return response.data.data.children;
-        }
-        return [];
-      });
-  },
-
-  /**
    * Fetches metadata for a file or directory.
    * @param {string} vaultId - The ID of the vault.
    * @param {string} path - The file or directory path.
@@ -70,16 +36,6 @@ export default {
         }
         return null;
       });
-  },
-
-  /**
-   * Manually refreshes the cached directory tree for a path.
-   * @param {string} vaultId - The ID of the vault.
-   * @param {string} [path=''] - The directory path (empty for root).
-   * @returns {Promise<object>} - A promise that resolves to a success message.
-   */
-  refreshTree(vaultId, path = '') {
-    return axios.post(`${BASE_URL}/refresh/${vaultId}`, null, { params: { path } });
   },
   /**
    * Fetches the content of a file by its node ID.

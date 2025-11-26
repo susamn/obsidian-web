@@ -139,14 +139,11 @@ import { ref, onMounted, watch, computed, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
 import { usePersistentTreeStore } from '../stores/persistentTreeStore';
-import { useRendererStore } from '../stores/rendererStore';
 import { useSearchStore } from '../stores/searchStore';
 import { useSSE } from '../composables/useSSE';
 import FileTree from '../components/FileTree.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import SearchResults from '../components/SearchResults.vue';
-import MarkdownRenderer from '../components/MarkdownRenderer.vue';
-import SSRRenderer from '../components/SSRRenderer.vue';
 import StructuredRenderer from '../components/StructuredRenderer.vue';
 import CanvasRenderer from '../components/CanvasRenderer.vue';
 import CreateNoteDialog from '../components/CreateNoteDialog.vue';
@@ -154,11 +151,7 @@ import CreateNoteDialog from '../components/CreateNoteDialog.vue';
 const route = useRoute();
 const fileStore = useFileStore();
 const persistentTreeStore = usePersistentTreeStore();
-const rendererStore = useRendererStore();
 const searchStore = useSearchStore();
-
-// Load renderer preference on component setup
-rendererStore.loadRendererFromLocalStorage();
 
 const vaultName = ref('');
 const expandedNodes = ref({});
@@ -201,17 +194,9 @@ const isCanvasFile = computed(() => {
   return fileStore.currentPath.toLowerCase().endsWith('.canvas');
 });
 
-// Dynamic renderer component
+// Dynamic renderer component - always use StructuredRenderer for markdown, CanvasRenderer for canvas files
 const currentRendererComponent = computed(() => {
-  // Check if it's a canvas file first
-  if (isCanvasFile.value) {
-    return CanvasRenderer;
-  }
-
-  if (rendererStore.isStructuredRenderer) {
-    return StructuredRenderer;
-  }
-  return rendererStore.isBrowserRenderer ? MarkdownRenderer : SSRRenderer;
+  return isCanvasFile.value ? CanvasRenderer : StructuredRenderer;
 });
 
 const handleToggleExpand = (node) => {
@@ -252,10 +237,8 @@ const handleFileSelected = async (node) => {
     // Check if this is a canvas file
     const isCanvas = filePath.toLowerCase().endsWith('.canvas');
 
-    // Fetch content for:
-    // - Canvas files (always need content)
-    // - Browser/SSR renderers (not structured renderer)
-    if (isCanvas || !rendererStore.isStructuredRenderer) {
+    if (isCanvas) {
+      // Canvas files need content fetched
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id);
 
       // Update the path from server response if available (contains relative path)
@@ -268,7 +251,7 @@ const handleFileSelected = async (node) => {
         }
       }
     } else {
-      // For structured renderer, the watcher will handle fetching
+      // For StructuredRenderer, the watcher will handle fetching
       // Just set a placeholder to ensure the component is shown
       fileStore.selectedFileContent = 'loading';
     }
@@ -345,7 +328,7 @@ const handleSearchResultSelected = async (result) => {
 
     // Fetch file content using file ID
     const isCanvas = relativePath.toLowerCase().endsWith('.canvas');
-    if (isCanvas || !rendererStore.isStructuredRenderer) {
+    if (isCanvas) {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
 
       // Update the path from server response if available
@@ -353,7 +336,7 @@ const handleSearchResultSelected = async (result) => {
         fileStore.setCurrentPath(fileData.path);
       }
     } else {
-      // For structured renderer, just set a placeholder
+      // For StructuredRenderer, just set a placeholder
       fileStore.selectedFileContent = 'loading';
     }
 
@@ -409,15 +392,15 @@ const handleWikilinkNavigation = async (event) => {
     // Check if this is a canvas file
     const isCanvas = path.toLowerCase().endsWith('.canvas');
 
-    // For structured renderer (non-canvas), set placeholder to show component
-    if (!isCanvas && rendererStore.isStructuredRenderer) {
-      fileStore.selectedFileContent = 'loading';
-    } else {
-      // For other renderers and canvas files, fetch content
+    if (isCanvas) {
+      // Canvas files need content fetched
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId);
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path);
       }
+    } else {
+      // For StructuredRenderer, set placeholder to show component
+      fileStore.selectedFileContent = 'loading';
     }
   } catch (error) {
     console.error('[VaultView] Failed to navigate to wikilink:', error);
@@ -446,36 +429,9 @@ const closeCreateDialog = () => {
 const handleFileCreated = async (result) => {
   console.log('[VaultView] File/folder created:', result);
 
-  // Find the parent folder path
-  let parentPath = '';
-  if (createParentId.value) {
-    const dbService = fileStore.vaults?.[fileStore.vaultId]?.GetDBService();
-    if (dbService) {
-      try {
-        const parentEntry = await dbService.GetFileEntryByID(createParentId.value);
-        if (parentEntry) {
-          parentPath = parentEntry.Path;
-        }
-      } catch (err) {
-        console.error('[VaultView] Failed to get parent path:', err);
-      }
-    }
-  }
-
-  // Refresh the parent folder to show the new item
-  console.log('[VaultView] Refreshing parent folder:', parentPath);
-  await fileStore.fetchChildren(fileStore.vaultId, parentPath);
-  updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
-
-  // Update persistent tree
-  try {
-    persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
-  } catch (err) {
-    console.warn('[VaultView] Failed to update persistent tree:', err);
-  }
-
-  // Force Vue update
-  fileStore.treeData = [...fileStore.treeData];
+  // Refresh the entire tree to show the new item
+  await fileStore.fetchTree(fileStore.vaultId);
+  persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData);
 };
 
 const currentFileName = computed(() => {
@@ -560,14 +516,14 @@ const goBack = async () => {
     // Check if this is a canvas file
     const isCanvas = item.filePath.toLowerCase().endsWith('.canvas');
 
-    // For structured renderer (non-canvas), set placeholder
-    if (!isCanvas && rendererStore.isStructuredRenderer) {
-      fileStore.selectedFileContent = 'loading';
-    } else {
+    if (isCanvas) {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path);
       }
+    } else {
+      // For StructuredRenderer, set placeholder
+      fileStore.selectedFileContent = 'loading';
     }
   } finally {
     isNavigatingHistory.value = false;
@@ -614,14 +570,14 @@ const goForward = async () => {
     // Check if this is a canvas file
     const isCanvas = item.filePath.toLowerCase().endsWith('.canvas');
 
-    // For structured renderer (non-canvas), set placeholder
-    if (!isCanvas && rendererStore.isStructuredRenderer) {
-      fileStore.selectedFileContent = 'loading';
-    } else {
+    if (isCanvas) {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId);
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path);
       }
+    } else {
+      // For StructuredRenderer, set placeholder
+      fileStore.selectedFileContent = 'loading';
     }
   } finally {
     isNavigatingHistory.value = false;
@@ -630,328 +586,12 @@ const goForward = async () => {
 
 
 
-const updateNodeChildren = (nodes, targetId, newChildren) => {
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-
-    // Use ID-based comparison instead of path
-    if (node.metadata.id === targetId) {
-      console.log('[VaultView] Found matching node! Updating children count:', newChildren.length);
-      // Update children with new array
-      node.children = newChildren;
-      return true;
-    }
-    // Recursively search in child nodes
-    if (node.metadata.is_directory && node.children && node.children.length > 0) {
-      if (updateNodeChildren(node.children, targetId, newChildren)) {
-        return true;
-      }
-    }
-  }
-  return false;
-};
-
-const updateNodeChildrenByPath = (nodes, targetPath, newChildren) => {
-  // For root path, update the root nodes directly
-  if (targetPath === '') {
-    console.log('[VaultView] Updating root children, count:', newChildren.length);
-    nodes.splice(0, nodes.length, ...newChildren);
-    return true;
-  }
-
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-
-    // Use path-based comparison
-    if (node.metadata.path === targetPath) {
-      console.log('[VaultView] Found matching node by path! Updating children count:', newChildren.length);
-      // Update children with new array
-      node.children = newChildren;
-      return true;
-    }
-    // Recursively search in child nodes
-    if (node.metadata.is_directory && node.children && node.children.length > 0) {
-      if (updateNodeChildrenByPath(node.children, targetPath, newChildren)) {
-        return true;
-      }
-    }
-  }
-  return false;
-};
-
-/**
- * Refresh a specific node or the entire tree
- */
-const refreshNode = async (path = '') => {
-  console.log('[VaultView] Refreshing node:', path);
-
-  if (path === '') {
-    // Refresh entire tree
-    await fileStore.fetchTree(fileStore.vaultId);
-  } else {
-    // Find the parent directory and refresh it
-    const parentPath = path.substring(0, path.lastIndexOf('/'));
-
-    // Check if parent is expanded
-    if (expandedNodes.value[parentPath] !== undefined) {
-      // Refresh parent's children
-      await fileStore.fetchChildren(fileStore.vaultId, parentPath);
-      updateNodeChildren(fileStore.treeData, parentPath, fileStore.childrenData);
-    } else {
-      // If parent is not expanded, just invalidate cache by refreshing the tree
-      await fileStore.fetchTree(fileStore.vaultId);
-    }
-  }
-};
-
-/**
- * Helper to get parent path from a file path
- */
-const getParentPath = (eventPath) => {
-  const lastSlash = eventPath.lastIndexOf('/');
-  return lastSlash === -1 ? '' : eventPath.substring(0, lastSlash);
-};
-
-/**
- * Find a node in the tree by path
- */
-const findNodeByPath = (nodes, targetPath) => {
-  if (!nodes) return null;
-
-  for (const node of nodes) {
-    if (node.metadata.path === targetPath) {
-      return node;
-    }
-    if (node.children && node.children.length > 0) {
-      const found = findNodeByPath(node.children, targetPath);
-      if (found) return found;
-    }
-  }
-  return null;
-};
-
-/**
- * Find parent directory node in the tree
- */
-const findParentNode = (nodes, parentPath) => {
-  if (parentPath === '') {
-    // Root's children are the main nodes
-    return { children: nodes };
-  }
-  return findNodeByPath(nodes, parentPath);
-};
-
-/**
- * Find and remove a child node from parent by path
- */
-const removeChildFromParent = (nodes, targetPath) => {
-  const lastSlash = targetPath.lastIndexOf('/');
-  const parentPath = lastSlash === -1 ? '' : targetPath.substring(0, lastSlash);
-  const fileName = targetPath.substring(lastSlash + 1);
-
-  const parent = findParentNode(nodes, parentPath);
-  if (!parent || !parent.children) return false;
-
-  const index = parent.children.findIndex(
-    (child) => child.metadata.name === fileName
-  );
-  if (index !== -1) {
-    parent.children.splice(index, 1);
-    return true;
-  }
-  return false;
-};
-
-
-// SSE event handlers with smart path-based updates
+// SSE event handlers
 const sseCallbacks = {
   onConnected: (data) => {
     console.log('[VaultView] SSE connected:', data);
     connected.value = true;
     error.value = null;
-  },
-
-  onFileCreated: async (event) => {
-    console.log('[VaultView] File created event:', event);
-
-    const parentPath = getParentPath(event.path);
-    const parentNode = findNodeByPath(fileStore.treeData, parentPath);
-
-    // Only fetch children if parent folder is expanded (visible in UI)
-    // This prevents unnecessary API calls for files in collapsed folders
-    if (!parentNode || !expandedNodes.value[parentNode.metadata.id]) {
-      console.log('[VaultView] Parent folder not expanded, skipping update for:', event.path);
-      return;
-    }
-
-    // Refresh parent's children to get the new file
-    await fileStore.fetchChildren(fileStore.vaultId, parentPath);
-
-    // Find parent node and update its children
-    updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
-
-    // Update persistent tree
-    try {
-      persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
-    } catch (err) {
-      console.warn('[VaultView] Failed to update persistent tree:', err);
-    }
-
-    // Force Vue update to render the new element
-    fileStore.treeData = [...fileStore.treeData];
-
-    // Get old children IDs for animation
-    const oldChildrenIds = new Set(
-      (parentNode?.children || []).map(child => child.metadata?.id).filter(Boolean)
-    );
-
-    // Find the newly added node and animate it with retry logic
-    const animateNewElement = (attempt = 0) => {
-      const maxAttempts = 10; // Increased for nested folders
-      const delayMs = 50 * (attempt + 1); // Progressive delay
-
-      if (attempt >= maxAttempts) {
-        console.warn('[VaultView] Failed to animate new file after', maxAttempts, 'attempts');
-        return;
-      }
-
-      // Find the new child that wasn't in the old list
-      const newChild = fileStore.childrenData.find(
-        child => child.metadata?.id && !oldChildrenIds.has(child.metadata.id)
-      );
-
-      if (!newChild || !newChild.metadata?.id) {
-        console.warn('[VaultView] New child not found in data');
-        return;
-      }
-
-      // Find the DOM element
-      const element = document.querySelector(`[data-node-id="${newChild.metadata.id}"]`);
-
-      if (element) {
-        console.log('[VaultView] Animating new file (attempt', attempt + 1, ')');
-
-        // Start with opacity 0 and translate
-        element.style.opacity = '0';
-        element.style.transform = 'translateY(-10px)';
-
-        // Force reflow
-        void element.offsetHeight;
-
-        // Animate in
-        requestAnimationFrame(() => {
-          element.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
-          element.style.opacity = '1';
-          element.style.transform = 'translateY(0)';
-
-          // Clean up after animation
-          setTimeout(() => {
-            element.style.transition = '';
-            element.style.transform = '';
-          }, 450);
-        });
-      } else {
-        // Element not found yet, try again after a delay
-        console.log('[VaultView] Element not found, retrying in', delayMs, 'ms');
-        setTimeout(() => animateNewElement(attempt + 1), delayMs);
-      }
-    };
-
-    // Start animation attempts after Vue renders
-    nextTick(() => {
-      setTimeout(() => animateNewElement(0), 100);
-    });
-  },
-
-  onFileModified: async (event) => {
-    console.log('[VaultView] File modified event:', event);
-
-    // If the modified file is currently selected, re-fetch its content
-    if (fileStore.currentPath === event.path && currentFileId.value) {
-      console.log('[VaultView] Refetching content for selected file:', event.path);
-      await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value);
-    }
-  },
-
-  onFileDeleted: async (event) => {
-    console.log('[VaultView] File deleted event:', event);
-
-    // If the deleted file was currently selected, clear its content
-    if (fileStore.currentPath === event.path) {
-      fileStore.selectedFileContent = null;
-      currentFileId.value = null;
-    }
-
-    // Find the node to be deleted to get its ID for animation
-    const nodeToDelete = findNodeByPath(fileStore.treeData, event.path);
-    const nodeId = nodeToDelete?.metadata?.id;
-
-    // Animate the element out before removing it
-    let animationCompleted = false;
-    if (nodeId) {
-      const element = document.querySelector(`[data-node-id="${nodeId}"]`);
-
-      if (element) {
-        console.log('[VaultView] Animating deletion of file:', event.path);
-
-        try {
-          // Animate out with fade and slide
-          element.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
-          element.style.opacity = '0';
-          element.style.transform = 'translateX(-10px)';
-
-          // Wait for animation to complete before removing from DOM
-          await new Promise(resolve => setTimeout(resolve, 400));
-          animationCompleted = true;
-        } catch (err) {
-          console.warn('[VaultView] Animation error:', err);
-        }
-      } else {
-        console.warn('[VaultView] Could not find element to animate deletion:', event.path);
-      }
-    }
-
-    // Always remove from tree, even if animation failed
-    const removed = removeChildFromParent(fileStore.treeData, event.path);
-
-    if (removed) {
-      console.log('[VaultView] Successfully removed node from tree');
-
-      // Update persistent tree (with error handling)
-      try {
-        persistentTreeStore.removeNode(fileStore.vaultId, event.path);
-      } catch (err) {
-        console.warn('[VaultView] Failed to remove from persistent tree:', err);
-      }
-
-      // Force Vue update
-      fileStore.treeData = [...fileStore.treeData];
-    } else {
-      console.warn('[VaultView] Failed to remove node from tree, path:', event.path);
-
-      // Fallback: refresh the parent folder to sync state
-      const lastSlash = event.path.lastIndexOf('/');
-      const parentPath = lastSlash === -1 ? '' : event.path.substring(0, lastSlash);
-
-      console.log('[VaultView] Attempting fallback: refreshing parent folder:', parentPath);
-      try {
-        await fileStore.fetchChildren(fileStore.vaultId, parentPath);
-        updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
-        fileStore.treeData = [...fileStore.treeData];
-
-        // Update persistent tree
-        persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
-      } catch (err) {
-        console.error('[VaultView] Fallback refresh failed:', err);
-      }
-    }
-  },
-
-  onTreeRefresh: async (event) => {
-    console.log('[VaultView] Tree refresh requested:', event.path);
-    // Refresh the full tree to ensure consistency
-    await fileStore.fetchTree(fileStore.vaultId);
-    persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData);
   },
 
   onBulkUpdate: async (data) => {
@@ -963,58 +603,38 @@ const sseCallbacks = {
     // Activate progress indicator
     bulkOperationProgress.value = {
       active: true,
-      processed: data.changes.length,
+      processed: 0,
       total: total,
-      percentage: Math.round((data.changes.length / total) * 100)
+      percentage: 0
     };
 
-    // Process changes in-place without re-fetching tree
-    // This is much more efficient than calling fetchTree for bulk operations
-    let treeModified = false;
-    for (const change of data.changes) {
-      const parentPath = getParentPath(change.path);
+    // Refresh the entire tree from server
+    await fileStore.fetchTree(fileStore.vaultId);
+    persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData);
 
-      switch (change.type) {
-        case 'file_created':
-          // For created files, we need to fetch parent's children to get the new node
-          // But only if the parent is currently expanded in the UI
-          const parentNode = findNodeByPath(fileStore.treeData, parentPath);
-          if (parentNode && expandedNodes.value[parentNode.metadata.id]) {
-            await fileStore.fetchChildren(fileStore.vaultId, parentPath);
-            updateNodeChildrenByPath(fileStore.treeData, parentPath, fileStore.childrenData);
-            persistentTreeStore.updateNodeChildren(fileStore.vaultId, parentPath, fileStore.childrenData);
-            treeModified = true;
-          }
-          break;
+    // If currently selected file was modified or deleted, refresh its content
+    const currentFileChange = data.changes.find(change =>
+      fileStore.currentPath === change.path
+    );
 
-        case 'file_modified':
-          // For modified files, if it's the currently selected file, refresh its content
-          if (fileStore.currentPath === change.path && currentFileId.value) {
-            await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value);
-          }
-          break;
-
-        case 'file_deleted':
-          // Remove the node from tree
-          const removed = removeChildFromParent(fileStore.treeData, change.path);
-          if (removed) {
-            persistentTreeStore.removeNode(fileStore.vaultId, change.path);
-            treeModified = true;
-
-            // If deleted file was selected, clear it
-            if (fileStore.currentPath === change.path) {
-              fileStore.selectedFileContent = null;
-              currentFileId.value = null;
-            }
-          }
-          break;
+    if (currentFileChange) {
+      if (currentFileChange.type === 'file_deleted') {
+        // Clear content if file was deleted
+        fileStore.selectedFileContent = null;
+        currentFileId.value = null;
+      } else if (currentFileChange.type === 'file_modified' && currentFileId.value) {
+        // Refresh content if file was modified
+        await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value);
       }
     }
 
-    // Only update the tree reference if we made changes (triggers Vue reactivity)
-    if (treeModified) {
-      fileStore.treeData = [...fileStore.treeData];
-    }
+    // Update progress
+    bulkOperationProgress.value = {
+      active: true,
+      processed: total,
+      total: total,
+      percentage: 100
+    };
 
     // Clear progress after a delay
     setTimeout(() => {

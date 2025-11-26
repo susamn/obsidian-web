@@ -60,32 +60,37 @@ func NewServer(ctx context.Context, cfg *config.Config, vaults map[string]*vault
 // setupRoutes configures all HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// API routes - ID-based endpoints must come before path-based ones
-	mux.HandleFunc("/api/v1/assets/", s.handleGetAsset)
-	mux.HandleFunc("/api/v1/file/create", s.handleCreateFile)
-	mux.HandleFunc("/api/v1/files/tree-by-id/", s.handleGetTreeByID)
-	mux.HandleFunc("/api/v1/files/children-by-id/", s.handleGetChildrenByID)
-	mux.HandleFunc("/api/v1/files/ssr/by-id/", s.handleSSRFileByID)
-	mux.HandleFunc("/api/v1/files/sr/by-id/", s.handleStructuredRenderByID)
-	mux.HandleFunc("/api/v1/files/by-id/", s.handleGetFileByID)
-	mux.HandleFunc("/api/v1/files/reindex/", s.handleForceReindex)
-	mux.HandleFunc("/api/v1/files/tree/", s.handleGetTree)
-	mux.HandleFunc("/api/v1/files/children/", s.handleGetChildren)
-	mux.HandleFunc("/api/v1/files/meta/", s.handleGetMetadata)
-	mux.HandleFunc("/api/v1/files/refresh/", s.handleRefreshTree)
-	mux.HandleFunc("/api/v1/files/", s.handleGetFile)
-	mux.HandleFunc("/api/v1/raw/", s.handleGetRaw)
-	mux.HandleFunc("/api/v1/search/", s.handleSearch)
-	mux.HandleFunc("/api/v1/vaults", s.handleVaults)
-	mux.HandleFunc("/api/v1/vaults/", s.handleVaultOps)
-	mux.HandleFunc("/api/v1/health", s.handleHealth)
-	mux.HandleFunc("/api/v1/metrics/", s.handleMetrics)
 
-	// SSE routes - stats must be registered before the wildcard route
-	mux.HandleFunc("/api/v1/sse/stats", s.handleSSEStats)
-	mux.HandleFunc("/api/v1/sse/", s.handleSSE)
+	// ACTIVE ROUTES - Used by frontend
+	mux.HandleFunc("/api/v1/assets/", s.handleGetAsset)                     // Images/assets in markdown
+	mux.HandleFunc("/api/v1/file/create", s.handleCreateFile)               // CreateNoteDialog
+	mux.HandleFunc("/api/v1/files/sr/by-id/", s.handleStructuredRenderByID) // StructuredRenderer
+	mux.HandleFunc("/api/v1/files/by-id/", s.handleGetFileByID)             // fileService.getFileContent
+	mux.HandleFunc("/api/v1/files/tree/", s.handleGetTree)                  // fileService.getTree
+	mux.HandleFunc("/api/v1/files/meta/", s.handleGetMetadata)              // fileService.getMetadata
+	mux.HandleFunc("/api/v1/search/", s.handleSearch)                       // SearchPanel
+	mux.HandleFunc("/api/v1/vaults", s.handleVaults)                        // HomeView
+	mux.HandleFunc("/api/v1/health", s.handleHealth)                        // Health check
+	mux.HandleFunc("/api/v1/sse/", s.handleSSE)                             // useSSE composable
 
-	// Swagger
-	mux.HandleFunc("/swagger/", s.handleSwagger)
+	mux.HandleFunc("/api/v1/files/reindex/", s.handleForceReindex) // Force reindex
+	mux.HandleFunc("/api/v1/vaults/", s.handleVaultOps)            // Vault operations
+	mux.HandleFunc("/api/v1/sse/stats", s.handleSSEStats)          // SSE stats
+	mux.HandleFunc("/swagger/", s.handleSwagger)                   // Swagger UI
+
+	// COMMENTED OUT - UNUSED ROUTES
+	// mux.HandleFunc("/api/v1/files/tree-by-id/", s.handleGetTreeByID)        // Lazy-loaded tree by ID
+	// mux.HandleFunc("/api/v1/files/children-by-id/", s.handleGetChildrenByID) // Lazy-loaded children by ID
+	// mux.HandleFunc("/api/v1/files/ssr/by-id/", s.handleSSRFileByID)         // SSR renderer (removed from frontend)
+	// mux.HandleFunc("/api/v1/files/reindex/", s.handleForceReindex)          // Force reindex
+	// mux.HandleFunc("/api/v1/files/children/", s.handleGetChildren)          // Lazy-loaded children (removed)
+	// mux.HandleFunc("/api/v1/files/refresh/", s.handleRefreshTree)           // Manual tree refresh (removed)
+	// mux.HandleFunc("/api/v1/files/", s.handleGetFile)                       // Path-based file access
+	// mux.HandleFunc("/api/v1/raw/", s.handleGetRaw)                          // Raw file serving
+	// mux.HandleFunc("/api/v1/vaults/", s.handleVaultOps)                     // Vault operations
+	// mux.HandleFunc("/api/v1/metrics/", s.handleMetrics)                     // Metrics endpoint
+	// mux.HandleFunc("/api/v1/sse/stats", s.handleSSEStats)                   // SSE stats
+	// mux.HandleFunc("/swagger/", s.handleSwagger)                            // Swagger UI
 
 	// Static files
 	spa := spaHandler{staticPath: "./internal/public", indexPath: "index.html"}

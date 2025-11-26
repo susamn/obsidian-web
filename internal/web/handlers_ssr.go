@@ -1,5 +1,7 @@
 package web
 
+// COMMENTED OUT - Imports only used by commented SSR handler
+/*
 import (
 	"fmt"
 	"net/http"
@@ -7,6 +9,7 @@ import (
 	"github.com/susamn/obsidian-web/internal/logger"
 	"github.com/susamn/obsidian-web/internal/render"
 )
+*/
 
 // RenderedFileResponse represents the server-side rendered file content
 type RenderedFileResponse struct {
@@ -15,6 +18,7 @@ type RenderedFileResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
+// COMMENTED OUT - UNUSED: SSR rendering (SSRRenderer removed from frontend)
 // handleSSRFileByID godoc
 // @Summary Get a server-side rendered file from a vault by node ID
 // @Description Get the content of a markdown file rendered to HTML server-side using Goldmark
@@ -28,6 +32,7 @@ type RenderedFileResponse struct {
 // @Failure 405 {object} ErrorResponse
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v1/files/ssr/by-id/{vault}/{id} [get]
+/*
 func (s *Server) handleSSRFileByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -82,3 +87,4 @@ func (s *Server) handleSSRFileByID(w http.ResponseWriter, r *http.Request) {
 		HTML: html,
 	})
 }
+*/

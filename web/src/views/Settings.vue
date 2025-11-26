@@ -13,46 +13,19 @@
       </select>
     </div>
 
-    <!-- Renderer Selection -->
-    <div class="renderer-selection">
-      <h2>Markdown Renderer</h2>
-      <p class="renderer-description">Choose how markdown files are rendered</p>
-      <select v-model="selectedRenderer" @change="setRenderer" class="renderer-select">
-        <option value="structured">Structured Renderer (Recommended)</option>
-        <option value="browser">Browser Markdown Rendering</option>
-        <option value="ssr">Server Side Rendering</option>
-      </select>
-      <p class="renderer-info">
-        <span v-if="selectedRenderer === 'structured'" class="info-text">
-          <i class="fas fa-check-circle"></i> Structured renderer processes metadata on the server and renders in the browser. Best performance and features.
-        </span>
-        <span v-else-if="selectedRenderer === 'browser'" class="info-text">
-          <i class="fas fa-check-circle"></i> Browser rendering provides real-time syntax highlighting and live preview
-        </span>
-        <span v-else class="info-text">
-          <i class="fas fa-check-circle"></i> Server-side rendering will be rendered by the backend
-        </span>
-      </p>
-    </div>
   </div>
 </template>
 
 <script>
 import { useThemeStore } from '../stores/theme';
-import { useRendererStore } from '../stores/rendererStore';
 
 export default {
   name: 'SettingsView',
   setup() {
     const themeStore = useThemeStore();
-    const rendererStore = useRendererStore();
-
-    // Load saved renderer preference
-    rendererStore.loadRendererFromLocalStorage();
 
     return {
       themeStore,
-      rendererStore,
     };
   },
   data() {
@@ -79,21 +52,10 @@ export default {
         this.themeStore.setTheme(value);
       },
     },
-    selectedRenderer: {
-      get() {
-        return this.rendererStore.currentRenderer;
-      },
-      set(value) {
-        this.rendererStore.setRenderer(value);
-      },
-    },
   },
   methods: {
     setTheme(event) {
       this.themeStore.setTheme(event.target.value);
-    },
-    setRenderer(event) {
-      this.rendererStore.setRenderer(event.target.value);
     },
     goBack() {
       this.$router.push('/');
@@ -129,46 +91,5 @@ export default {
   background-color: var(--background-color-light);
   color: var(--text-color);
   border-radius: 4px;
-}
-
-.renderer-selection {
-  margin-top: 2.5rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.renderer-description {
-  color: var(--text-color-secondary);
-  font-size: 0.95rem;
-  margin-bottom: 1rem;
-}
-
-.renderer-select {
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-color-light);
-  color: var(--text-color);
-  border-radius: 4px;
-  margin-bottom: 1rem;
-}
-
-.renderer-info {
-  padding: 1rem;
-  background-color: var(--background-color-light);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  color: var(--text-color-secondary);
-  font-size: 0.9rem;
-}
-
-.info-text {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.info-text i {
-  color: #10b981;
-  font-size: 1rem;
 }
 </style>

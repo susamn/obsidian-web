@@ -2,7 +2,7 @@ package web
 
 import (
 	"net/http"
-	"runtime"
+	// "runtime" // COMMENTED OUT - only used by commented handlers
 	"time"
 )
 
@@ -56,6 +56,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// COMMENTED OUT - UNUSED: Metrics endpoint (not exposed in frontend UI)
 // handleMetrics godoc
 // @Summary Get metrics
 // @Description Get system-wide or vault-specific metrics
@@ -66,6 +67,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} ErrorResponse
 // @Failure 405 {object} ErrorResponse
 // @Router /api/v1/metrics/{vault} [get]
+/*
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -146,3 +148,4 @@ func (s *Server) handleSystemMetrics(w http.ResponseWriter, r *http.Request) {
 
 	writeSuccess(w, response)
 }
+*/
