@@ -464,11 +464,19 @@ func (e *ExplorerService) getNodeMetadata(fullPath, relativePath string) (*NodeM
 
 	isDirectory := nodeType == NodeTypeDirectory
 
-	// Fetch ID from database if available
+	// Fetch ID from database if available and check if file is ACTIVE
 	id := ""
 	if e.dbService != nil {
 		entry, err := e.dbService.GetFileEntryByPath(relativePath)
 		if err == nil && entry != nil {
+			// Check if file status is ACTIVE
+			if entry.FileStatusID != nil {
+				status, err := e.dbService.GetFileStatusByID(*entry.FileStatusID)
+				if err != nil || status == nil || *status != db.FileStatusActive {
+					// File is not ACTIVE, return error to filter it out
+					return nil, fmt.Errorf("file is not active")
+				}
+			}
 			id = entry.ID
 		}
 	}

@@ -1,19 +1,13 @@
 <template>
   <div class="structured-renderer-wrapper">
     <!-- Loading State -->
-    <div
-      v-if="loading"
-      class="sr-loading"
-    >
+    <div v-if="loading" class="sr-loading">
       <i class="fas fa-spinner fa-spin" />
       <p>Loading structured data...</p>
     </div>
 
     <!-- Error State -->
-    <div
-      v-else-if="error"
-      class="sr-error"
-    >
+    <div v-else-if="error" class="sr-error">
       <i class="fas fa-exclamation-circle" />
       <p>Error loading file</p>
       <p class="error-details">
@@ -22,10 +16,7 @@
     </div>
 
     <!-- Rendered Content -->
-    <div
-      v-else-if="structuredData"
-      class="sr-content-container"
-    >
+    <div v-else-if="structuredData" class="sr-content-container">
       <!-- Outline Toggle Button -->
       <button
         v-if="outline.length > 0"
@@ -37,13 +28,8 @@
       </button>
 
       <!-- Outline Panel -->
-      <div
-        v-if="showOutline && outline.length > 0"
-        class="outline-panel"
-      >
-        <div class="outline-header">
-          Outline
-        </div>
+      <div v-if="showOutline && outline.length > 0" class="outline-panel">
+        <div class="outline-header">Outline</div>
         <nav class="outline-list">
           <a
             v-for="heading in outline"
@@ -58,26 +44,14 @@
       </div>
 
       <!-- Main Content -->
-      <div
-        ref="markdownContentRef"
-        class="sr-markdown-content"
-      >
-        <CustomMarkdownRenderer
-          :nodes="parsedNodes"
-          @wikilink-click="handleWikilinkClick"
-        />
+      <div ref="markdownContentRef" class="sr-markdown-content">
+        <CustomMarkdownRenderer :nodes="parsedNodes" @wikilink-click="handleWikilinkClick" />
       </div>
 
       <!-- Metadata Panels (optional) -->
-      <div
-        v-if="showMetadata"
-        class="sr-metadata-panels"
-      >
+      <div v-if="showMetadata" class="sr-metadata-panels">
         <!-- Tags -->
-        <div
-          v-if="tags.length > 0"
-          class="sr-metadata-panel"
-        >
+        <div v-if="tags.length > 0" class="sr-metadata-panel">
           <h3 class="metadata-title">
             <i class="fas fa-tags" />
             Tags
@@ -95,10 +69,7 @@
         </div>
 
         <!-- Backlinks -->
-        <div
-          v-if="backlinks.length > 0"
-          class="sr-metadata-panel"
-        >
+        <div v-if="backlinks.length > 0" class="sr-metadata-panel">
           <h3 class="metadata-title">
             <i class="fas fa-link" />
             Backlinks ({{ backlinks.length }})
@@ -122,10 +93,7 @@
     </div>
 
     <!-- Empty State -->
-    <div
-      v-else
-      class="sr-placeholder"
-    >
+    <div v-else class="sr-placeholder">
       <i class="fas fa-file-alt" />
       <p>Structured renderer ready</p>
     </div>

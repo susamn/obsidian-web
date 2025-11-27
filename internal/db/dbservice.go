@@ -63,17 +63,27 @@ const (
 	FileTypeUnknown   FileType = "UNKNOWN"
 )
 
+// FileStatus represents a file status constant
+type FileStatus string
+
+const (
+	FileStatusActive   FileStatus = "ACTIVE"
+	FileStatusDeleted  FileStatus = "DELETED"
+	FileStatusDisabled FileStatus = "DISABLED"
+)
+
 // FileEntry represents a file or directory record
 type FileEntry struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	ParentID   *string   `json:"parent_id,omitempty"` // nil for root entries
-	IsDir      bool      `json:"is_dir"`
-	FileTypeID *int64    `json:"file_type_id,omitempty"` // Foreign key to file_types
-	Created    time.Time `json:"created"`
-	Modified   time.Time `json:"modified"`
-	Size       int64     `json:"size"` // 0 for directories
-	Path       string    `json:"-"`    // For internal use only, hidden from API
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	ParentID     *string   `json:"parent_id,omitempty"` // nil for root entries
+	IsDir        bool      `json:"is_dir"`
+	FileTypeID   *int64    `json:"file_type_id,omitempty"`   // Foreign key to file_types
+	FileStatusID *int64    `json:"file_status_id,omitempty"` // Foreign key to file_statuses
+	Created      time.Time `json:"created"`
+	Modified     time.Time `json:"modified"`
+	Size         int64     `json:"size"` // 0 for directories
+	Path         string    `json:"-"`    // For internal use only, hidden from API
 }
 
 // DBService manages a sqlite database for file metadata
@@ -230,23 +240,32 @@ CREATE TABLE IF NOT EXISTS file_types (
   mime_type TEXT
 );
 
+CREATE TABLE IF NOT EXISTS file_statuses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT
+);
+
 CREATE TABLE IF NOT EXISTS file_entries (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   parent_id TEXT,
   is_dir INTEGER NOT NULL,
   file_type_id INTEGER,
+  file_status_id INTEGER,
   created INTEGER NOT NULL,
   modified INTEGER NOT NULL,
   size INTEGER,
   path TEXT NOT NULL UNIQUE,
   FOREIGN KEY (parent_id) REFERENCES file_entries(id) ON DELETE CASCADE,
-  FOREIGN KEY (file_type_id) REFERENCES file_types(id)
+  FOREIGN KEY (file_type_id) REFERENCES file_types(id),
+  FOREIGN KEY (file_status_id) REFERENCES file_statuses(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_parent_id ON file_entries(parent_id);
 CREATE INDEX IF NOT EXISTS idx_path ON file_entries(path);
 CREATE INDEX IF NOT EXISTS idx_file_type ON file_entries(file_type_id);
+CREATE INDEX IF NOT EXISTS idx_file_status ON file_entries(file_status_id);
 `
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
@@ -256,7 +275,12 @@ CREATE INDEX IF NOT EXISTS idx_file_type ON file_entries(file_type_id);
 	}
 
 	// Seed file types if table is empty
-	return s.seedFileTypes()
+	if err := s.seedFileTypes(); err != nil {
+		return err
+	}
+
+	// Seed file statuses if table is empty
+	return s.seedFileStatuses()
 }
 
 // seedFileTypes populates the file_types table with predefined types
@@ -317,6 +341,50 @@ func (s *DBService) seedFileTypes() error {
 	return nil
 }
 
+// seedFileStatuses populates the file_statuses table with predefined statuses
+func (s *DBService) seedFileStatuses() error {
+	db := s.getDB()
+	if db == nil {
+		return errors.New("db not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	defer cancel()
+
+	// Check if table already has data
+	var count int
+	row := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM file_statuses")
+	if err := row.Scan(&count); err != nil {
+		return fmt.Errorf("check file_statuses count: %w", err)
+	}
+
+	if count > 0 {
+		return nil // Already seeded
+	}
+
+	// Define file statuses with metadata
+	statuses := []struct {
+		name        string
+		description string
+	}{
+		{string(FileStatusActive), "File is active and available"},
+		{string(FileStatusDeleted), "File has been deleted"},
+		{string(FileStatusDisabled), "File has been disabled"},
+	}
+
+	// Insert all statuses
+	for _, fs := range statuses {
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO file_statuses(name, description) VALUES (?, ?)",
+			fs.name, fs.description)
+		if err != nil {
+			return fmt.Errorf("insert file status %s: %w", fs.name, err)
+		}
+	}
+
+	return nil
+}
+
 // GetFileTypeID returns the ID for a given file type name
 func (s *DBService) GetFileTypeID(fileType FileType) (*int64, error) {
 	db := s.getDB()
@@ -360,6 +428,51 @@ func (s *DBService) GetFileTypeByID(id int64) (*FileType, error) {
 
 	ft := FileType(name)
 	return &ft, nil
+}
+
+// GetFileStatusID returns the ID for a given file status name
+func (s *DBService) GetFileStatusID(fileStatus FileStatus) (*int64, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+	defer cancel()
+
+	var id int64
+	row := db.QueryRowContext(ctx, "SELECT id FROM file_statuses WHERE name = ?", string(fileStatus))
+	if err := row.Scan(&id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get file status id: %w", err)
+	}
+
+	return &id, nil
+}
+
+// GetFileStatusByID returns the file status name for a given ID
+func (s *DBService) GetFileStatusByID(id int64) (*FileStatus, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+	defer cancel()
+
+	var name string
+	row := db.QueryRowContext(ctx, "SELECT name FROM file_statuses WHERE id = ?", id)
+	if err := row.Scan(&name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get file status: %w", err)
+	}
+
+	fs := FileStatus(name)
+	return &fs, nil
 }
 
 // DetectFileType detects the file type from filename
@@ -420,9 +533,9 @@ func (s *DBService) CreateFileEntry(entry *FileEntry) error {
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO file_entries(id, name, parent_id, is_dir, file_type_id, created, modified, size, path)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entry.ID, entry.Name, entry.ParentID, boolToInt(entry.IsDir), entry.FileTypeID,
+		`INSERT INTO file_entries(id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entry.ID, entry.Name, entry.ParentID, boolToInt(entry.IsDir), entry.FileTypeID, entry.FileStatusID,
 		entry.Created.Unix(), entry.Modified.Unix(), entry.Size, entry.Path)
 	if err != nil {
 		return fmt.Errorf("insert entry: %w", err)
@@ -439,17 +552,18 @@ func (s *DBService) GetFileEntryByID(id string) (*FileEntry, error) {
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
 	row := db.QueryRowContext(ctx,
-		`SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE id = ?`, id)
+		`SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path FROM file_entries WHERE id = ?`, id)
 
 	var (
-		entry      FileEntry
-		isDirInt   int
-		creatUnix  sql.NullInt64
-		modUnix    sql.NullInt64
-		parentID   sql.NullString
-		fileTypeID sql.NullInt64
+		entry        FileEntry
+		isDirInt     int
+		creatUnix    sql.NullInt64
+		modUnix      sql.NullInt64
+		parentID     sql.NullString
+		fileTypeID   sql.NullInt64
+		fileStatusID sql.NullInt64
 	)
-	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID,
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID, &fileStatusID,
 		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -462,6 +576,9 @@ func (s *DBService) GetFileEntryByID(id string) (*FileEntry, error) {
 	}
 	if fileTypeID.Valid {
 		entry.FileTypeID = &fileTypeID.Int64
+	}
+	if fileStatusID.Valid {
+		entry.FileStatusID = &fileStatusID.Int64
 	}
 	entry.IsDir = intToBool(isDirInt)
 	if creatUnix.Valid {
@@ -482,17 +599,18 @@ func (s *DBService) GetFileEntryByPath(path string) (*FileEntry, error) {
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
 	row := db.QueryRowContext(ctx,
-		`SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE path = ?`, path)
+		`SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path FROM file_entries WHERE path = ?`, path)
 
 	var (
-		entry      FileEntry
-		isDirInt   int
-		creatUnix  sql.NullInt64
-		modUnix    sql.NullInt64
-		parentID   sql.NullString
-		fileTypeID sql.NullInt64
+		entry        FileEntry
+		isDirInt     int
+		creatUnix    sql.NullInt64
+		modUnix      sql.NullInt64
+		parentID     sql.NullString
+		fileTypeID   sql.NullInt64
+		fileStatusID sql.NullInt64
 	)
-	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID,
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID, &fileStatusID,
 		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -505,6 +623,9 @@ func (s *DBService) GetFileEntryByPath(path string) (*FileEntry, error) {
 	}
 	if fileTypeID.Valid {
 		entry.FileTypeID = &fileTypeID.Int64
+	}
+	if fileStatusID.Valid {
+		entry.FileStatusID = &fileStatusID.Int64
 	}
 	entry.IsDir = intToBool(isDirInt)
 	if creatUnix.Valid {
@@ -537,13 +658,23 @@ func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, err
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 
+	// Get ACTIVE status ID for filtering
+	activeStatusID, err := s.GetFileStatusID(FileStatusActive)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active status ID: %w", err)
+	}
+	if activeStatusID == nil {
+		return nil, errors.New("active status not found in database")
+	}
+
 	var query string
 	var args []interface{}
 	if parentID == nil {
-		query = `SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE parent_id IS NULL ORDER BY is_dir DESC, name ASC`
+		query = `SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path FROM file_entries WHERE parent_id IS NULL AND file_status_id = ? ORDER BY is_dir DESC, name ASC`
+		args = []interface{}{*activeStatusID}
 	} else {
-		query = `SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path FROM file_entries WHERE parent_id = ? ORDER BY is_dir DESC, name ASC`
-		args = []interface{}{*parentID}
+		query = `SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path FROM file_entries WHERE parent_id = ? AND file_status_id = ? ORDER BY is_dir DESC, name ASC`
+		args = []interface{}{*parentID, *activeStatusID}
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -560,8 +691,9 @@ func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, err
 		var modUnix sql.NullInt64
 		var parentIDStr sql.NullString
 		var fileTypeID sql.NullInt64
+		var fileStatusID sql.NullInt64
 
-		if err := rows.Scan(&entry.ID, &entry.Name, &parentIDStr, &isDirInt, &fileTypeID,
+		if err := rows.Scan(&entry.ID, &entry.Name, &parentIDStr, &isDirInt, &fileTypeID, &fileStatusID,
 			&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 			return nil, err
 		}
@@ -571,6 +703,9 @@ func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, err
 		}
 		if fileTypeID.Valid {
 			entry.FileTypeID = &fileTypeID.Int64
+		}
+		if fileStatusID.Valid {
+			entry.FileStatusID = &fileStatusID.Int64
 		}
 		entry.IsDir = intToBool(isDirInt)
 		if creatUnix.Valid {
@@ -600,8 +735,8 @@ func (s *DBService) UpdateFileEntry(entry *FileEntry) error {
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	res, err := db.ExecContext(ctx,
-		`UPDATE file_entries SET name = ?, parent_id = ?, file_type_id = ?, modified = ?, size = ?, path = ? WHERE id = ?`,
-		entry.Name, entry.ParentID, entry.FileTypeID, entry.Modified.Unix(), entry.Size, entry.Path, entry.ID)
+		`UPDATE file_entries SET name = ?, parent_id = ?, file_type_id = ?, file_status_id = ?, modified = ?, size = ?, path = ? WHERE id = ?`,
+		entry.Name, entry.ParentID, entry.FileTypeID, entry.FileStatusID, entry.Modified.Unix(), entry.Size, entry.Path, entry.ID)
 	if err != nil {
 		return fmt.Errorf("update entry: %w", err)
 	}
@@ -612,17 +747,28 @@ func (s *DBService) UpdateFileEntry(entry *FileEntry) error {
 	return nil
 }
 
-// DeleteFileEntry removes an entry by id.
+// DeleteFileEntry marks an entry as deleted by setting its status to DELETED instead of removing it.
 func (s *DBService) DeleteFileEntry(id string) error {
 	db := s.getDB()
 	if db == nil {
 		return errors.New("db not ready")
 	}
+
+	// Get the DELETED status ID
+	deletedStatusID, err := s.GetFileStatusID(FileStatusDeleted)
+	if err != nil {
+		return fmt.Errorf("failed to get deleted status ID: %w", err)
+	}
+	if deletedStatusID == nil {
+		return errors.New("deleted status not found in database")
+	}
+
 	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 	defer cancel()
-	res, err := db.ExecContext(ctx, `DELETE FROM file_entries WHERE id = ?`, id)
+	res, err := db.ExecContext(ctx, `UPDATE file_entries SET file_status_id = ?, modified = ? WHERE id = ?`,
+		*deletedStatusID, time.Now().UTC().Unix(), id)
 	if err != nil {
-		return fmt.Errorf("delete entry: %w", err)
+		return fmt.Errorf("mark entry as deleted: %w", err)
 	}
 	aff, _ := res.RowsAffected()
 	if aff == 0 {
@@ -664,15 +810,16 @@ func (s *DBService) GetFileEntryByName(name string) (*FileEntry, error) {
 	var modUnix sql.NullInt64
 	var parentID sql.NullString
 	var fileTypeID sql.NullInt64
+	var fileStatusID sql.NullInt64
 
 	row := db.QueryRowContext(ctx,
-		`SELECT id, name, parent_id, is_dir, file_type_id, created, modified, size, path
+		`SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path
 		 FROM file_entries
 		 WHERE name = ? OR name = ?
 		 LIMIT 1`,
 		name, name+".md")
 
-	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID,
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID, &fileStatusID,
 		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -685,6 +832,9 @@ func (s *DBService) GetFileEntryByName(name string) (*FileEntry, error) {
 	}
 	if fileTypeID.Valid {
 		entry.FileTypeID = &fileTypeID.Int64
+	}
+	if fileStatusID.Valid {
+		entry.FileStatusID = &fileStatusID.Int64
 	}
 	entry.IsDir = intToBool(isDirInt)
 	if creatUnix.Valid {

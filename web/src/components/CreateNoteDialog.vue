@@ -1,17 +1,9 @@
 <template>
-  <div
-    v-if="show"
-    class="dialog-overlay"
-    @click.self="handleCancel"
-  >
+  <div v-if="show" class="dialog-overlay" @click.self="handleCancel">
     <div class="dialog-container">
       <div class="dialog-header">
         <h2>{{ isFolder ? 'Create New Folder' : 'Create New Note' }}</h2>
-        <button
-          class="close-button"
-          title="Close"
-          @click="handleCancel"
-        >
+        <button class="close-button" title="Close" @click="handleCancel">
           <i class="fas fa-times" />
         </button>
       </div>
@@ -20,22 +12,12 @@
         <!-- Type Selection -->
         <div class="type-selector">
           <label class="type-option">
-            <input
-              v-model="isFolder"
-              type="radio"
-              :value="false"
-              name="item-type"
-            >
+            <input v-model="isFolder" type="radio" :value="false" name="item-type" />
             <i class="fas fa-file-alt" />
             <span>Note</span>
           </label>
           <label class="type-option">
-            <input
-              v-model="isFolder"
-              type="radio"
-              :value="true"
-              name="item-type"
-            >
+            <input v-model="isFolder" type="radio" :value="true" name="item-type" />
             <i class="fas fa-folder" />
             <span>Folder</span>
           </label>
@@ -53,27 +35,18 @@
             class="filename-input"
             @keydown.enter="handleSave"
             @keydown.esc="handleCancel"
-          >
-          <div
-            v-if="!isFolder && filename"
-            class="filename-preview"
-          >
+          />
+          <div v-if="!isFolder && filename" class="filename-preview">
             Will be saved as: <strong>{{ filenameWithExtension }}</strong>
           </div>
-          <div
-            v-if="error"
-            class="error-message"
-          >
+          <div v-if="error" class="error-message">
             <i class="fas fa-exclamation-circle" />
             {{ error }}
           </div>
         </div>
 
         <!-- Markdown Editor (only for files) -->
-        <div
-          v-if="!isFolder"
-          class="form-group"
-        >
+        <div v-if="!isFolder" class="form-group">
           <label for="content">Content (optional)</label>
           <textarea
             id="content"
@@ -91,26 +64,13 @@
       </div>
 
       <div class="dialog-footer">
-        <button
-          class="button button-secondary"
-          @click="handleCancel"
-        >
+        <button class="button button-secondary" @click="handleCancel">
           <i class="fas fa-times" />
           Cancel
         </button>
-        <button
-          class="button button-primary"
-          :disabled="!filename || saving"
-          @click="handleSave"
-        >
-          <i
-            v-if="!saving"
-            class="fas fa-save"
-          />
-          <i
-            v-else
-            class="fas fa-spinner fa-spin"
-          />
+        <button class="button button-primary" :disabled="!filename || saving" @click="handleSave">
+          <i v-if="!saving" class="fas fa-save" />
+          <i v-else class="fas fa-spinner fa-spin" />
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
       </div>

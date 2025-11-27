@@ -53,6 +53,12 @@ func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event sync
 			logger.WithField("file_type", fileType).WithField("error", err).Warn("Failed to get file type ID")
 		}
 
+		// Get ACTIVE status ID
+		activeStatusID, err := dbService.GetFileStatusID(db.FileStatusActive)
+		if err != nil {
+			logger.WithField("error", err).Warn("Failed to get active status ID")
+		}
+
 		// Ensure parent directories exist in the database
 		var parentID *string
 		parentPath := filepath.Dir(relPath)
@@ -70,15 +76,16 @@ func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event sync
 
 		// Create or update file entry in database
 		entry := &db.FileEntry{
-			ID:         utils.GenerateID(),
-			Name:       filepath.Base(event.Path),
-			IsDir:      isDir,
-			FileTypeID: fileTypeID,
-			Created:    event.Timestamp,
-			Modified:   event.Timestamp,
-			Size:       size,
-			Path:       relPath,
-			ParentID:   parentID,
+			ID:           utils.GenerateID(),
+			Name:         filepath.Base(event.Path),
+			IsDir:        isDir,
+			FileTypeID:   fileTypeID,
+			FileStatusID: activeStatusID,
+			Created:      event.Timestamp,
+			Modified:     event.Timestamp,
+			Size:         size,
+			Path:         relPath,
+			ParentID:     parentID,
 		}
 
 		// Check if entry already exists
@@ -89,6 +96,7 @@ func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event sync
 			entry.Created = existing.Created
 			entry.ParentID = existing.ParentID
 			entry.FileTypeID = fileTypeID
+			entry.FileStatusID = activeStatusID
 			if err := dbService.UpdateFileEntry(entry); err != nil {
 				return "", fmt.Errorf("failed to update entry: %w", err)
 			}
@@ -102,12 +110,12 @@ func performDatabaseUpdate(dbService *db.DBService, vaultPath string, event sync
 		}
 
 	case syncpkg.FileDeleted:
-		// Delete entry from database
+		// Mark entry as deleted in database instead of removing it
 		entry, err := dbService.GetFileEntryByPath(relPath)
 		if err == nil && entry != nil {
 			fileID := entry.ID
 			if err := dbService.DeleteFileEntry(entry.ID); err != nil {
-				return "", fmt.Errorf("failed to delete entry: %w", err)
+				return "", fmt.Errorf("failed to mark entry as deleted: %w", err)
 			}
 			return fileID, nil
 		}
@@ -130,15 +138,17 @@ func ensureParentDirsExist(dbService *db.DBService, vaultPath, parentPath string
 		// Root doesn't exist, create it
 		rootID := utils.GenerateID()
 		dirFileTypeID, _ := dbService.GetFileTypeID(db.FileTypeDirectory)
+		activeStatusID, _ := dbService.GetFileStatusID(db.FileStatusActive)
 		rootEntry := &db.FileEntry{
-			ID:         rootID,
-			Name:       "vault",
-			ParentID:   nil,
-			IsDir:      true,
-			FileTypeID: dirFileTypeID,
-			Path:       "",
-			Created:    time.Now().UTC(),
-			Modified:   time.Now().UTC(),
+			ID:           rootID,
+			Name:         "vault",
+			ParentID:     nil,
+			IsDir:        true,
+			FileTypeID:   dirFileTypeID,
+			FileStatusID: activeStatusID,
+			Path:         "",
+			Created:      time.Now().UTC(),
+			Modified:     time.Now().UTC(),
 		}
 		if err := dbService.CreateFileEntry(rootEntry); err != nil {
 			// Duplicate key error is expected when multiple workers try to create root
@@ -186,15 +196,17 @@ func ensureParentDirsExist(dbService *db.DBService, vaultPath, parentPath string
 
 		// Directory doesn't exist, create it
 		dirFileTypeID, _ := dbService.GetFileTypeID(db.FileTypeDirectory)
+		activeStatusID, _ := dbService.GetFileStatusID(db.FileStatusActive)
 		dirEntry := &db.FileEntry{
-			ID:         utils.GenerateID(),
-			Name:       part,
-			IsDir:      true,
-			FileTypeID: dirFileTypeID,
-			ParentID:   currentParentID,
-			Created:    time.Now().UTC(),
-			Modified:   time.Now().UTC(),
-			Path:       currentPath,
+			ID:           utils.GenerateID(),
+			Name:         part,
+			IsDir:        true,
+			FileTypeID:   dirFileTypeID,
+			FileStatusID: activeStatusID,
+			ParentID:     currentParentID,
+			Created:      time.Now().UTC(),
+			Modified:     time.Now().UTC(),
+			Path:         currentPath,
 		}
 
 		if err := dbService.CreateFileEntry(dirEntry); err != nil {

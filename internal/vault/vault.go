@@ -724,15 +724,17 @@ func (v *Vault) ForceReindex() error {
 	// Create root directory entry
 	rootID := utils.GenerateID()
 	dirFileTypeID, _ := v.dbService.GetFileTypeID(db.FileTypeDirectory)
+	activeStatusID, _ := v.dbService.GetFileStatusID(db.FileStatusActive)
 	rootEntry := &db.FileEntry{
-		ID:         rootID,
-		Name:       "vault",
-		ParentID:   nil, // Root has no parent
-		IsDir:      true,
-		FileTypeID: dirFileTypeID,
-		Path:       "", // Root has empty path
-		Created:    time.Now().UTC(),
-		Modified:   time.Now().UTC(),
+		ID:           rootID,
+		Name:         "vault",
+		ParentID:     nil, // Root has no parent
+		IsDir:        true,
+		FileTypeID:   dirFileTypeID,
+		FileStatusID: activeStatusID,
+		Path:         "", // Root has empty path
+		Created:      time.Now().UTC(),
+		Modified:     time.Now().UTC(),
 	}
 	if err := v.dbService.CreateFileEntry(rootEntry); err != nil {
 		return fmt.Errorf("failed to create root entry: %w", err)
@@ -774,14 +776,21 @@ func (v *Vault) walkAndPopulateDatabase(dirPath string, parentID *string) error 
 			logger.WithField("file_type", fileType).WithField("error", err).Warn("Failed to get file type ID")
 		}
 
+		// Get ACTIVE status ID
+		activeStatusID, err := v.dbService.GetFileStatusID(db.FileStatusActive)
+		if err != nil {
+			logger.WithField("error", err).Warn("Failed to get active status ID")
+		}
+
 		id := utils.GenerateID()
 		fileEntry := &db.FileEntry{
-			ID:         id,
-			Name:       entry.Name(),
-			ParentID:   parentID,
-			IsDir:      entry.IsDir(),
-			FileTypeID: fileTypeID,
-			Path:       relPath,
+			ID:           id,
+			Name:         entry.Name(),
+			ParentID:     parentID,
+			IsDir:        entry.IsDir(),
+			FileTypeID:   fileTypeID,
+			FileStatusID: activeStatusID,
+			Path:         relPath,
 		}
 
 		// Set timestamps

@@ -5,10 +5,7 @@
       <span class="md-callout-title">{{ node.title }}</span>
     </div>
     <div class="md-callout-content">
-      <InlineRenderer
-        :tokens="node.content"
-        @wikilink-click="$emit('wikilink-click', $event)"
-      />
+      <InlineRenderer :tokens="node.content" @wikilink-click="$emit('wikilink-click', $event)" />
     </div>
   </div>
 </template>

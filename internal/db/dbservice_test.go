@@ -221,31 +221,37 @@ func TestGetFileEntriesByParentID(t *testing.T) {
 	}
 	defer svc.Stop()
 
+	// Get ACTIVE status ID
+	activeStatusID, _ := svc.GetFileStatusID(FileStatusActive)
+
 	// Create parent directory
 	parentEntry := &FileEntry{
-		ID:       "dir-001",
-		Name:     "folder",
-		ParentID: nil,
-		IsDir:    true,
-		Path:     "folder",
+		ID:           "dir-001",
+		Name:         "folder",
+		ParentID:     nil,
+		IsDir:        true,
+		Path:         "folder",
+		FileStatusID: activeStatusID,
 	}
 	svc.CreateFileEntry(parentEntry)
 
 	// Create child files
 	child1 := &FileEntry{
-		ID:       "file-001",
-		Name:     "file1.md",
-		ParentID: &parentEntry.ID,
-		IsDir:    false,
-		Path:     "folder/file1.md",
+		ID:           "file-001",
+		Name:         "file1.md",
+		ParentID:     &parentEntry.ID,
+		IsDir:        false,
+		Path:         "folder/file1.md",
+		FileStatusID: activeStatusID,
 	}
 
 	child2 := &FileEntry{
-		ID:       "file-002",
-		Name:     "file2.md",
-		ParentID: &parentEntry.ID,
-		IsDir:    false,
-		Path:     "folder/file2.md",
+		ID:           "file-002",
+		Name:         "file2.md",
+		ParentID:     &parentEntry.ID,
+		IsDir:        false,
+		Path:         "folder/file2.md",
+		FileStatusID: activeStatusID,
 	}
 
 	svc.CreateFileEntry(child1)
@@ -287,14 +293,18 @@ func TestUpdateFileEntry(t *testing.T) {
 	}
 	defer svc.Stop()
 
+	// Get ACTIVE status ID
+	activeStatusID, _ := svc.GetFileStatusID(FileStatusActive)
+
 	// Create entry
 	entry := &FileEntry{
-		ID:       "file-001",
-		Name:     "test.md",
-		ParentID: nil,
-		IsDir:    false,
-		Path:     "test.md",
-		Size:     100,
+		ID:           "file-001",
+		Name:         "test.md",
+		ParentID:     nil,
+		IsDir:        false,
+		Path:         "test.md",
+		Size:         100,
+		FileStatusID: activeStatusID,
 	}
 	svc.CreateFileEntry(entry)
 
@@ -347,19 +357,33 @@ func TestDeleteFileEntry(t *testing.T) {
 	}
 	svc.CreateFileEntry(entry)
 
-	// Delete entry
+	// Delete entry (marks as DELETED)
 	if err := svc.DeleteFileEntry("file-001"); err != nil {
 		t.Fatalf("Failed to delete entry: %v", err)
 	}
 
-	// Verify deletion
+	// Verify entry is marked as deleted (not removed)
 	retrieved, err := svc.GetFileEntryByID("file-001")
 	if err != nil {
 		t.Fatalf("Failed to check deletion: %v", err)
 	}
 
-	if retrieved != nil {
-		t.Fatal("Entry should be deleted but was found")
+	if retrieved == nil {
+		t.Fatal("Entry should still exist after soft delete")
+	}
+
+	// Check that status is DELETED
+	if retrieved.FileStatusID == nil {
+		t.Fatal("FileStatusID should not be nil")
+	}
+
+	deletedStatus, err := svc.GetFileStatusByID(*retrieved.FileStatusID)
+	if err != nil {
+		t.Fatalf("Failed to get file status: %v", err)
+	}
+
+	if deletedStatus == nil || *deletedStatus != FileStatusDeleted {
+		t.Fatalf("Entry should have DELETED status, got: %v", deletedStatus)
 	}
 }
 
@@ -398,22 +422,41 @@ func TestCascadeDelete(t *testing.T) {
 	}
 	svc.CreateFileEntry(child)
 
-	// Delete parent (should cascade)
+	// Delete parent (marks as DELETED, no cascade)
 	if err := svc.DeleteFileEntry(parentEntry.ID); err != nil {
 		t.Fatalf("Failed to delete parent: %v", err)
 	}
 
-	// Verify parent is deleted
-	retrieved, _ := svc.GetFileEntryByID(parentEntry.ID)
-	if retrieved != nil {
-		t.Fatal("Parent should be deleted")
+	// Verify parent is marked as deleted (not removed)
+	retrieved, err := svc.GetFileEntryByID(parentEntry.ID)
+	if err != nil {
+		t.Fatalf("Failed to check parent deletion: %v", err)
+	}
+	if retrieved == nil {
+		t.Fatal("Parent should still exist after soft delete")
 	}
 
-	// Verify child is also deleted (cascade)
-	childRetrieved, _ := svc.GetFileEntryByID("file-001")
-	if childRetrieved != nil {
-		t.Fatal("Child should be cascade deleted")
+	// Check that parent status is DELETED
+	if retrieved.FileStatusID == nil {
+		t.Fatal("Parent FileStatusID should not be nil")
 	}
+	deletedStatus, err := svc.GetFileStatusByID(*retrieved.FileStatusID)
+	if err != nil {
+		t.Fatalf("Failed to get parent file status: %v", err)
+	}
+	if deletedStatus == nil || *deletedStatus != FileStatusDeleted {
+		t.Fatalf("Parent should have DELETED status, got: %v", deletedStatus)
+	}
+
+	// Verify child is NOT cascade deleted (soft delete doesn't cascade)
+	childRetrieved, err := svc.GetFileEntryByID("file-001")
+	if err != nil {
+		t.Fatalf("Failed to check child: %v", err)
+	}
+	if childRetrieved == nil {
+		t.Fatal("Child should still exist (soft delete doesn't cascade)")
+	}
+	// Child should still be ACTIVE (or whatever status it had)
 }
 
 // TestClearAll tests clearing all entries
