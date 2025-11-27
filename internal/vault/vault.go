@@ -178,7 +178,7 @@ func (v *Vault) initializeServices() error {
 	}
 
 	// Create workers (10 workers) - SSE manager will be set later
-	const numWorkers = 10
+	const numWorkers = 2
 	v.workers = make([]*Worker, numWorkers)
 
 	for i := 0; i < numWorkers; i++ {

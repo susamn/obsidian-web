@@ -599,50 +599,47 @@ const sseCallbacks = {
     error.value = null
   },
 
-  onBulkUpdate: async (data) => {
-    console.log('[VaultView] Bulk update received:', data.summary)
+  onBulkProcess: async (data) => {
+    console.log('[VaultView] Bulk process received:', data)
 
-    const total = data.summary.created + data.summary.modified + data.summary.deleted
-    console.log(`[VaultView] Bulk update: ${total} files changed`)
+    const changes = data.changes || []
+    console.log(`[VaultView] Processing ${changes.length} file changes`)
 
-    // Activate progress indicator
-    bulkOperationProgress.value = {
-      active: true,
-      processed: 0,
-      total: total,
-      percentage: 0,
-    }
-
-    // Refresh the entire tree from server
+    // Refetch the tree from server to get latest state
+    // This is simpler and more reliable than trying to modify nested objects
     await fileStore.fetchTree(fileStore.vaultId)
+
+    // Update persistent tree (expanded state is preserved)
     persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData)
 
-    // If currently selected file was modified or deleted, refresh its content
-    const currentFileChange = data.changes.find((change) => fileStore.currentPath === change.path)
-
-    if (currentFileChange) {
-      if (currentFileChange.type === 'file_deleted') {
-        // Clear content if file was deleted
+    // If currently selected file was deleted, clear it
+    for (const change of changes) {
+      if (fileStore.currentPath === change.path && change.action === 'delete') {
         fileStore.selectedFileContent = null
         currentFileId.value = null
-      } else if (currentFileChange.type === 'file_modified' && currentFileId.value) {
-        // Refresh content if file was modified
-        await fileStore.fetchFileContent(fileStore.vaultId, currentFileId.value)
+        console.log('[VaultView] Cleared selected file (deleted)')
+        break
       }
     }
 
-    // Update progress
-    bulkOperationProgress.value = {
-      active: true,
-      processed: total,
-      total: total,
-      percentage: 100,
-    }
+    console.log('[VaultView] Tree updated with latest data')
+  },
 
-    // Clear progress after a delay
-    setTimeout(() => {
-      bulkOperationProgress.value.active = false
-    }, 2000)
+  onPing: (data) => {
+    console.debug('[VaultView] Ping received, pending:', data.pending_count)
+    // Ping doesn't require any action, just logs the pending count
+  },
+
+  onRefresh: async (data) => {
+    console.log('[VaultView] Refresh requested by server')
+
+    // Full tree refresh - collapse all folders and refetch
+    expandedNodes.value = {}
+
+    await fileStore.fetchTree(fileStore.vaultId)
+    persistentTreeStore.setTree(fileStore.vaultId, fileStore.treeData)
+
+    console.log('[VaultView] Tree fully refreshed and collapsed')
   },
 
   onError: (err) => {

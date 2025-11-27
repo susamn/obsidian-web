@@ -11,8 +11,9 @@
           <i v-else class="fas fa-circle-notch fa-spin" />
         </div>
         <div class="status-text">
-          <template v-if="pendingEvents > 0"> Syncing ({{ pendingEvents }}) </template>
-          <template v-else-if="connected && !error"> Live </template>
+          <template v-if="connected && !error">
+            Live<span v-if="pendingEvents > 0" class="pending-count">({{ pendingEvents }})</span>
+          </template>
           <template v-else-if="error"> Offline </template>
           <template v-else> Connecting </template>
         </div>
@@ -74,15 +75,17 @@ export default {
 
     // Computed properties for status
     const statusClass = computed(() => {
-      if (pendingEvents.value > 0) return 'syncing'
       if (error.value) return 'error'
+      if (connected.value && pendingEvents.value > 0) return 'live-syncing'
       if (connected.value) return 'connected'
       return 'connecting'
     })
 
     const statusTitle = computed(() => {
-      if (pendingEvents.value > 0) return `Syncing ${pendingEvents.value} events`
       if (error.value) return `Offline: ${error.value}`
+      if (connected.value && pendingEvents.value > 0) {
+        return `Live - ${pendingEvents.value} pending events`
+      }
       if (connected.value) return 'Live updates enabled'
       return 'Connecting to server...'
     })
@@ -152,6 +155,12 @@ export default {
   white-space: nowrap;
 }
 
+/* Pending count styling */
+.pending-count {
+  margin-left: 0.2em;
+  font-weight: 600;
+}
+
 /* Status states */
 .status-widget.connected {
   background-color: rgba(152, 195, 121, 0.1);
@@ -160,6 +169,23 @@ export default {
 
 .status-widget.connected .status-icon {
   color: #98c379;
+}
+
+.status-widget.live-syncing {
+  background-color: rgba(97, 175, 239, 0.15);
+  color: #61afef;
+  animation: pulse-glow 2s ease-in-out infinite;
+  border: 1px solid rgba(97, 175, 239, 0.3);
+}
+
+.status-widget.live-syncing .status-icon {
+  color: #61afef;
+  animation: rotate-pulse 2s linear infinite;
+}
+
+.status-widget.live-syncing .pending-count {
+  color: #61afef;
+  animation: scale-pulse 1s ease-in-out infinite;
 }
 
 .status-widget.connecting {
@@ -180,13 +206,34 @@ export default {
   color: #e06c75;
 }
 
-.status-widget.syncing {
-  background-color: rgba(97, 175, 239, 0.1);
-  color: #61afef;
+/* Animations */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(97, 175, 239, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(97, 175, 239, 0.6);
+  }
 }
 
-.status-widget.syncing .status-icon {
-  color: #61afef;
+@keyframes rotate-pulse {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scale-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 @keyframes spin {

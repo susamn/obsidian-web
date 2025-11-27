@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/susamn/obsidian-web/internal/logger"
@@ -64,9 +65,18 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		"vault_id":  vaultID,
 	}).Info("SSE client connected")
 
-	// Send initial connection message
-	fmt.Fprintf(w, "event: connected\ndata: {\"client_id\":\"%s\",\"vault_id\":\"%s\"}\n\n", clientID, vaultID)
-	flusher.Flush()
+	// Send initial connection event using unified format
+	connectedEvent := sse.Event{
+		Type:         "connected",
+		VaultID:      vaultID,
+		PendingCount: 0,
+		Timestamp:    time.Now(),
+	}
+	connectedData := sse.FormatSSE(connectedEvent)
+	if connectedData != "" {
+		fmt.Fprint(w, connectedData)
+		flusher.Flush()
+	}
 
 	// Stream events
 	for {

@@ -3,9 +3,11 @@ import { ref, onUnmounted } from 'vue'
 /**
  * Composable for managing Server-Sent Events (SSE) connection
  * @param {Object} callbacks - Event handler callbacks
- * @param {Function} callbacks.onBulkUpdate - Handler for bulk_update events (many files changed)
+ * @param {Function} callbacks.onBulkProcess - Handler for bulk_process events (file changes)
+ * @param {Function} callbacks.onPing - Handler for ping events (keep-alive)
+ * @param {Function} callbacks.onRefresh - Handler for refresh events (full tree refresh)
+ * @param {Function} callbacks.onError - Handler for error events
  * @param {Function} callbacks.onConnected - Handler for connection established
- * @param {Function} callbacks.onError - Handler for errors
  */
 export function useSSE(callbacks = {}) {
   const connected = ref(false)
@@ -48,51 +50,74 @@ export function useSSE(callbacks = {}) {
         reconnectAttempts.value = 0
       }
 
-      // Connection established event
-      eventSource.addEventListener('connected', (event) => {
-        console.log('[SSE] Connected event:', event.data)
+      // Generic event handler that processes all SSE events
+      const handleSSEEvent = (event) => {
         try {
           const data = JSON.parse(event.data)
-          console.log('[SSE] Client ID:', data.client_id)
-          if (callbacks.onConnected) {
-            callbacks.onConnected(data)
-          }
-        } catch (err) {
-          console.error('[SSE] Error parsing connected event:', err)
-        }
-      })
 
-      // Bulk update event (consolidated file changes)
-      eventSource.addEventListener('bulk_update', (event) => {
-        console.log('[SSE] Bulk update:', event.data)
-        try {
-          const data = JSON.parse(event.data)
-          console.log(
-            `[SSE] Bulk update: ${data.summary.created} created, ${data.summary.modified} modified, ${data.summary.deleted} deleted`
-          )
-          if (callbacks.onBulkUpdate) {
-            callbacks.onBulkUpdate(data)
-          }
-        } catch (err) {
-          console.error('[SSE] Error parsing bulk_update event:', err)
-        }
-      })
+          console.log(`[SSE] Received event:`, data)
 
-      // Ping event (keep-alive and UI state updates)
-      eventSource.addEventListener('ping', (event) => {
-        console.debug('[SSE] Ping received')
-        try {
-          const data = JSON.parse(event.data)
-          // Update pending events count from ping
-          if (data.pending_events !== undefined) {
-            pendingEvents.value = data.pending_events
-            console.debug(`[SSE] Pending events: ${data.pending_events}`)
+          // Update pending count from all events
+          if (data.pending_count !== undefined) {
+            pendingEvents.value = data.pending_count
+            console.debug(`[SSE] Pending events: ${data.pending_count}`)
+          }
+
+          // Route to specific callbacks based on event type
+          switch (data.type) {
+            case 'bulk_process':
+              console.log(`[SSE] Bulk process: ${data.changes?.length || 0} file changes`)
+              if (callbacks.onBulkProcess) {
+                callbacks.onBulkProcess(data)
+              }
+              break
+
+            case 'ping':
+              console.debug('[SSE] Ping received')
+              if (callbacks.onPing) {
+                callbacks.onPing(data)
+              }
+              break
+
+            case 'refresh':
+              console.log('[SSE] Refresh requested')
+              if (callbacks.onRefresh) {
+                callbacks.onRefresh(data)
+              }
+              break
+
+            case 'error':
+              console.error('[SSE] Server error:', data.error_message)
+              error.value = data.error_message
+              if (callbacks.onError) {
+                callbacks.onError(new Error(data.error_message))
+              }
+              break
+
+            case 'connected':
+              console.log('[SSE] Connected event:', data)
+              connected.value = true
+              error.value = null
+              reconnectAttempts.value = 0
+              if (callbacks.onConnected) {
+                callbacks.onConnected(data)
+              }
+              break
+
+            default:
+              console.warn('[SSE] Unknown event type:', data.type)
           }
         } catch (err) {
-          // Ping might not have data, that's okay
-          console.debug('[SSE] Ping event (no data)')
+          console.error('[SSE] Error parsing SSE event:', err, event.data)
         }
-      })
+      }
+
+      // Listen for all SSE event types
+      eventSource.addEventListener('bulk_process', handleSSEEvent)
+      eventSource.addEventListener('ping', handleSSEEvent)
+      eventSource.addEventListener('refresh', handleSSEEvent)
+      eventSource.addEventListener('error', handleSSEEvent)
+      eventSource.addEventListener('connected', handleSSEEvent)
 
       // Error handler
       eventSource.onerror = (event) => {
