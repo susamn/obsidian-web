@@ -467,15 +467,22 @@ func (e *ExplorerService) getNodeMetadata(fullPath, relativePath string) (*NodeM
 	// Fetch ID from database if available and check if file is ACTIVE using optimized query
 	id := ""
 	if e.dbService != nil {
+		// Try to get entry with ACTIVE status
 		entry, err := e.dbService.GetFileEntryByPathWithStatus(relativePath, db.FileStatusActive)
 		if err == nil && entry != nil {
+			// Found and ACTIVE
 			id = entry.ID
-		} else if err != nil && err.Error() != "file not active" {
-			// File not found or other error - this is okay for filesystem-based operations
-		} else {
-			// File is not ACTIVE, return error to filter it out
-			return nil, fmt.Errorf("file is not active")
+		} else if err != nil {
+			// Error occurred - could be not found or DB error
+			// Check if file exists in DB at all (without status check)
+			anyEntry, err2 := e.dbService.GetFileEntryByPath(relativePath)
+			if err2 == nil && anyEntry != nil {
+				// File exists in DB but is not ACTIVE, filter it out
+				return nil, fmt.Errorf("file is not active")
+			}
+			// File not in DB at all - this is okay, continue without ID
 		}
+		// else entry is nil but no error - file not in DB, continue without ID
 	}
 
 	return &NodeMetadata{

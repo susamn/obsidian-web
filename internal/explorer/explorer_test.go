@@ -1245,6 +1245,12 @@ func populateDBFromDirectoryWithBase(t *testing.T, dbSvc *db.DBService, dirPath 
 		t.Fatalf("Failed to read directory: %v", err)
 	}
 
+	// Get ACTIVE status ID for all entries
+	activeStatusID, err := dbSvc.GetFileStatusID(db.FileStatusActive)
+	if err != nil {
+		t.Fatalf("Failed to get ACTIVE status ID: %v", err)
+	}
+
 	for _, entry := range entries {
 		// Skip hidden files
 		if entry.Name()[0] == '.' {
@@ -1259,13 +1265,14 @@ func populateDBFromDirectoryWithBase(t *testing.T, dbSvc *db.DBService, dirPath 
 
 		info, _ := entry.Info()
 		fileEntry := &db.FileEntry{
-			ID:       id,
-			Name:     entry.Name(),
-			ParentID: parentID,
-			IsDir:    entry.IsDir(),
-			Path:     relPath,
-			Created:  time.Now().UTC(),
-			Modified: time.Now().UTC(),
+			ID:           id,
+			Name:         entry.Name(),
+			ParentID:     parentID,
+			IsDir:        entry.IsDir(),
+			Path:         relPath,
+			FileStatusID: activeStatusID,
+			Created:      time.Now().UTC(),
+			Modified:     time.Now().UTC(),
 		}
 
 		if !entry.IsDir() && info != nil {
