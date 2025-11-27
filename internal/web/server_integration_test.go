@@ -62,7 +62,7 @@ func TestEndToEnd_DataFlow(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19879,
 		},
 		Vaults: []config.VaultConfig{*vaultCfg},
 	}

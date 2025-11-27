@@ -14,7 +14,7 @@ func TestNewServer(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19878,
 		},
 	}
 
@@ -81,7 +81,7 @@ func TestServer_GetVault(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19878,
 		},
 	}
 
@@ -134,7 +134,7 @@ func TestServer_ListVaults(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19878,
 		},
 	}
 

@@ -52,7 +52,7 @@ func TestHandleVaults(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19876,
 		},
 	}
 
@@ -113,7 +113,7 @@ func TestHandleGetVaultInfo(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19876,
 		},
 	}
 
@@ -168,7 +168,7 @@ func TestHandleVaultOperation(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19876,
 		},
 	}
 

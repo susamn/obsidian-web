@@ -63,7 +63,7 @@ func TestFileStatusIntegration(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19875,
 		},
 		Vaults: []config.VaultConfig{*vaultCfg},
 	}

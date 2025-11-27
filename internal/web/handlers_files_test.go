@@ -128,7 +128,7 @@ func TestHandleGetFile(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19882,
 		},
 		Vaults: []config.VaultConfig{*vaultCfg},
 	}
@@ -224,7 +224,7 @@ func TestHandleGetRaw(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19882,
 		},
 		Vaults: []config.VaultConfig{*vaultCfg},
 	}
@@ -352,7 +352,7 @@ func TestHandleGetFileByID(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19882,
 		},
 		Vaults: []config.VaultConfig{*vaultCfg},
 	}
@@ -525,7 +525,7 @@ func TestHandleCreateFile(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19882,
 		},
 		Vaults: []config.VaultConfig{*vaultCfg},
 	}

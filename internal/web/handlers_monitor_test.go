@@ -16,7 +16,7 @@ func TestHandleHealth(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19881,
 		},
 	}
 
@@ -72,7 +72,7 @@ func TestHandleMetrics_VaultSpecific(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19881,
 		},
 	}
 
@@ -134,7 +134,7 @@ func TestHandleSystemMetrics(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19881,
 		},
 	}
 

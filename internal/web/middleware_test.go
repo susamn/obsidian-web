@@ -15,7 +15,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19880,
 		},
 	}
 
@@ -43,7 +43,7 @@ func TestCorsMiddleware(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19880,
 		},
 	}
 
@@ -75,7 +75,7 @@ func TestCorsMiddleware_Options(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19880,
 		},
 	}
 
@@ -102,7 +102,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19880,
 		},
 	}
 

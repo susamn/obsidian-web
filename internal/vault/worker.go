@@ -30,7 +30,7 @@ type Worker struct {
 	dbService       *db.DBService
 	indexService    *indexing.IndexService
 	explorerService *explorer.ExplorerService
-	sseChannel      chan sse.Event
+	sseManager      *sse.Manager
 
 	// Metrics
 	processedCount int64
@@ -53,7 +53,7 @@ func NewWorker(
 	dbService *db.DBService,
 	indexService *indexing.IndexService,
 	explorerService *explorer.ExplorerService,
-	sseChannel chan sse.Event,
+	sseManager *sse.Manager,
 ) *Worker {
 	return &Worker{
 		id:              id,
@@ -66,7 +66,7 @@ func NewWorker(
 		dbService:       dbService,
 		indexService:    indexService,
 		explorerService: explorerService,
-		sseChannel:      sseChannel,
+		sseManager:      sseManager,
 		maxRetries:      2,
 		retryDelay:      2 * time.Second,
 		dlqRetryDelay:   30 * time.Second,
@@ -313,17 +313,21 @@ func (w *Worker) processDLQ() {
 	}
 }
 
-// queueSSEEvent queues an SSE event for batching
+// queueSSEEvent queues an SSE event
 // SECURITY: Converts absolute path to relative path and fetches ID from DB
 func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
-	var eventType sse.EventType
+	if w.sseManager == nil {
+		return
+	}
+
+	var action sse.ActionType
 	switch event.EventType {
 	case syncpkg.FileCreated:
-		eventType = sse.EventFileCreated
+		action = sse.ActionCreate
 	case syncpkg.FileModified:
-		eventType = sse.EventFileModified
+		action = sse.ActionCreate // Modified is treated as create for frontend
 	case syncpkg.FileDeleted:
-		eventType = sse.EventFileDeleted
+		action = sse.ActionDelete
 	default:
 		return
 	}
@@ -346,23 +350,8 @@ func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
 		}
 	}
 
-	sseEvent := sse.Event{
-		Type:      eventType,
-		VaultID:   w.vaultID,
-		Path:      relPath, // Relative path only!
-		FileID:    fileID,  // DB ID for fetching content
-		Timestamp: event.Timestamp,
-	}
-
-	select {
-	case w.sseChannel <- sseEvent:
-		// Event queued for SSE batching
-	default:
-		logger.WithFields(map[string]interface{}{
-			"worker_id": w.id,
-			"path":      relPath,
-		}).Warn("SSE channel full, dropping SSE event")
-	}
+	// Queue the file change in SSE manager
+	w.sseManager.QueueFileChange(w.vaultID, fileID, relPath, action)
 }
 
 // GetQueueDepth returns the current queue depth

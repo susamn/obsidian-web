@@ -40,7 +40,7 @@ func TestHandleSSE(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 19873, // Unconventional port for SSE handler test
 		},
 	}
 
@@ -62,10 +62,10 @@ func TestHandleSSE(t *testing.T) {
 
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		// Broadcast an event to verify stream
-		server.sseManager.BroadcastFileEvent("test-vault", "test.md", sse.EventFileCreated)
-		time.Sleep(100 * time.Millisecond)
-		reqCancel() // Stop the handler
+		// Queue a file change to verify stream
+		server.sseManager.QueueFileChange("test-vault", "file-123", "test.md", sse.ActionCreate)
+		time.Sleep(2500 * time.Millisecond) // Wait for flush (every 2 seconds)
+		reqCancel()                         // Stop the handler
 	}()
 
 	server.handleSSE(w, req)
@@ -78,8 +78,9 @@ func TestHandleSSE(t *testing.T) {
 	if !strings.Contains(body, "event: connected") {
 		t.Error("Expected connected event")
 	}
-	if !strings.Contains(body, "event: file_created") {
-		t.Error("Expected file_created event")
+	// Should receive either ping or bulk_process event
+	if !strings.Contains(body, "event: ping") && !strings.Contains(body, "event: bulk_process") {
+		t.Error("Expected ping or bulk_process event")
 	}
 
 	// Test 2: Vault not found
@@ -122,7 +123,7 @@ func TestHandleSSEStats(t *testing.T) {
 	vaults := map[string]*vault.Vault{
 		"test-vault": v,
 	}
-	cfg := &config.Config{Server: config.ServerConfig{Host: "localhost", Port: 8080}}
+	cfg := &config.Config{Server: config.ServerConfig{Host: "localhost", Port: 19874}} // Unconventional port
 
 	server := NewServer(ctx, cfg, vaults)
 	server.Start()

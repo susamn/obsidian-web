@@ -106,13 +106,9 @@ func main() {
 		logger.WithError(err).Fatal("Failed to start web server")
 	}
 
-	// Wire up SSE broadcasting to vaults' explorer services and SSE batchers
+	// Wire up SSE manager to vaults
 	sseManager := server.GetSSEManager()
 	for _, v := range vaults {
-		if explorerSvc := v.GetExplorerService(); explorerSvc != nil {
-			explorerSvc.SetSSEBroadcaster(sseManager)
-		}
-		// Set SSE manager for worker SSE batching
 		v.SetSSEManager(sseManager)
 	}
 

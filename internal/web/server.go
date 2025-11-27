@@ -189,3 +189,8 @@ func (s *Server) listVaults() []*vault.Vault {
 func (s *Server) GetSSEManager() *sse.Manager {
 	return s.sseManager
 }
+
+// ServeHTTP implements http.Handler interface for testing
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.server.Handler.ServeHTTP(w, r)
+}

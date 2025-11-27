@@ -11,7 +11,6 @@ import (
 
 	"github.com/susamn/obsidian-web/internal/db"
 	"github.com/susamn/obsidian-web/internal/logger"
-	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
@@ -45,18 +44,6 @@ type TreeNode struct {
 	Loaded   bool         `json:"-"`                  // Whether children have been loaded
 }
 
-// SSEBroadcaster defines the interface for SSE broadcasting
-type SSEBroadcaster interface {
-	BroadcastFileEvent(vaultID, path string, eventType interface{})
-}
-
-// SSEBroadcasterWithData is an interface for SSE broadcasting with rich metadata
-// The concrete sse.Manager implements both BroadcastFileEvent and BroadcastFileEventWithData
-type SSEBroadcasterWithData interface {
-	BroadcastFileEvent(vaultID, path string, eventType interface{})
-	BroadcastFileEventWithData(vaultID, path string, eventType sse.EventType, fileData *sse.FileEventData)
-}
-
 // ExplorerService provides lazy-loaded directory tree exploration with caching
 type ExplorerService struct {
 	ctx       context.Context
@@ -71,9 +58,6 @@ type ExplorerService struct {
 	// Event handling
 	eventChan chan syncpkg.FileChangeEvent
 	wg        sync.WaitGroup
-
-	// SSE broadcasting
-	sseBroadcaster SSEBroadcaster
 
 	// Database service for storing file metadata
 	dbService *db.DBService
@@ -709,32 +693,9 @@ func (e *ExplorerService) buildFileEventData(relativePath, parentPath, fullPath 
 	}
 }
 
-// buildFileEventDataSSE constructs rich metadata for SSE events (SSE type version)
-func (e *ExplorerService) buildFileEventDataSSE(relativePath, parentPath, fullPath string, eventType syncpkg.FileEventType) *sse.FileEventData {
-	fileData := &sse.FileEventData{
-		Name:       filepath.Base(relativePath),
-		ParentPath: parentPath,
-	}
-
-	// For deleted files, we may not be able to stat them
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		// File was deleted or doesn't exist, return minimal data
-		fileData.IsDir = false
-		fileData.Size = 0
-		fileData.ModTime = 0
-		return fileData
-	}
-
-	fileData.IsDir = info.IsDir()
-	fileData.Size = info.Size()
-	fileData.ModTime = info.ModTime().Unix()
-
-	if !info.IsDir() {
-		fileData.IsMarkdown = strings.HasSuffix(strings.ToLower(info.Name()), ".md")
-	}
-
-	return fileData
+// buildFileEventDataSSE - deprecated, no longer used
+func (e *ExplorerService) buildFileEventDataSSE(relativePath, parentPath, fullPath string, eventType syncpkg.FileEventType) interface{} {
+	return nil
 }
 
 // RefreshPath manually refreshes a directory subtree
@@ -775,7 +736,7 @@ func (e *ExplorerService) GetCacheStats() map[string]interface{} {
 	}
 }
 
-// SetSSEBroadcaster sets the SSE broadcaster for real-time updates
-func (e *ExplorerService) SetSSEBroadcaster(broadcaster SSEBroadcaster) {
-	e.sseBroadcaster = broadcaster
+// SetSSEBroadcaster - deprecated, SSE is now handled by workers
+func (e *ExplorerService) SetSSEBroadcaster(broadcaster interface{}) {
+	// No-op: SSE is now handled by workers
 }

@@ -95,9 +95,10 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 				flusher.Flush()
 
 				logger.WithFields(map[string]interface{}{
-					"client_id":  clientID,
-					"event_type": event.Type,
-					"path":       event.Path,
+					"client_id":     clientID,
+					"event_type":    event.Type,
+					"change_count":  len(event.Changes),
+					"pending_count": event.PendingCount,
 				}).Debug("SSE event sent")
 			}
 		}

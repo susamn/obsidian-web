@@ -75,7 +75,6 @@ type Vault struct {
 	// Event processing
 	dispatcher *EventDispatcher
 	workers    []*Worker
-	sseBatcher *sse.EventBatcher
 	sseManager *sse.Manager
 
 	// State
@@ -178,14 +177,9 @@ func (v *Vault) initializeServices() error {
 		return fmt.Errorf("failed to create explorer service: %w", err)
 	}
 
-	// Create SSE batcher (will be started when SSE manager is set)
-	// Increased flush interval to 5s and threshold to 3 for better batching during bulk operations
-	v.sseBatcher = sse.NewEventBatcher(v.ctx, nil, 5*time.Second, 3)
-
-	// Create workers (10 workers)
+	// Create workers (10 workers) - SSE manager will be set later
 	const numWorkers = 10
 	v.workers = make([]*Worker, numWorkers)
-	sseChannel := v.sseBatcher.GetChannel()
 
 	for i := 0; i < numWorkers; i++ {
 		v.workers[i] = NewWorker(
@@ -197,7 +191,7 @@ func (v *Vault) initializeServices() error {
 			v.dbService,
 			v.indexService,
 			v.explorerService,
-			sseChannel,
+			nil, // SSE manager will be set via SetSSEManager
 		)
 	}
 
@@ -320,7 +314,7 @@ func (v *Vault) monitorIndexAndStartSearch(ctx context.Context) {
 	}
 }
 
-// SetSSEManager sets the SSE manager and starts the SSE batcher
+// SetSSEManager sets the SSE manager for the vault
 func (v *Vault) SetSSEManager(manager *sse.Manager) {
 	v.mu.Lock()
 	v.sseManager = manager
@@ -334,15 +328,9 @@ func (v *Vault) SetSSEManager(manager *sse.Manager) {
 		return 0
 	})
 
-	// Update the batcher with the manager
-	// Use same config as initialization: 5s flush interval, threshold of 3
-	v.sseBatcher = sse.NewEventBatcher(v.ctx, manager, 5*time.Second, 3)
-	v.sseBatcher.Start()
-
-	// Update workers with new SSE channel
-	sseChannel := v.sseBatcher.GetChannel()
+	// Update workers with SSE manager
 	for _, worker := range v.workers {
-		worker.sseChannel = sseChannel
+		worker.sseManager = manager
 	}
 }
 
@@ -377,11 +365,6 @@ func (v *Vault) Stop() error {
 
 	// Wait for all workers to finish
 	v.eventRouter.Wait()
-
-	// Stop SSE batcher
-	if v.sseBatcher != nil {
-		v.sseBatcher.Stop()
-	}
 
 	if v.explorerService != nil {
 		v.explorerService.Stop()
