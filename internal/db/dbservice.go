@@ -543,6 +543,60 @@ func (s *DBService) CreateFileEntry(entry *FileEntry) error {
 	return nil
 }
 
+// GetFileEntryByIDWithStatus retrieves a file entry by id with status check using JOIN
+func (s *DBService) GetFileEntryByIDWithStatus(id string, status FileStatus) (*FileEntry, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT fe.id, fe.name, fe.parent_id, fe.is_dir, fe.file_type_id, fe.file_status_id,
+		       fe.created, fe.modified, fe.size, fe.path
+		FROM file_entries fe
+		INNER JOIN file_statuses fs ON fe.file_status_id = fs.id
+		WHERE fe.id = ? AND fs.name = ?`
+
+	row := db.QueryRowContext(ctx, query, id, string(status))
+
+	var (
+		entry        FileEntry
+		isDirInt     int
+		creatUnix    sql.NullInt64
+		modUnix      sql.NullInt64
+		parentID     sql.NullString
+		fileTypeID   sql.NullInt64
+		fileStatusID sql.NullInt64
+	)
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID, &fileStatusID,
+		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("scan entry: %w", err)
+	}
+
+	if parentID.Valid {
+		entry.ParentID = &parentID.String
+	}
+	if fileTypeID.Valid {
+		entry.FileTypeID = &fileTypeID.Int64
+	}
+	if fileStatusID.Valid {
+		entry.FileStatusID = &fileStatusID.Int64
+	}
+	entry.IsDir = intToBool(isDirInt)
+	if creatUnix.Valid {
+		entry.Created = time.Unix(creatUnix.Int64, 0).UTC()
+	}
+	if modUnix.Valid {
+		entry.Modified = time.Unix(modUnix.Int64, 0).UTC()
+	}
+	return &entry, nil
+}
+
 // GetFileEntryByID retrieves a file entry by id.
 func (s *DBService) GetFileEntryByID(id string) (*FileEntry, error) {
 	db := s.getDB()
@@ -553,6 +607,60 @@ func (s *DBService) GetFileEntryByID(id string) (*FileEntry, error) {
 	defer cancel()
 	row := db.QueryRowContext(ctx,
 		`SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path FROM file_entries WHERE id = ?`, id)
+
+	var (
+		entry        FileEntry
+		isDirInt     int
+		creatUnix    sql.NullInt64
+		modUnix      sql.NullInt64
+		parentID     sql.NullString
+		fileTypeID   sql.NullInt64
+		fileStatusID sql.NullInt64
+	)
+	if err := row.Scan(&entry.ID, &entry.Name, &parentID, &isDirInt, &fileTypeID, &fileStatusID,
+		&creatUnix, &modUnix, &entry.Size, &entry.Path); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("scan entry: %w", err)
+	}
+
+	if parentID.Valid {
+		entry.ParentID = &parentID.String
+	}
+	if fileTypeID.Valid {
+		entry.FileTypeID = &fileTypeID.Int64
+	}
+	if fileStatusID.Valid {
+		entry.FileStatusID = &fileStatusID.Int64
+	}
+	entry.IsDir = intToBool(isDirInt)
+	if creatUnix.Valid {
+		entry.Created = time.Unix(creatUnix.Int64, 0).UTC()
+	}
+	if modUnix.Valid {
+		entry.Modified = time.Unix(modUnix.Int64, 0).UTC()
+	}
+	return &entry, nil
+}
+
+// GetFileEntryByPathWithStatus retrieves a file entry by path with status check using JOIN
+func (s *DBService) GetFileEntryByPathWithStatus(path string, status FileStatus) (*FileEntry, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("db not ready")
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT fe.id, fe.name, fe.parent_id, fe.is_dir, fe.file_type_id, fe.file_status_id,
+		       fe.created, fe.modified, fe.size, fe.path
+		FROM file_entries fe
+		INNER JOIN file_statuses fs ON fe.file_status_id = fs.id
+		WHERE fe.path = ? AND fs.name = ?`
+
+	row := db.QueryRowContext(ctx, query, path, string(status))
 
 	var (
 		entry        FileEntry
@@ -658,23 +766,26 @@ func (s *DBService) GetFileEntriesByParentID(parentID *string) ([]FileEntry, err
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 
-	// Get ACTIVE status ID for filtering
-	activeStatusID, err := s.GetFileStatusID(FileStatusActive)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active status ID: %w", err)
-	}
-	if activeStatusID == nil {
-		return nil, errors.New("active status not found in database")
-	}
-
 	var query string
 	var args []interface{}
 	if parentID == nil {
-		query = `SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path FROM file_entries WHERE parent_id IS NULL AND file_status_id = ? ORDER BY is_dir DESC, name ASC`
-		args = []interface{}{*activeStatusID}
+		query = `
+			SELECT fe.id, fe.name, fe.parent_id, fe.is_dir, fe.file_type_id, fe.file_status_id,
+			       fe.created, fe.modified, fe.size, fe.path
+			FROM file_entries fe
+			INNER JOIN file_statuses fs ON fe.file_status_id = fs.id
+			WHERE fe.parent_id IS NULL AND fs.name = ?
+			ORDER BY fe.is_dir DESC, fe.name ASC`
+		args = []interface{}{string(FileStatusActive)}
 	} else {
-		query = `SELECT id, name, parent_id, is_dir, file_type_id, file_status_id, created, modified, size, path FROM file_entries WHERE parent_id = ? AND file_status_id = ? ORDER BY is_dir DESC, name ASC`
-		args = []interface{}{*parentID, *activeStatusID}
+		query = `
+			SELECT fe.id, fe.name, fe.parent_id, fe.is_dir, fe.file_type_id, fe.file_status_id,
+			       fe.created, fe.modified, fe.size, fe.path
+			FROM file_entries fe
+			INNER JOIN file_statuses fs ON fe.file_status_id = fs.id
+			WHERE fe.parent_id = ? AND fs.name = ?
+			ORDER BY fe.is_dir DESC, fe.name ASC`
+		args = []interface{}{*parentID, string(FileStatusActive)}
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)

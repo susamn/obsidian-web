@@ -75,7 +75,8 @@ func (s *Server) validateAndGetVaultWithExplorer(w http.ResponseWriter, vaultID 
 // getFileEntryByID fetches a file entry from database by ID
 // Returns fileEntry and true if found and ACTIVE, writes error and returns false if not found or not ACTIVE
 func (s *Server) getFileEntryByID(w http.ResponseWriter, dbService *db.DBService, vaultID, nodeID string) (*db.FileEntry, bool) {
-	fileEntry, err := dbService.GetFileEntryByID(nodeID)
+	// Get file entry with status check
+	fileEntry, err := dbService.GetFileEntryByIDWithStatus(nodeID, db.FileStatusActive)
 	if err != nil {
 		logger.WithError(err).WithFields(map[string]interface{}{
 			"vault_id": vaultID,
@@ -86,22 +87,12 @@ func (s *Server) getFileEntryByID(w http.ResponseWriter, dbService *db.DBService
 	}
 
 	if fileEntry == nil {
+		logger.WithFields(map[string]interface{}{
+			"vault_id": vaultID,
+			"node_id":  nodeID,
+		}).Debug("File not found or not active")
 		writeError(w, http.StatusNotFound, "File not found")
 		return nil, false
-	}
-
-	// Check if file is ACTIVE
-	if fileEntry.FileStatusID != nil {
-		status, err := dbService.GetFileStatusByID(*fileEntry.FileStatusID)
-		if err != nil || status == nil || *status != db.FileStatusActive {
-			logger.WithFields(map[string]interface{}{
-				"vault_id": vaultID,
-				"node_id":  nodeID,
-				"status":   status,
-			}).Warn("File is not active")
-			writeError(w, http.StatusNotFound, "File not found")
-			return nil, false
-		}
 	}
 
 	return fileEntry, true
