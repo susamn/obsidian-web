@@ -194,8 +194,8 @@ func (v *Vault) initializeServices() error {
 		)
 	}
 
-	// Create dispatcher
-	v.dispatcher = NewEventDispatcher(v.ctx, v.config.ID, v.workers)
+	// Create dispatcher (now only for metrics aggregation)
+	v.dispatcher = NewEventDispatcher(v.workers)
 
 	return nil
 }
@@ -229,19 +229,18 @@ func (v *Vault) Start() error {
 		return fmt.Errorf("failed to start explorer service: %w", err)
 	}
 
-	// Start workers
-	for _, worker := range v.workers {
-		worker.Start()
-	}
-
 	// Start sync service
 	if err := v.syncService.Start(); err != nil {
 		v.setStatus(VaultStatusError)
 		return fmt.Errorf("failed to start sync service: %w", err)
 	}
 
-	// Start dispatcher to route events from sync service to workers
-	v.dispatcher.Start(v.syncService.Events())
+	// Start workers - all workers consume from the same sync channel
+	// No dispatcher needed - workers compete for events (natural load balancing)
+	syncEvents := v.syncService.Events()
+	for _, worker := range v.workers {
+		worker.Start(syncEvents)
+	}
 
 	return nil
 }
@@ -320,9 +319,15 @@ func (v *Vault) SetSSEManager(manager *sse.Manager) {
 	v.mu.Unlock()
 
 	// Register pending count getter for this vault
+	// Now only tracks sync channel since workers consume directly from it
 	manager.RegisterPendingCountGetter(v.config.ID, func() int {
 		if v.syncService != nil {
-			return v.syncService.PendingEventsCount()
+			count := v.syncService.PendingEventsCount()
+			// Add DLQ counts from all workers
+			for _, worker := range v.workers {
+				count += worker.GetDLQDepth()
+			}
+			return count
 		}
 		return 0
 	})
@@ -345,7 +350,7 @@ func (v *Vault) Stop() error {
 	close(v.stopChan)
 	v.cancel()
 
-	// Stop sync service first (stops producing events)
+	// Stop sync service first (stops producing events and closes sync channel)
 	if v.syncService != nil {
 		v.syncService.Stop()
 	}
@@ -357,12 +362,7 @@ func (v *Vault) Stop() error {
 	}
 	v.mu.RUnlock()
 
-	// Wait for dispatcher to finish routing
-	if v.dispatcher != nil {
-		v.dispatcher.Wait()
-	}
-
-	// Wait for all workers to finish
+	// Wait for all workers to finish (they'll exit when sync channel closes)
 	v.eventRouter.Wait()
 
 	if v.explorerService != nil {

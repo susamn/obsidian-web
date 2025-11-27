@@ -41,8 +41,8 @@ func TestWorker_Creation(t *testing.T) {
 	}
 }
 
-// TestWorker_QueueDepth tests the queue depth calculation
-func TestWorker_QueueDepth(t *testing.T) {
+// TestWorker_DLQDepth tests the DLQ depth calculation
+func TestWorker_DLQDepth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -60,22 +60,22 @@ func TestWorker_QueueDepth(t *testing.T) {
 		nil,
 	)
 
-	// Initially queue should be empty
-	if depth := worker.GetQueueDepth(); depth != 0 {
-		t.Errorf("Expected initial queue depth of 0, got %d", depth)
+	// Initially DLQ should be empty
+	if depth := worker.GetDLQDepth(); depth != 0 {
+		t.Errorf("Expected initial DLQ depth of 0, got %d", depth)
 	}
 
-	// Add events to queue
+	// Add events to DLQ
 	for i := 0; i < 5; i++ {
-		worker.queue <- syncpkg.FileChangeEvent{
+		worker.dlq <- syncpkg.FileChangeEvent{
 			Path:      "test.md",
 			EventType: syncpkg.FileCreated,
 			Timestamp: time.Now(),
 		}
 	}
 
-	if depth := worker.GetQueueDepth(); depth != 5 {
-		t.Errorf("Expected queue depth of 5, got %d", depth)
+	if depth := worker.GetDLQDepth(); depth != 5 {
+		t.Errorf("Expected DLQ depth of 5, got %d", depth)
 	}
 }
 
@@ -104,8 +104,8 @@ func TestWorker_Metrics(t *testing.T) {
 		t.Errorf("Expected worker ID 0, got %d", metrics.WorkerID)
 	}
 
-	if metrics.QueueDepth != 0 {
-		t.Errorf("Expected initial queue depth 0, got %d", metrics.QueueDepth)
+	if metrics.DLQDepth != 0 {
+		t.Errorf("Expected initial DLQ depth 0, got %d", metrics.DLQDepth)
 	}
 
 	if metrics.ProcessedCount != 0 {
@@ -132,8 +132,11 @@ func TestWorker_StartStop(t *testing.T) {
 		nil,
 	)
 
+	// Create a sync channel for the worker
+	syncEvents := make(chan syncpkg.FileChangeEvent, 10)
+
 	// Start worker
-	worker.Start()
+	worker.Start(syncEvents)
 
 	// Give it a moment to start
 	time.Sleep(50 * time.Millisecond)

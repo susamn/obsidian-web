@@ -16,13 +16,13 @@ import (
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
-// Worker processes file events with DB-first approach
+// Worker processes file events directly from sync channel with DB-first approach
+// No internal queuing - workers consume events directly from shared sync channel
 type Worker struct {
 	id        int
 	vaultID   string
 	vaultPath string
-	queue     chan syncpkg.FileChangeEvent
-	dlq       chan syncpkg.FileChangeEvent // Dead letter queue
+	dlq       chan syncpkg.FileChangeEvent // Dead letter queue for failed events
 	ctx       context.Context
 	wg        *sync.WaitGroup
 
@@ -58,7 +58,6 @@ func NewWorker(
 		id:              id,
 		vaultID:         vaultID,
 		vaultPath:       vaultPath,
-		queue:           make(chan syncpkg.FileChangeEvent, 1000),
 		dlq:             make(chan syncpkg.FileChangeEvent, 1000),
 		ctx:             ctx,
 		wg:              wg,
@@ -71,10 +70,10 @@ func NewWorker(
 	}
 }
 
-// Start starts the worker processing loop
-func (w *Worker) Start() {
+// Start starts the worker processing loop consuming from shared sync channel
+func (w *Worker) Start(syncEvents <-chan syncpkg.FileChangeEvent) {
 	w.wg.Add(1)
-	go w.run()
+	go w.run(syncEvents)
 
 	// Start DLQ processor
 	w.wg.Add(1)
@@ -86,8 +85,9 @@ func (w *Worker) Start() {
 	}).Info("Worker started")
 }
 
-// run is the main event processing loop
-func (w *Worker) run() {
+// run is the main event processing loop consuming directly from sync channel
+// Multiple workers share the same sync channel for load balancing
+func (w *Worker) run(syncEvents <-chan syncpkg.FileChangeEvent) {
 	defer w.wg.Done()
 
 	for {
@@ -102,9 +102,9 @@ func (w *Worker) run() {
 			}).Info("Worker stopped")
 			return
 
-		case event, ok := <-w.queue:
+		case event, ok := <-syncEvents:
 			if !ok {
-				logger.WithField("worker_id", w.id).Info("Worker queue closed")
+				logger.WithField("worker_id", w.id).Info("Sync channel closed")
 				return
 			}
 			w.processEvent(event)
@@ -352,11 +352,6 @@ func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
 	w.sseManager.QueueFileChange(w.vaultID, fileID, relPath, action)
 }
 
-// GetQueueDepth returns the current queue depth
-func (w *Worker) GetQueueDepth() int {
-	return len(w.queue)
-}
-
 // GetDLQDepth returns the current DLQ depth
 func (w *Worker) GetDLQDepth() int {
 	return len(w.dlq)
@@ -366,7 +361,6 @@ func (w *Worker) GetDLQDepth() int {
 func (w *Worker) GetMetrics() WorkerMetrics {
 	return WorkerMetrics{
 		WorkerID:       w.id,
-		QueueDepth:     w.GetQueueDepth(),
 		DLQDepth:       w.GetDLQDepth(),
 		ProcessedCount: atomic.LoadInt64(&w.processedCount),
 		FailedCount:    atomic.LoadInt64(&w.failedCount),
@@ -377,7 +371,6 @@ func (w *Worker) GetMetrics() WorkerMetrics {
 // WorkerMetrics represents worker performance metrics
 type WorkerMetrics struct {
 	WorkerID       int
-	QueueDepth     int
 	DLQDepth       int
 	ProcessedCount int64
 	FailedCount    int64
