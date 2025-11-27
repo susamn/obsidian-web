@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
@@ -16,7 +15,6 @@ func TestWorker_Creation(t *testing.T) {
 	defer cancel()
 
 	tmpDir := t.TempDir()
-	sseChannel := make(chan sse.Event, 10)
 	var wg sync.WaitGroup
 
 	worker := NewWorker(
@@ -28,7 +26,6 @@ func TestWorker_Creation(t *testing.T) {
 		nil, // DB service not required for creation test
 		nil, // Index service not required for creation test
 		nil, // Explorer service not required for creation test
-		sseChannel,
 	)
 
 	if worker == nil {
@@ -50,7 +47,6 @@ func TestWorker_QueueDepth(t *testing.T) {
 	defer cancel()
 
 	tmpDir := t.TempDir()
-	sseChannel := make(chan sse.Event, 100)
 	var wg sync.WaitGroup
 
 	worker := NewWorker(
@@ -62,7 +58,6 @@ func TestWorker_QueueDepth(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		sseChannel,
 	)
 
 	// Initially queue should be empty
@@ -90,7 +85,6 @@ func TestWorker_Metrics(t *testing.T) {
 	defer cancel()
 
 	tmpDir := t.TempDir()
-	sseChannel := make(chan sse.Event, 100)
 	var wg sync.WaitGroup
 
 	worker := NewWorker(
@@ -102,7 +96,6 @@ func TestWorker_Metrics(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		sseChannel,
 	)
 
 	metrics := worker.GetMetrics()
@@ -126,7 +119,6 @@ func TestWorker_StartStop(t *testing.T) {
 	defer cancel()
 
 	tmpDir := t.TempDir()
-	sseChannel := make(chan sse.Event, 100)
 	var wg sync.WaitGroup
 
 	worker := NewWorker(
@@ -138,7 +130,6 @@ func TestWorker_StartStop(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		sseChannel,
 	)
 
 	// Start worker

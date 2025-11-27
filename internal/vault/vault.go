@@ -191,7 +191,6 @@ func (v *Vault) initializeServices() error {
 			v.dbService,
 			v.indexService,
 			v.explorerService,
-			nil, // SSE manager will be set via SetSSEManager
 		)
 	}
 

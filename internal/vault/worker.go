@@ -53,7 +53,6 @@ func NewWorker(
 	dbService *db.DBService,
 	indexService *indexing.IndexService,
 	explorerService *explorer.ExplorerService,
-	sseManager *sse.Manager,
 ) *Worker {
 	return &Worker{
 		id:              id,
@@ -66,7 +65,6 @@ func NewWorker(
 		dbService:       dbService,
 		indexService:    indexService,
 		explorerService: explorerService,
-		sseManager:      sseManager,
 		maxRetries:      2,
 		retryDelay:      2 * time.Second,
 		dlqRetryDelay:   30 * time.Second,

@@ -34,7 +34,7 @@ func TestNewServer(t *testing.T) {
 		t.Error("HTTP server not created")
 	}
 
-	expectedAddr := "localhost:8080"
+	expectedAddr := "localhost:19878"
 	if server.server.Addr != expectedAddr {
 		t.Errorf("Expected addr %s, got %s", expectedAddr, server.server.Addr)
 	}

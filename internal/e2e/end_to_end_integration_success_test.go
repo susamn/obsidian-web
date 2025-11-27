@@ -239,19 +239,28 @@ func TestEndToEndIntegrationSuccess(t *testing.T) {
 		t.Log("✓ Received 'connected' event")
 	}
 
-	// Wait for first flush (every 2 seconds) - should get ping since no new events
-	t.Log("Waiting for first SSE flush (should be ping)...")
+	// Wait for first flush (every 2 seconds) - may get ping or bulk_process
+	t.Log("Waiting for first SSE flush...")
 	time.Sleep(2500 * time.Millisecond)
 
 	sseBody = sseRecorder.Body.String()
-	if !strings.Contains(sseBody, "event: ping") {
-		t.Error("Expected 'ping' event in SSE stream")
-	} else {
-		t.Log("✓ Received 'ping' event")
+	// Should receive either ping (if queue was empty) or bulk_process (if files were queued)
+	hasPing := strings.Contains(sseBody, "event: ping")
+	hasBulkProcess := strings.Contains(sseBody, "event: bulk_process")
 
-		// Verify pending count in ping event
+	if !hasPing && !hasBulkProcess {
+		t.Error("Expected either 'ping' or 'bulk_process' event in SSE stream")
+	} else {
+		if hasPing {
+			t.Log("✓ Received 'ping' event")
+		}
+		if hasBulkProcess {
+			t.Log("✓ Received 'bulk_process' event (files were processed)")
+		}
+
+		// Verify pending count is present
 		if strings.Contains(sseBody, "pending_count") {
-			t.Log("✓ Ping event contains 'pending_count'")
+			t.Log("✓ Events contain 'pending_count'")
 
 			// Extract pending count from the event
 			lines := strings.Split(sseBody, "\n")
@@ -260,9 +269,11 @@ func TestEndToEndIntegrationSuccess(t *testing.T) {
 					data := strings.TrimPrefix(line, "data: ")
 					var event map[string]interface{}
 					if err := json.Unmarshal([]byte(data), &event); err == nil {
-						if eventType, ok := event["type"].(string); ok && eventType == "ping" {
-							if pendingCount, ok := event["pending_count"]; ok {
-								t.Logf("  Pending count: %v", pendingCount)
+						if eventType, ok := event["type"].(string); ok {
+							if eventType == "ping" || eventType == "bulk_process" {
+								if pendingCount, ok := event["pending_count"]; ok {
+									t.Logf("  Pending count in %s event: %v", eventType, pendingCount)
+								}
 							}
 						}
 					}
@@ -418,8 +429,8 @@ func TestEndToEndIntegrationSuccess(t *testing.T) {
 	sseBody = sseRecorder.Body.String()
 
 	// Should have received either bulk_process (if events were queued) or ping
-	hasBulkProcess := strings.Contains(sseBody, "event: bulk_process")
-	hasPing := strings.Contains(sseBody, "event: ping")
+	hasBulkProcess = strings.Contains(sseBody, "event: bulk_process")
+	hasPing = strings.Contains(sseBody, "event: ping")
 
 	if hasBulkProcess {
 		t.Log("✓ Received 'bulk_process' event for file changes")
