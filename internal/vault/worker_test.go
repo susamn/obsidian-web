@@ -17,15 +17,18 @@ func TestWorker_Creation(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
+	recon := NewReconciliationService("test-vault", ctx, &wg)
+
 	worker := NewWorker(
 		0,
 		"test-vault",
 		tmpDir,
 		ctx,
 		&wg,
-		nil, // DB service not required for creation test
-		nil, // Index service not required for creation test
-		nil, // Explorer service not required for creation test
+		nil,   // DB service not required for creation test
+		nil,   // Index service not required for creation test
+		nil,   // Explorer service not required for creation test
+		recon, // Recon service
 	)
 
 	if worker == nil {
@@ -41,13 +44,15 @@ func TestWorker_Creation(t *testing.T) {
 	}
 }
 
-// TestWorker_DLQDepth tests the DLQ depth calculation
-func TestWorker_DLQDepth(t *testing.T) {
+// TestWorker_ReconServiceIntegration tests worker integration with recon service
+func TestWorker_ReconServiceIntegration(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
+
+	recon := NewReconciliationService("test-vault", ctx, &wg)
 
 	worker := NewWorker(
 		0,
@@ -58,23 +63,23 @@ func TestWorker_DLQDepth(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		recon,
 	)
 
-	// Initially DLQ should be empty
-	if depth := worker.GetDLQDepth(); depth != 0 {
-		t.Errorf("Expected initial DLQ depth of 0, got %d", depth)
+	if worker.reconService == nil {
+		t.Error("Expected worker to have reconciliation service")
 	}
 
-	// Add events to DLQ
+	// Send events to recon DLQ through worker's recon service
 	for i := 0; i < 5; i++ {
-		worker.dlq <- syncpkg.FileChangeEvent{
+		worker.reconService.SendToDLQ(syncpkg.FileChangeEvent{
 			Path:      "test.md",
 			EventType: syncpkg.FileCreated,
 			Timestamp: time.Now(),
-		}
+		})
 	}
 
-	if depth := worker.GetDLQDepth(); depth != 5 {
+	if depth := recon.GetDLQDepth(); depth != 5 {
 		t.Errorf("Expected DLQ depth of 5, got %d", depth)
 	}
 }
@@ -87,6 +92,8 @@ func TestWorker_Metrics(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
+	recon := NewReconciliationService("test-vault", ctx, &wg)
+
 	worker := NewWorker(
 		0,
 		"test-vault",
@@ -96,6 +103,7 @@ func TestWorker_Metrics(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		recon,
 	)
 
 	metrics := worker.GetMetrics()
@@ -104,12 +112,12 @@ func TestWorker_Metrics(t *testing.T) {
 		t.Errorf("Expected worker ID 0, got %d", metrics.WorkerID)
 	}
 
-	if metrics.DLQDepth != 0 {
-		t.Errorf("Expected initial DLQ depth 0, got %d", metrics.DLQDepth)
-	}
-
 	if metrics.ProcessedCount != 0 {
 		t.Errorf("Expected initial processed count 0, got %d", metrics.ProcessedCount)
+	}
+
+	if metrics.FailedCount != 0 {
+		t.Errorf("Expected initial failed count 0, got %d", metrics.FailedCount)
 	}
 }
 
@@ -120,6 +128,9 @@ func TestWorker_StartStop(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
+	syncEvents := make(chan syncpkg.FileChangeEvent, 10)
+
+	recon := NewReconciliationService("test-vault", ctx, &wg)
 
 	worker := NewWorker(
 		0,
@@ -130,10 +141,8 @@ func TestWorker_StartStop(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		recon,
 	)
-
-	// Create a sync channel for the worker
-	syncEvents := make(chan syncpkg.FileChangeEvent, 10)
 
 	// Start worker
 	worker.Start(syncEvents)

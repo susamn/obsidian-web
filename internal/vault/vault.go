@@ -73,9 +73,9 @@ type Vault struct {
 	dbService       *db.DBService
 
 	// Event processing
-	dispatcher *EventDispatcher
-	workers    []*Worker
-	sseManager *sse.Manager
+	reconService *ReconciliationService
+	workers      []*Worker
+	sseManager   *sse.Manager
 
 	// State
 	status       VaultStatus
@@ -177,25 +177,9 @@ func (v *Vault) initializeServices() error {
 		return fmt.Errorf("failed to create explorer service: %w", err)
 	}
 
-	// Create workers (10 workers) - SSE manager will be set later
+	// Create workers - reconciliation service will be created after sync service
 	const numWorkers = 2
 	v.workers = make([]*Worker, numWorkers)
-
-	for i := 0; i < numWorkers; i++ {
-		v.workers[i] = NewWorker(
-			i,
-			v.config.ID,
-			v.vaultPath,
-			v.ctx,
-			v.eventRouter,
-			v.dbService,
-			v.indexService,
-			v.explorerService,
-		)
-	}
-
-	// Create dispatcher (now only for metrics aggregation)
-	v.dispatcher = NewEventDispatcher(v.workers)
 
 	return nil
 }
@@ -235,11 +219,37 @@ func (v *Vault) Start() error {
 		return fmt.Errorf("failed to start sync service: %w", err)
 	}
 
-	// Start workers - all workers consume from the same sync channel
-	// No dispatcher needed - workers compete for events (natural load balancing)
+	// Get sync events channel
 	syncEvents := v.syncService.Events()
-	for _, worker := range v.workers {
-		worker.Start(syncEvents)
+
+	// Create reconciliation service
+	v.reconService = NewReconciliationService(
+		v.config.ID,
+		v.ctx,
+		v.eventRouter,
+	)
+
+	// Set sync service reference for retrying events
+	v.reconService.SetSyncService(v.syncService)
+
+	// Start reconciliation service
+	v.reconService.Start()
+
+	// Create and start workers with reconciliation service
+	const numWorkers = 2
+	for i := 0; i < numWorkers; i++ {
+		v.workers[i] = NewWorker(
+			i,
+			v.config.ID,
+			v.vaultPath,
+			v.ctx,
+			v.eventRouter,
+			v.dbService,
+			v.indexService,
+			v.explorerService,
+			v.reconService,
+		)
+		v.workers[i].Start(syncEvents)
 	}
 
 	return nil
@@ -319,17 +329,16 @@ func (v *Vault) SetSSEManager(manager *sse.Manager) {
 	v.mu.Unlock()
 
 	// Register pending count getter for this vault
-	// Now only tracks sync channel since workers consume directly from it
+	// Tracks sync channel + reconciliation DLQ
 	manager.RegisterPendingCountGetter(v.config.ID, func() int {
+		count := 0
 		if v.syncService != nil {
-			count := v.syncService.PendingEventsCount()
-			// Add DLQ counts from all workers
-			for _, worker := range v.workers {
-				count += worker.GetDLQDepth()
-			}
-			return count
+			count = v.syncService.PendingEventsCount()
 		}
-		return 0
+		if v.reconService != nil {
+			count += v.reconService.GetDLQDepth()
+		}
+		return count
 	})
 
 	// Update workers with SSE manager

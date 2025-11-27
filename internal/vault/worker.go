@@ -22,7 +22,6 @@ type Worker struct {
 	id        int
 	vaultID   string
 	vaultPath string
-	dlq       chan syncpkg.FileChangeEvent // Dead letter queue for failed events
 	ctx       context.Context
 	wg        *sync.WaitGroup
 
@@ -30,17 +29,16 @@ type Worker struct {
 	dbService       *db.DBService
 	indexService    *indexing.IndexService
 	explorerService *explorer.ExplorerService
+	reconService    *ReconciliationService
 	sseManager      *sse.Manager
 
 	// Metrics
 	processedCount int64
 	failedCount    int64
-	retriedCount   int64
 
 	// Configuration
-	maxRetries    int
-	retryDelay    time.Duration
-	dlqRetryDelay time.Duration
+	maxRetries int
+	retryDelay time.Duration
 }
 
 // NewWorker creates a new worker instance
@@ -53,20 +51,20 @@ func NewWorker(
 	dbService *db.DBService,
 	indexService *indexing.IndexService,
 	explorerService *explorer.ExplorerService,
+	reconService *ReconciliationService,
 ) *Worker {
 	return &Worker{
 		id:              id,
 		vaultID:         vaultID,
 		vaultPath:       vaultPath,
-		dlq:             make(chan syncpkg.FileChangeEvent, 1000),
 		ctx:             ctx,
 		wg:              wg,
 		dbService:       dbService,
 		indexService:    indexService,
 		explorerService: explorerService,
+		reconService:    reconService,
 		maxRetries:      2,
 		retryDelay:      2 * time.Second,
-		dlqRetryDelay:   30 * time.Second,
 	}
 }
 
@@ -74,10 +72,6 @@ func NewWorker(
 func (w *Worker) Start(syncEvents <-chan syncpkg.FileChangeEvent) {
 	w.wg.Add(1)
 	go w.run(syncEvents)
-
-	// Start DLQ processor
-	w.wg.Add(1)
-	go w.processDLQ()
 
 	logger.WithFields(map[string]interface{}{
 		"worker_id": w.id,
@@ -98,7 +92,6 @@ func (w *Worker) run(syncEvents <-chan syncpkg.FileChangeEvent) {
 				"vault_id":  w.vaultID,
 				"processed": atomic.LoadInt64(&w.processedCount),
 				"failed":    atomic.LoadInt64(&w.failedCount),
-				"retried":   atomic.LoadInt64(&w.retriedCount),
 			}).Info("Worker stopped")
 			return
 
@@ -127,12 +120,8 @@ func (w *Worker) processEvent(event syncpkg.FileChangeEvent) {
 
 		atomic.AddInt64(&w.failedCount, 1)
 
-		select {
-		case w.dlq <- event:
-			logger.WithField("path", event.Path).Debug("Event sent to DLQ")
-		default:
-			logger.WithField("path", event.Path).Error("DLQ full, event permanently lost")
-		}
+		// Send to reconciliation service DLQ
+		w.reconService.SendToDLQ(event)
 		return
 	}
 
@@ -185,7 +174,6 @@ func (w *Worker) updateDBWithRetry(event syncpkg.FileChangeEvent) (string, error
 		fileID, err := w.updateDatabase(event)
 		if err == nil {
 			if attempt > 0 {
-				atomic.AddInt64(&w.retriedCount, 1)
 				logger.WithFields(map[string]interface{}{
 					"worker_id": w.id,
 					"path":      event.Path,
@@ -230,87 +218,6 @@ func (w *Worker) updateDatabase(event syncpkg.FileChangeEvent) (string, error) {
 	return performDatabaseUpdate(w.dbService, w.vaultPath, event)
 }
 
-// processDLQ processes failed events from the dead letter queue
-func (w *Worker) processDLQ() {
-	defer w.wg.Done()
-
-	ticker := time.NewTicker(w.dlqRetryDelay)
-	defer ticker.Stop()
-
-	var pendingEvents []syncpkg.FileChangeEvent
-
-	for {
-		select {
-		case <-w.ctx.Done():
-			logger.WithFields(map[string]interface{}{
-				"worker_id":      w.id,
-				"pending_in_dlq": len(pendingEvents),
-			}).Info("DLQ processor stopped")
-			return
-
-		case event, ok := <-w.dlq:
-			if !ok {
-				return
-			}
-			pendingEvents = append(pendingEvents, event)
-			logger.WithFields(map[string]interface{}{
-				"worker_id":   w.id,
-				"path":        event.Path,
-				"dlq_pending": len(pendingEvents),
-			}).Debug("Event added to DLQ")
-
-		case <-ticker.C:
-			if len(pendingEvents) == 0 {
-				continue
-			}
-
-			logger.WithFields(map[string]interface{}{
-				"worker_id": w.id,
-				"count":     len(pendingEvents),
-			}).Info("Processing DLQ events")
-
-			// Try to reprocess events from DLQ
-			stillFailing := make([]syncpkg.FileChangeEvent, 0)
-
-			for _, event := range pendingEvents {
-				fileID, err := w.updateDatabase(event)
-				if err != nil {
-					// Still failing, keep in DLQ for next retry
-					stillFailing = append(stillFailing, event)
-					logger.WithFields(map[string]interface{}{
-						"worker_id": w.id,
-						"path":      event.Path,
-						"error":     err,
-					}).Warn("DLQ event still failing")
-				} else {
-					// Success! Process remaining steps (synchronous) with file ID
-					// Check if index service is ready before updating index
-					indexStatus := w.indexService.GetStatus()
-					if indexStatus == indexing.StatusReady {
-						switch event.EventType {
-						case syncpkg.FileCreated, syncpkg.FileModified:
-							_ = w.indexService.ReIndexSync(event.Path, fileID)
-						case syncpkg.FileDeleted:
-							_ = w.indexService.DeleteFromIndexSync(event.Path, fileID)
-						}
-					}
-					w.explorerService.InvalidateCacheSync(event)
-					w.queueSSEEvent(event)
-					atomic.AddInt64(&w.processedCount, 1)
-
-					logger.WithFields(map[string]interface{}{
-						"worker_id": w.id,
-						"path":      event.Path,
-						"file_id":   fileID,
-					}).Info("DLQ event recovered successfully")
-				}
-			}
-
-			pendingEvents = stillFailing
-		}
-	}
-}
-
 // queueSSEEvent queues an SSE event
 // SECURITY: Converts absolute path to relative path and fetches ID from DB
 func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
@@ -352,27 +259,18 @@ func (w *Worker) queueSSEEvent(event syncpkg.FileChangeEvent) {
 	w.sseManager.QueueFileChange(w.vaultID, fileID, relPath, action)
 }
 
-// GetDLQDepth returns the current DLQ depth
-func (w *Worker) GetDLQDepth() int {
-	return len(w.dlq)
-}
-
 // GetMetrics returns worker metrics
 func (w *Worker) GetMetrics() WorkerMetrics {
 	return WorkerMetrics{
 		WorkerID:       w.id,
-		DLQDepth:       w.GetDLQDepth(),
 		ProcessedCount: atomic.LoadInt64(&w.processedCount),
 		FailedCount:    atomic.LoadInt64(&w.failedCount),
-		RetriedCount:   atomic.LoadInt64(&w.retriedCount),
 	}
 }
 
 // WorkerMetrics represents worker performance metrics
 type WorkerMetrics struct {
 	WorkerID       int
-	DLQDepth       int
 	ProcessedCount int64
 	FailedCount    int64
-	RetriedCount   int64
 }

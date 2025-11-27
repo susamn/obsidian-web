@@ -183,3 +183,15 @@ func (s *SyncService) VaultID() string {
 func (s *SyncService) PendingEventsCount() int {
 	return len(s.events)
 }
+
+// InjectEvent injects an event back into the sync channel (for retries)
+// Returns true if event was injected, false if channel is full
+// Non-blocking operation
+func (s *SyncService) InjectEvent(event FileChangeEvent) bool {
+	select {
+	case s.events <- event:
+		return true
+	default:
+		return false
+	}
+}
