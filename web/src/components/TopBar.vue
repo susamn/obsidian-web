@@ -194,7 +194,7 @@ export default {
 /* Status states */
 .status-widget.connected {
   background-color: rgba(152, 195, 121, 0.1);
-  color: #98c379;
+  color: #98c379; /* Keep distinct green for success */
 }
 
 .status-widget.connected .status-icon {
@@ -202,19 +202,19 @@ export default {
 }
 
 .status-widget.live-syncing {
-  background-color: rgba(97, 175, 239, 0.15);
-  color: #61afef;
+  background-color: color-mix(in srgb, var(--primary-color), transparent 85%);
+  color: var(--primary-color);
   animation: pulse-glow 2s ease-in-out infinite;
-  border: 1px solid rgba(97, 175, 239, 0.3);
+  border: 1px solid color-mix(in srgb, var(--primary-color), transparent 70%);
 }
 
 .status-widget.live-syncing .status-icon {
-  color: #61afef;
+  color: var(--primary-color);
   animation: rotate-pulse 2s linear infinite;
 }
 
 .status-widget.live-syncing .pending-count {
-  color: #61afef;
+  color: var(--primary-color);
   animation: scale-pulse 1s ease-in-out infinite;
 }
 
@@ -240,10 +240,10 @@ export default {
 @keyframes pulse-glow {
   0%,
   100% {
-    box-shadow: 0 0 5px rgba(97, 175, 239, 0.3);
+    box-shadow: 0 0 5px color-mix(in srgb, var(--primary-color), transparent 70%);
   }
   50% {
-    box-shadow: 0 0 15px rgba(97, 175, 239, 0.6);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--primary-color), transparent 40%);
   }
 }
 

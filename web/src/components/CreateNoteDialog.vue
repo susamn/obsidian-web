@@ -288,10 +288,11 @@ const handleSave = async () => {
 
 .dialog-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 1.5rem;
+  align-items: center;
+  padding: 1rem;
   border-bottom: 1px solid var(--border-color);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 90%);
 }
 
 .dialog-header h2 {
@@ -356,9 +357,10 @@ const handleSave = async () => {
   color: var(--primary-color);
 }
 
-.type-option:has(input[type='radio']:checked) {
+.type-btn.active {
+  background-color: color-mix(in srgb, var(--primary-color), transparent 85%);
   border-color: var(--primary-color);
-  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--primary-color);
 }
 
 .form-group {
@@ -477,11 +479,12 @@ const handleSave = async () => {
 }
 
 .button-primary {
-  background-color: var(--primary-color, #3b82f6);
-  color: white;
+  background-color: var(--primary-color);
+  color: var(--background-color);
+  border: 1px solid var(--primary-color);
 }
 
 .button-primary:hover:not(:disabled) {
-  background-color: #2563eb;
+  background-color: color-mix(in srgb, var(--primary-color), transparent 10%);
 }
 </style>
