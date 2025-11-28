@@ -20,4 +20,12 @@
   --md-table-border: #93a1a1;
   --md-table-header-bg: #eee8d5;
   --md-hr-color: #93a1a1;
+
+  /* Heading Hierarchy Colors */
+  --md-h1-color: #dc322f; /* Red */
+  --md-h2-color: #cb4b16; /* Orange */
+  --md-h3-color: #b58900; /* Yellow */
+  --md-h4-color: #859900; /* Green */
+  --md-h5-color: #2aa198; /* Cyan */
+  --md-h6-color: #268bd2; /* Blue */
 }

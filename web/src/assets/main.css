@@ -7,3 +7,13 @@ body {
 h1 {
   color: var(--primary-color);
 }
+
+/* Default heading color gradients (overridden by specific themes) */
+:root {
+  --md-h1-color: var(--md-heading-color);
+  --md-h2-color: color-mix(in srgb, var(--md-heading-color), var(--text-color) 15%);
+  --md-h3-color: color-mix(in srgb, var(--md-heading-color), var(--text-color) 30%);
+  --md-h4-color: color-mix(in srgb, var(--md-heading-color), var(--text-color) 45%);
+  --md-h5-color: color-mix(in srgb, var(--md-heading-color), var(--text-color) 60%);
+  --md-h6-color: color-mix(in srgb, var(--md-heading-color), var(--text-color) 75%);
+}
