@@ -40,6 +40,10 @@
         v-else
         class="file-tree"
       >
+        <QuickFind
+          :vault-id="fileStore.vaultId"
+          @select="handleQuickFindSelect"
+        />
         <p v-if="fileStore.loading">
           Loading file tree...
         </p>
@@ -198,6 +202,7 @@ import { usePersistentTreeStore } from '../stores/persistentTreeStore'
 import { useSearchStore } from '../stores/searchStore'
 import { useSSE } from '../composables/useSSE'
 import FileTree from '../components/FileTree.vue'
+import QuickFind from '../components/QuickFind.vue'
 import SearchPanel from '../components/SearchPanel.vue'
 import SearchResults from '../components/SearchResults.vue'
 import StructuredRenderer from '../components/StructuredRenderer.vue'
@@ -272,6 +277,59 @@ const handleToggleExpand = (node) => {
       // Children are already loaded in the full tree, just mark as expanded
       persistentTreeStore.expandNode(fileStore.vaultId, node.metadata.id)
     }
+  }
+}
+
+const handleQuickFindSelect = async (node) => {
+  console.log('[VaultView] QuickFind selected:', node.metadata.name)
+
+  const fileId = node.metadata.id
+  const relativePath = node.metadata.path || node.metadata.name
+
+  try {
+    // Set current file ID
+    currentFileId.value = fileId
+
+    // Highlight the selected file in the tree
+    selectedFileId.value = fileId
+
+    fileStore.setCurrentPath(relativePath)
+
+    // Add to navigation history
+    addToNavigationHistory(fileId, relativePath)
+
+    // Expand folders
+    console.log('[VaultView] Expanding tree to reveal file:', relativePath)
+    const expandedNodeIds = persistentTreeStore.navigateToPath(fileStore.vaultId, relativePath)
+
+    // Update expandedNodes
+    expandedNodeIds.forEach((nodeId) => {
+      expandedNodes.value[nodeId] = true
+    })
+
+    // Scroll to the file
+    nextTick(() => {
+      setTimeout(() => {
+        const element = document.querySelector(`[data-node-id="${fileId}"]`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+    })
+
+    // Fetch content
+    const isCanvas = relativePath.toLowerCase().endsWith('.canvas')
+    if (isCanvas) {
+      const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId)
+      if (fileData && fileData.path) {
+        fileStore.setCurrentPath(fileData.path)
+      }
+    } else {
+      // For StructuredRenderer, set placeholder
+      fileStore.selectedFileContent = 'loading'
+    }
+  } catch (error) {
+    console.error('[VaultView] Error selecting file from QuickFind:', error)
   }
 }
 

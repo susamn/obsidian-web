@@ -31,24 +31,28 @@ describe('InlineRenderer', () => {
       props: { tokens },
     })
 
-    expect(katex.renderToString).toHaveBeenCalledWith('x^2', expect.objectContaining({
-      displayMode: false,
-    }))
+    expect(katex.renderToString).toHaveBeenCalledWith(
+      'x^2',
+      expect.objectContaining({
+        displayMode: false,
+      })
+    )
     expect(wrapper.html()).toContain('<span class="katex-mock mode-inline">x^2</span>')
   })
 
   it('renders display mode inline latex tokens', () => {
-    const tokens = [
-      { type: 'latex', content: 'sum', displayMode: true },
-    ]
+    const tokens = [{ type: 'latex', content: 'sum', displayMode: true }]
 
     const wrapper = mount(InlineRenderer, {
       props: { tokens },
     })
 
-    expect(katex.renderToString).toHaveBeenCalledWith('sum', expect.objectContaining({
-      displayMode: true,
-    }))
+    expect(katex.renderToString).toHaveBeenCalledWith(
+      'sum',
+      expect.objectContaining({
+        displayMode: true,
+      })
+    )
     expect(wrapper.html()).toContain('<span class="katex-mock mode-display">sum</span>')
   })
 })
