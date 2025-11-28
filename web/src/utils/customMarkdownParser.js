@@ -49,6 +49,14 @@ export function parseMarkdown(markdown, wikilinks = [], embeds = [], options = {
       continue
     }
 
+    // Block Math ($$)
+    if (line.trim().startsWith('$$')) {
+      const result = parseBlockMath(lines, i)
+      nodes.push(result.node)
+      i = result.nextIndex
+      continue
+    }
+
     // Headings
     if (line.match(/^#{1,6}\s/)) {
       nodes.push(parseHeading(line))
@@ -376,6 +384,43 @@ function parseInline(text) {
         target,
         display,
         original: fullMatch,
+      })
+
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
+    }
+
+    // Inline Math (Display Mode) $$...$$
+    // Must check before single $ to avoid partial match
+    const displayMathMatch = remaining.match(/^\$\$((?:[^$]|\\\$)+)\$\$/)
+    if (displayMathMatch) {
+      const fullMatch = displayMathMatch[0]
+      const content = displayMathMatch[1]
+
+      tokens.push({
+        type: 'latex',
+        content: content,
+        displayMode: true,
+      })
+
+      remaining = remaining.slice(fullMatch.length)
+      pos += fullMatch.length
+      matched = true
+      continue
+    }
+
+    // Inline Math $...$
+    const inlineMathMatch = remaining.match(/^\$((?:[^$]|\\\$)+)\$/)
+    if (inlineMathMatch) {
+      const fullMatch = inlineMathMatch[0]
+      const content = inlineMathMatch[1]
+
+      tokens.push({
+        type: 'latex',
+        content: content,
+        displayMode: false,
       })
 
       remaining = remaining.slice(fullMatch.length)
@@ -713,6 +758,55 @@ function getCalloutLabel(type) {
   }
 
   return labels[type] || 'Note'
+}
+
+/**
+ * Parse block math $$ ... $$
+ */
+function parseBlockMath(lines, startIndex) {
+  const firstLine = lines[startIndex].trim()
+
+  // Single line case: $$ content $$
+  // Check for exactly $$ at start and end, and length >= 4 (meaning at least empty $$)
+  // But actually $$ content $$ is fine.
+  if (firstLine.length >= 4 && firstLine.endsWith('$$')) {
+    return {
+      node: {
+        type: 'latex',
+        content: firstLine.slice(2, -2).trim(),
+      },
+      nextIndex: startIndex + 1,
+    }
+  }
+
+  // Multi-line case
+  let i = startIndex + 1
+  const mathLines = []
+
+  // If first line has content after $$, add it
+  if (firstLine.length > 2) {
+    mathLines.push(lines[startIndex].trim().slice(2))
+  }
+
+  while (i < lines.length) {
+    const line = lines[i].trim()
+    if (line.endsWith('$$')) {
+      if (line.length > 2) {
+        mathLines.push(line.slice(0, -2))
+      }
+      break
+    }
+    mathLines.push(lines[i])
+    i++
+  }
+
+  return {
+    node: {
+      type: 'latex',
+      content: mathLines.join('\n').trim(),
+    },
+    nextIndex: i + 1,
+  }
 }
 
 /**

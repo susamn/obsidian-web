@@ -8,8 +8,6 @@
  * @module structuredMarkdownRenderer
  */
 
-import MarkdownIt from 'markdown-it'
-
 /**
  * Callout/Admonition type configuration
  * Maps callout types to icons and CSS classes (Obsidian-style)

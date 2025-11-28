@@ -108,6 +108,13 @@
       </span>
     </template>
 
+    <!-- LaTeX -->
+    <span
+      v-else-if="token.type === 'latex'"
+      class="md-latex-inline"
+      v-html="renderLatex(token.content, token.displayMode)"
+    />
+
     <!-- Tag -->
     <span
       v-else-if="token.type === 'tag'"
@@ -158,6 +165,8 @@
 
 <script setup>
 import { computed } from 'vue'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 const props = defineProps({
   tokens: {
@@ -168,6 +177,18 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['wikilink-click'])
+
+function renderLatex(content, displayMode) {
+  try {
+    return katex.renderToString(content, {
+      throwOnError: false,
+      displayMode: displayMode,
+    })
+  } catch (error) {
+    console.error('KaTeX error:', error)
+    return `<span class="latex-error" title="${error.message}">LaTeX Error</span>`
+  }
+}
 
 // Ensure tokens is always an array to prevent infinite loops
 const safeTokens = computed(() => {

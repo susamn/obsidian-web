@@ -20,6 +20,7 @@ import MarkdownCallout from './markdown/MarkdownCallout.vue'
 import MarkdownList from './markdown/MarkdownList.vue'
 import MarkdownTable from './markdown/MarkdownTable.vue'
 import MarkdownHr from './markdown/MarkdownHr.vue'
+import MarkdownLatex from './markdown/MarkdownLatex.vue'
 
 const props = defineProps({
   nodes: {
@@ -41,6 +42,7 @@ const componentMap = {
   ol: MarkdownList,
   table: MarkdownTable,
   hr: MarkdownHr,
+  latex: MarkdownLatex,
 }
 
 function getNodeComponent(node) {
