@@ -252,8 +252,8 @@ function handleWikilinkClick(token) {
 
 /* Inline code */
 .md-code-inline {
-  background-color: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  background-color: var(--md-inline-code-bg);
+  color: var(--md-code-text);
   border-radius: 3px;
   padding: 0.2em 0.4em;
   font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
@@ -292,7 +292,7 @@ function handleWikilinkClick(token) {
   overflow: hidden;
   font-size: 0.9em;
   transition: all 0.2s ease;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid var(--md-code-border);
   vertical-align: baseline;
 }
 
@@ -304,12 +304,12 @@ function handleWikilinkClick(token) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  background-color: var(--md-inline-code-bg);
+  color: var(--primary-color);
   padding: 0.25em 0.45em;
   font-weight: 700;
   font-size: 0.85em;
-  border-right: 1px solid rgba(59, 130, 246, 0.3);
+  border-right: 1px solid var(--md-code-border);
   white-space: nowrap;
   line-height: 1;
 }
@@ -323,8 +323,8 @@ function handleWikilinkClick(token) {
 .md-wikilink-content {
   display: flex;
   align-items: center;
-  background-color: rgba(59, 130, 246, 0.05);
-  color: #3b82f6;
+  background-color: var(--background-color-light);
+  color: var(--primary-color);
   padding: 0.25em 0.6em;
   font-weight: 500;
   white-space: nowrap;
@@ -337,8 +337,8 @@ function handleWikilinkClick(token) {
 }
 
 .md-wikilink-pill-link:hover {
-  border-color: rgba(59, 130, 246, 0.5);
-  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.2);
+  border-color: var(--primary-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .md-wikilink-pill-broken .md-wikilink-pill-link:hover {
@@ -347,7 +347,7 @@ function handleWikilinkClick(token) {
 }
 
 .md-wikilink-pill-link:hover .md-wikilink-label {
-  background-color: rgba(59, 130, 246, 0.25);
+  filter: brightness(1.1);
 }
 
 .md-wikilink-pill-broken .md-wikilink-pill-link:hover .md-wikilink-label {
@@ -355,7 +355,7 @@ function handleWikilinkClick(token) {
 }
 
 .md-wikilink-pill-link:hover .md-wikilink-content {
-  background-color: rgba(59, 130, 246, 0.1);
+  filter: brightness(1.1);
 }
 
 .md-wikilink-pill-broken .md-wikilink-pill-link:hover .md-wikilink-content {

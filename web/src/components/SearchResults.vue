@@ -174,7 +174,7 @@ const handleResultClick = (result) => {
 }
 
 .result-item:hover {
-  background-color: var(--background-color-light);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 95%);
   border-color: var(--primary-color);
   transform: translateX(2px);
 }
@@ -224,7 +224,7 @@ const handleResultClick = (result) => {
 }
 
 .fragment :deep(mark) {
-  background-color: rgba(255, 215, 0, 0.3);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 70%);
   color: var(--text-color);
   font-weight: 500;
   padding: 0.125rem 0.25rem;

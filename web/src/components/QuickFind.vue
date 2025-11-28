@@ -254,7 +254,16 @@ const getFileIcon = (metadata) => {
 
 .result-item:hover,
 .result-item.active {
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 85%);
+}
+
+.result-item.active {
+  border-left: 3px solid var(--primary-color);
+  padding-left: calc(0.5rem - 3px);
+}
+
+.result-item.active .item-name {
+  color: var(--primary-color);
 }
 
 .item-icon {

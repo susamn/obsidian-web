@@ -210,18 +210,18 @@ const getFileIcon = (metadata) => {
 
 /* Selected file highlighting - theme-aware translucent background */
 .node-header.selected-file {
-  background-color: var(--selected-file-bg, rgba(59, 130, 246, 0.15));
-  border-left: 3px solid var(--primary-color, #3b82f6);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 85%);
+  border-left: 3px solid var(--primary-color);
   padding-left: calc(0.5rem - 3px); /* Adjust padding to account for border */
 }
 
 .node-header.selected-file:hover {
-  background-color: var(--selected-file-hover-bg, rgba(59, 130, 246, 0.25));
+  background-color: color-mix(in srgb, var(--primary-color), transparent 75%);
 }
 
 .node-header.selected-file .node-name {
   font-weight: 500;
-  color: var(--primary-color, #3b82f6);
+  color: var(--primary-color);
 }
 
 /* Expand/Collapse icon */
@@ -256,48 +256,31 @@ const getFileIcon = (metadata) => {
 }
 
 .folder-icon {
-  color: #f0c674; /* Yellow/gold for folders */
+  color: var(--primary-color);
+  opacity: 0.8;
 }
 
 .file-icon {
-  color: var(--text-color, #333);
+  color: var(--md-link-color);
+  opacity: 0.9;
 }
 
-/* Specific icon colors */
-.fa-project-diagram {
-  color: #bd93f9; /* Purple for canvas files */
-}
-
-.fa-file-image {
-  color: #c678dd; /* Purple for images */
-}
-
-.fa-file-pdf {
-  color: #e06c75; /* Red for PDFs */
-}
-
-.fa-file-word {
-  color: #2b5797; /* Blue for Word docs */
-}
-
-.fa-file-code {
-  color: #61afef; /* Light blue for code */
-}
-
-.fa-file-archive {
-  color: #e5c07b; /* Orange for archives */
-}
-
-.fa-file-video {
-  color: #c678dd; /* Purple for videos */
-}
-
+/* Specific icon colors mapped to theme variables */
+.fa-file-image,
+.fa-file-video,
 .fa-file-audio {
-  color: #98c379; /* Green for audio */
+  color: var(--md-code-text); /* Often Red/Orange/Pink */
 }
 
-.fa-file-alt {
-  color: #56b6c2; /* Cyan for markdown/text */
+.fa-file-code,
+.fa-project-diagram {
+  color: var(--md-heading-color); /* Often Yellow/Purple */
+}
+
+.fa-file-pdf,
+.fa-file-word,
+.fa-file-archive {
+  color: var(--md-code-text);
 }
 
 /* Node name */
@@ -356,39 +339,5 @@ const getFileIcon = (metadata) => {
   padding-left: 0.25rem;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .node-header:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .node-name {
-    color: #ddd;
-  }
-
-  .expand-icon {
-    color: #999;
-  }
-
-  .file-icon {
-    color: #ddd;
-  }
-
-  .children {
-    border-left-color: #444;
-  }
-
-  /* Selected file in dark mode */
-  .node-header.selected-file {
-    background-color: rgba(59, 130, 246, 0.2);
-  }
-
-  .node-header.selected-file:hover {
-    background-color: rgba(59, 130, 246, 0.3);
-  }
-
-  .node-header.selected-file .node-name {
-    color: #60a5fa;
-  }
-}
+/* Dark mode support removed - relying on CSS variables from themes */
 </style>

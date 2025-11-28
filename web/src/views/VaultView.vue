@@ -1087,8 +1087,8 @@ onMounted(() => {
   align-items: center;
   gap: clamp(0.25em, 0.6vw, 0.3em);
   padding: clamp(0.25em, 0.8vw, 0.35em) clamp(0.5em, 1.2vw, 0.625em);
-  background-color: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 92%);
+  border: 1px solid color-mix(in srgb, var(--primary-color), transparent 80%);
   border-radius: 6px;
   color: var(--text-color);
   font-size: clamp(0.7rem, 1.6vw, 0.75rem);
@@ -1098,12 +1098,12 @@ onMounted(() => {
 }
 
 .stat-chip:hover {
-  background-color: rgba(59, 130, 246, 0.12);
-  border-color: rgba(59, 130, 246, 0.3);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 88%);
+  border-color: color-mix(in srgb, var(--primary-color), transparent 70%);
 }
 
 .stat-chip i {
-  color: #3b82f6;
+  color: var(--primary-color);
   font-size: 0.9em;
   opacity: 0.8;
 }
