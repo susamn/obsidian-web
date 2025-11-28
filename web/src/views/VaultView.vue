@@ -921,7 +921,9 @@ onMounted(() => {
 <style scoped>
 .vault-view {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .sidebar {
@@ -966,21 +968,53 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   flex: 1; /* Allow it to fill sidebar-content vertically */
-  overflow: hidden; /* Prevent this wrapper from scrolling, let inner content scroll */
+  overflow: hidden; /* Prevent this container from scrolling */
+  min-height: 0; /* Critical for flex scrolling */
+  padding: 0 1rem 1rem 1rem; /* Add horizontal and bottom padding for spacing */
 }
 
-.file-tree-content {
-  flex: 1; /* Make FileTree take remaining vertical space */
-  overflow-y: auto; /* Allow FileTree to scroll vertically */
-  min-height: 0; /* Critical for flex scrolling */
+/* QuickFind should be static at the top */
+.file-tree :deep(.quick-find) {
+  flex-shrink: 0;
+  margin-bottom: 0.75rem;
+}
+
+/* FileTree component should scroll */
+.file-tree :deep(.file-tree-list) {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Loading and error messages */
+.file-tree > p {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color-secondary);
 }
 
 /* Ensure search section fills height if needed or scrolls */
 .search-section {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
   overflow: hidden;
+  min-height: 0;
+  padding: 0 1rem 1rem 1rem; /* Add horizontal and bottom padding for spacing */
+}
+
+/* SearchPanel should be static at the top */
+.search-section :deep(.search-panel) {
+  flex-shrink: 0;
+}
+
+/* SearchResults should scroll */
+.search-section :deep(.search-results) {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .header-top {
@@ -1039,7 +1073,6 @@ onMounted(() => {
 .main-content {
   flex: 1;
   min-height: 0;
-  padding: clamp(0.75rem, 2vw, 1.25rem);
   overflow: hidden;
   background-color: var(--background-color);
   color: var(--text-color);
@@ -1071,7 +1104,7 @@ onMounted(() => {
 
 .file-viewer {
   background-color: var(--background-color);
-  padding: 0;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
   margin: 0;
   flex: 1;
   min-height: 0;

@@ -296,12 +296,12 @@ watch(
 <style scoped>
 .structured-renderer-wrapper {
   flex: 1;
-  height: 100%;
-  overflow-y: auto;
-  padding: 0;
-  min-width: 0;
-  position: relative;
   min-height: 0;
+  padding: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sr-loading,
@@ -485,8 +485,8 @@ watch(
   margin: 0;
   text-align: left;
   border: 1px solid rgba(128, 128, 128, 0.15);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
   font-size: clamp(0.875rem, 2vw, 0.9375rem);
   letter-spacing: 0.01em;
   line-height: 1.65;
@@ -497,8 +497,11 @@ watch(
 
 /* Metadata Panels */
 .sr-metadata-panels {
+  flex-shrink: 0;
   padding: clamp(0.625rem, 2vw, 0.875rem) clamp(1rem, 3vw, 1.5rem);
-  border-top: 1px solid rgba(128, 128, 128, 0.15);
+  border: 1px solid rgba(128, 128, 128, 0.15);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
   background-color: var(--background-color-light);
 }
 

@@ -131,7 +131,6 @@ const handleResultClick = (result) => {
 <style scoped>
 .search-results {
   height: 100%;
-  overflow-y: auto;
 }
 
 .loading-state,

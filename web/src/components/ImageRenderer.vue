@@ -63,13 +63,13 @@ const handleError = () => {
 <style scoped>
 .image-renderer {
   flex: 1;
+  min-height: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow: auto;
   padding: 2rem;
   background-color: var(--background-color-alt, rgba(0, 0, 0, 0.02));
-  height: 100%;
+  overflow: auto;
 }
 
 .image-container {
