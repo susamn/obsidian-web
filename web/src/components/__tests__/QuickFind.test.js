@@ -15,8 +15,8 @@ describe('QuickFind', () => {
         name: 'Note 1.md',
         path: 'folder/Note 1.md',
         is_directory: false,
-        is_markdown: true
-      }
+        is_markdown: true,
+      },
     },
     {
       metadata: {
@@ -24,8 +24,8 @@ describe('QuickFind', () => {
         name: 'Image.png',
         path: 'assets/Image.png',
         is_directory: false,
-        is_markdown: false
-      }
+        is_markdown: false,
+      },
     },
     {
       metadata: {
@@ -33,8 +33,8 @@ describe('QuickFind', () => {
         name: 'Folder',
         path: 'folder',
         is_directory: true, // Should be filtered out
-        is_markdown: false
-      }
+        is_markdown: false,
+      },
     },
     {
       metadata: {
@@ -42,32 +42,34 @@ describe('QuickFind', () => {
         name: 'Another Note.md',
         path: 'Another Note.md',
         is_directory: false,
-        is_markdown: true
-      }
-    }
+        is_markdown: true,
+      },
+    },
   ]
 
   beforeEach(() => {
     // Setup mock store data
     const pathMap = new Map()
-    mockFiles.forEach(node => pathMap.set(node.metadata.path, node))
+    mockFiles.forEach((node) => pathMap.set(node.metadata.path, node))
 
     const initialState = {
-      pathIndex: new Map([[vaultId, pathMap]])
+      pathIndex: new Map([[vaultId, pathMap]]),
     }
 
     mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({
-          createSpy: vi.fn,
-          initialState: {
-            persistentTree: initialState
-          }
-        })]
-      }
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            initialState: {
+              persistentTree: initialState,
+            },
+          }),
+        ],
+      },
     })
-    
+
     store = usePersistentTreeStore()
     store.pathIndex = new Map([[vaultId, pathMap]])
   })
@@ -76,8 +78,8 @@ describe('QuickFind', () => {
     const wrapper = mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({ createSpy: vi.fn })]
-      }
+        plugins: [createTestingPinia({ createSpy: vi.fn })],
+      },
     })
     expect(wrapper.find('.quick-find-input').exists()).toBe(true)
     expect(wrapper.find('.results-list').exists()).toBe(false)
@@ -87,15 +89,17 @@ describe('QuickFind', () => {
     const wrapper = mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({
+        plugins: [
+          createTestingPinia({
             createSpy: vi.fn,
             initialState: {
-                persistentTree: {
-                    pathIndex: store.pathIndex
-                }
-            }
-        })]
-      }
+              persistentTree: {
+                pathIndex: store.pathIndex,
+              },
+            },
+          }),
+        ],
+      },
     })
 
     const input = wrapper.find('input')
@@ -112,15 +116,17 @@ describe('QuickFind', () => {
     const wrapper = mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({
+        plugins: [
+          createTestingPinia({
             createSpy: vi.fn,
             initialState: {
-                persistentTree: {
-                    pathIndex: store.pathIndex
-                }
-            }
-        })]
-      }
+              persistentTree: {
+                pathIndex: store.pathIndex,
+              },
+            },
+          }),
+        ],
+      },
     })
 
     const input = wrapper.find('input')
@@ -135,15 +141,17 @@ describe('QuickFind', () => {
     const wrapper = mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({
+        plugins: [
+          createTestingPinia({
             createSpy: vi.fn,
             initialState: {
-                persistentTree: {
-                    pathIndex: store.pathIndex
-                }
-            }
-        })]
-      }
+              persistentTree: {
+                pathIndex: store.pathIndex,
+              },
+            },
+          }),
+        ],
+      },
     })
 
     const input = wrapper.find('input')
@@ -159,15 +167,17 @@ describe('QuickFind', () => {
     const wrapper = mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({
+        plugins: [
+          createTestingPinia({
             createSpy: vi.fn,
             initialState: {
-                persistentTree: {
-                    pathIndex: store.pathIndex
-                }
-            }
-        })]
-      }
+              persistentTree: {
+                pathIndex: store.pathIndex,
+              },
+            },
+          }),
+        ],
+      },
     })
 
     // Mock scrollIntoView
@@ -175,7 +185,7 @@ describe('QuickFind', () => {
 
     const input = wrapper.find('input')
     await input.setValue('Note')
-    
+
     const results = wrapper.findAll('.result-item')
     expect(results[0].classes()).toContain('active')
     expect(results[1].classes()).not.toContain('active')
@@ -195,22 +205,24 @@ describe('QuickFind', () => {
     const wrapper = mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({
+        plugins: [
+          createTestingPinia({
             createSpy: vi.fn,
             initialState: {
-                persistentTree: {
-                    pathIndex: store.pathIndex
-                }
-            }
-        })]
-      }
+              persistentTree: {
+                pathIndex: store.pathIndex,
+              },
+            },
+          }),
+        ],
+      },
     })
 
     await wrapper.find('input').setValue('Note')
     const results = wrapper.findAll('.result-item')
-    
+
     await results[0].trigger('click')
-    
+
     expect(wrapper.emitted('select')).toBeTruthy()
     expect(wrapper.emitted('select')[0][0].metadata.id).toBe('1')
     expect(wrapper.find('input').element.value).toBe('') // Should clear after selection
@@ -220,20 +232,22 @@ describe('QuickFind', () => {
     const wrapper = mount(QuickFind, {
       props: { vaultId },
       global: {
-        plugins: [createTestingPinia({
+        plugins: [
+          createTestingPinia({
             createSpy: vi.fn,
             initialState: {
-                persistentTree: {
-                    pathIndex: store.pathIndex
-                }
-            }
-        })]
-      }
+              persistentTree: {
+                pathIndex: store.pathIndex,
+              },
+            },
+          }),
+        ],
+      },
     })
 
     const input = wrapper.find('input')
     await input.setValue('Note')
-    
+
     // Select second item
     await input.trigger('keydown.down')
     await input.trigger('keydown.enter')

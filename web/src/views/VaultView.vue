@@ -207,6 +207,7 @@ import SearchPanel from '../components/SearchPanel.vue'
 import SearchResults from '../components/SearchResults.vue'
 import StructuredRenderer from '../components/StructuredRenderer.vue'
 import CanvasRenderer from '../components/CanvasRenderer.vue'
+import ImageRenderer from '../components/ImageRenderer.vue'
 import CreateNoteDialog from '../components/CreateNoteDialog.vue'
 
 const route = useRoute()
@@ -249,15 +250,30 @@ const markdownResult = ref({
   stats: { words: 0, chars: 0, readingTime: 0 },
 })
 
-// Check if current file is a canvas file
-const isCanvasFile = computed(() => {
-  if (!fileStore.currentPath) return false
-  return fileStore.currentPath.toLowerCase().endsWith('.canvas')
-})
+// Determine file type from extension
+const getFileType = (path) => {
+  if (!path) return 'unknown'
+  const ext = path.split('.').pop().toLowerCase()
 
-// Dynamic renderer component - always use StructuredRenderer for markdown, CanvasRenderer for canvas files
+  if (ext === 'canvas') return 'canvas'
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) return 'image'
+  if (ext === 'pdf') return 'pdf'
+  if (['md', 'txt'].includes(ext)) return 'markdown'
+
+  return 'markdown' // Default to markdown/structured renderer
+}
+
+// Dynamic renderer component
 const currentRendererComponent = computed(() => {
-  return isCanvasFile.value ? CanvasRenderer : StructuredRenderer
+  const type = getFileType(fileStore.currentPath)
+  switch (type) {
+    case 'canvas':
+      return CanvasRenderer
+    case 'image':
+      return ImageRenderer
+    default:
+      return StructuredRenderer
+  }
 })
 
 const handleToggleExpand = (node) => {
@@ -318,12 +334,15 @@ const handleQuickFindSelect = async (node) => {
     })
 
     // Fetch content
-    const isCanvas = relativePath.toLowerCase().endsWith('.canvas')
-    if (isCanvas) {
+    const type = getFileType(relativePath)
+
+    if (type === 'canvas') {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId)
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path)
       }
+    } else if (type === 'image') {
+      fileStore.selectedFileContent = 'asset'
     } else {
       // For StructuredRenderer, set placeholder
       fileStore.selectedFileContent = 'loading'
@@ -348,15 +367,14 @@ const handleFileSelected = async (node) => {
     // Highlight the selected file in the tree
     selectedFileId.value = node.metadata.id
 
-    // Check if this is a canvas file
-    const isCanvas = filePath.toLowerCase().endsWith('.canvas')
+    // Determine file type
+    const type = getFileType(filePath)
 
-    if (isCanvas) {
+    if (type === 'canvas') {
       // Canvas files need content fetched
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, node.metadata.id)
 
       // Update the path from server response if available (contains relative path)
-      // This path is READ-ONLY and used for UI navigation only
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path)
         // Update history with correct path
@@ -364,8 +382,13 @@ const handleFileSelected = async (node) => {
           navigationHistory.value[navigationIndex.value].filePath = fileData.path
         }
       }
+    } else if (type === 'image') {
+      // For images, we don't need to fetch content via fileStore
+      // But we need to set selectedFileContent to truthy to show the renderer
+      fileStore.selectedFileContent = 'asset'
     } else {
-      // For StructuredRenderer, the watcher will handle fetching
+      // For StructuredRenderer (markdown), the watcher in the component will handle fetching
+
       // Just set a placeholder to ensure the component is shown
       fileStore.selectedFileContent = 'loading'
     }
@@ -441,14 +464,17 @@ const handleSearchResultSelected = async (result) => {
     }
 
     // Fetch file content using file ID
-    const isCanvas = relativePath.toLowerCase().endsWith('.canvas')
-    if (isCanvas) {
+    const type = getFileType(relativePath)
+
+    if (type === 'canvas') {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId)
 
       // Update the path from server response if available
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path)
       }
+    } else if (type === 'image') {
+      fileStore.selectedFileContent = 'asset'
     } else {
       // For StructuredRenderer, just set a placeholder
       fileStore.selectedFileContent = 'loading'
@@ -504,14 +530,16 @@ const handleWikilinkNavigation = async (event) => {
     })
 
     // Check if this is a canvas file
-    const isCanvas = path.toLowerCase().endsWith('.canvas')
+    const type = getFileType(path)
 
-    if (isCanvas) {
+    if (type === 'canvas') {
       // Canvas files need content fetched
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, fileId)
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path)
       }
+    } else if (type === 'image') {
+      fileStore.selectedFileContent = 'asset'
     } else {
       // For StructuredRenderer, set placeholder to show component
       fileStore.selectedFileContent = 'loading'
@@ -628,13 +656,15 @@ const goBack = async () => {
     })
 
     // Check if this is a canvas file
-    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas')
+    const type = getFileType(item.filePath)
 
-    if (isCanvas) {
+    if (type === 'canvas') {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId)
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path)
       }
+    } else if (type === 'image') {
+      fileStore.selectedFileContent = 'asset'
     } else {
       // For StructuredRenderer, set placeholder
       fileStore.selectedFileContent = 'loading'
@@ -682,13 +712,15 @@ const goForward = async () => {
     })
 
     // Check if this is a canvas file
-    const isCanvas = item.filePath.toLowerCase().endsWith('.canvas')
+    const type = getFileType(item.filePath)
 
-    if (isCanvas) {
+    if (type === 'canvas') {
       const fileData = await fileStore.fetchFileContent(fileStore.vaultId, item.fileId)
       if (fileData && fileData.path) {
         fileStore.setCurrentPath(fileData.path)
       }
+    } else if (type === 'image') {
+      fileStore.selectedFileContent = 'asset'
     } else {
       // For StructuredRenderer, set placeholder
       fileStore.selectedFileContent = 'loading'
