@@ -12,6 +12,7 @@ import (
 	"github.com/susamn/obsidian-web/internal/explorer"
 	"github.com/susamn/obsidian-web/internal/indexing"
 	"github.com/susamn/obsidian-web/internal/logger"
+	"github.com/susamn/obsidian-web/internal/recon"
 	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
@@ -29,7 +30,7 @@ type Worker struct {
 	dbService       *db.DBService
 	indexService    *indexing.IndexService
 	explorerService *explorer.ExplorerService
-	reconService    *ReconciliationService
+	reconService    *recon.ReconciliationService
 	sseManager      *sse.Manager
 
 	// Metrics
@@ -51,7 +52,7 @@ func NewWorker(
 	dbService *db.DBService,
 	indexService *indexing.IndexService,
 	explorerService *explorer.ExplorerService,
-	reconService *ReconciliationService,
+	reconService *recon.ReconciliationService,
 ) *Worker {
 	return &Worker{
 		id:              id,
@@ -215,7 +216,7 @@ func (w *Worker) updateDatabase(event syncpkg.FileChangeEvent) (string, error) {
 		return "", fmt.Errorf("db service not initialized")
 	}
 
-	return performDatabaseUpdate(w.dbService, w.vaultPath, event)
+	return w.dbService.PerformDatabaseUpdate(w.vaultPath, event)
 }
 
 // queueSSEEvent queues an SSE event

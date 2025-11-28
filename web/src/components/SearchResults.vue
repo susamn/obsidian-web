@@ -1,21 +1,33 @@
 <template>
   <div class="search-results">
-    <div v-if="searchStore.loading" class="loading-state">
+    <div
+      v-if="searchStore.loading"
+      class="loading-state"
+    >
       <i class="fas fa-spinner fa-spin" />
       <span>Searching...</span>
     </div>
 
-    <div v-else-if="searchStore.error" class="error-state">
+    <div
+      v-else-if="searchStore.error"
+      class="error-state"
+    >
       <i class="fas fa-exclamation-circle" />
       <span>{{ searchStore.error }}</span>
     </div>
 
-    <div v-else-if="searchStore.results.length === 0 && searchStore.query" class="empty-state">
+    <div
+      v-else-if="searchStore.results.length === 0 && searchStore.query"
+      class="empty-state"
+    >
       <i class="fas fa-search" />
       <span>No results found</span>
     </div>
 
-    <div v-else class="results-list">
+    <div
+      v-else
+      class="results-list"
+    >
       <div
         v-for="result in searchStore.results"
         :key="result.id"
@@ -25,7 +37,10 @@
         <div class="result-header">
           <i class="fas fa-file-alt result-icon" />
           <span class="result-title">{{ getFileName(result) }}</span>
-          <span class="result-score" :title="`Relevance: ${result.score.toFixed(2)}`">
+          <span
+            class="result-score"
+            :title="`Relevance: ${result.score.toFixed(2)}`"
+          >
             {{ formatScore(result.score) }}
           </span>
         </div>
@@ -34,7 +49,11 @@
           v-if="result.fragments && Object.keys(result.fragments).length > 0"
           class="result-fragments"
         >
-          <div v-for="(fragments, field) in result.fragments" :key="field" class="fragment-group">
+          <div
+            v-for="(fragments, field) in result.fragments"
+            :key="field"
+            class="fragment-group"
+          >
             <div
               v-for="(fragment, index) in fragments"
               :key="index"
@@ -44,14 +63,23 @@
           </div>
         </div>
 
-        <div v-if="result.fields" class="result-meta">
-          <span v-if="result.fields.tags" class="meta-tags">
+        <div
+          v-if="result.fields"
+          class="result-meta"
+        >
+          <span
+            v-if="result.fields.tags"
+            class="meta-tags"
+          >
             <i class="fas fa-tag" />
             {{
               Array.isArray(result.fields.tags) ? result.fields.tags.join(', ') : result.fields.tags
             }}
           </span>
-          <span v-if="result.fields.path" class="meta-path">
+          <span
+            v-if="result.fields.path"
+            class="meta-path"
+          >
             <i class="fas fa-folder" />
             {{ result.fields.path }}
           </span>

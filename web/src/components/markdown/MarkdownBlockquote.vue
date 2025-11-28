@@ -1,6 +1,9 @@
 <template>
   <blockquote class="md-blockquote">
-    <InlineRenderer :tokens="node.content" @wikilink-click="$emit('wikilink-click', $event)" />
+    <InlineRenderer
+      :tokens="node.content"
+      @wikilink-click="$emit('wikilink-click', $event)"
+    />
   </blockquote>
 </template>
 

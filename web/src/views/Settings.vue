@@ -1,13 +1,26 @@
 <template>
   <div class="settings-view">
-    <button class="back-button" @click="goBack">← Back</button>
+    <button
+      class="back-button"
+      @click="goBack"
+    >
+      ← Back
+    </button>
     <h1>Settings</h1>
 
     <!-- Theme Selection -->
     <div class="theme-selection">
       <h2>Theme</h2>
-      <select v-model="selectedTheme" class="theme-select" @change="setTheme">
-        <option v-for="theme in themes" :key="theme.id" :value="theme.id">
+      <select
+        v-model="selectedTheme"
+        class="theme-select"
+        @change="setTheme"
+      >
+        <option
+          v-for="theme in themes"
+          :key="theme.id"
+          :value="theme.id"
+        >
           {{ theme.name }}
         </option>
       </select>

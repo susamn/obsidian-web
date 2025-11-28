@@ -2,15 +2,32 @@
   <table class="md-table">
     <thead v-if="headerRow">
       <tr>
-        <th v-for="(cell, index) in headerRow.cells" :key="index" class="md-table-header">
-          <InlineRenderer :tokens="cell" @wikilink-click="$emit('wikilink-click', $event)" />
+        <th
+          v-for="(cell, index) in headerRow.cells"
+          :key="index"
+          class="md-table-header"
+        >
+          <InlineRenderer
+            :tokens="cell"
+            @wikilink-click="$emit('wikilink-click', $event)"
+          />
         </th>
       </tr>
     </thead>
     <tbody>
-      <tr v-for="(row, rowIndex) in dataRows" :key="rowIndex">
-        <td v-for="(cell, cellIndex) in row.cells" :key="cellIndex" class="md-table-cell">
-          <InlineRenderer :tokens="cell" @wikilink-click="$emit('wikilink-click', $event)" />
+      <tr
+        v-for="(row, rowIndex) in dataRows"
+        :key="rowIndex"
+      >
+        <td
+          v-for="(cell, cellIndex) in row.cells"
+          :key="cellIndex"
+          class="md-table-cell"
+        >
+          <InlineRenderer
+            :tokens="cell"
+            @wikilink-click="$emit('wikilink-click', $event)"
+          />
         </td>
       </tr>
     </tbody>

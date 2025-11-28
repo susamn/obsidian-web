@@ -1,14 +1,23 @@
 <template>
   <div class="home-view">
     <header class="header">
-      <h1 class="title">Obsidian Web</h1>
-      <p class="subtitle">Your notes, on the web.</p>
+      <h1 class="title">
+        Obsidian Web
+      </h1>
+      <p class="subtitle">
+        Your notes, on the web.
+      </p>
     </header>
 
     <main class="main-content">
       <div class="vaults-section">
-        <h2 class="section-title">Your Vaults</h2>
-        <ul v-if="vaults.length" class="vault-list">
+        <h2 class="section-title">
+          Your Vaults
+        </h2>
+        <ul
+          v-if="vaults.length"
+          class="vault-list"
+        >
           <li
             v-for="vault in vaults"
             :key="vault.id"
@@ -16,30 +25,48 @@
             @click="openVault(vault.id)"
           >
             <span class="vault-name">{{ vault.name }}</span>
-            <span class="vault-status" :class="vault.status.toLowerCase()">{{ vault.status }}</span>
+            <span
+              class="vault-status"
+              :class="vault.status.toLowerCase()"
+            >{{ vault.status }}</span>
           </li>
         </ul>
-        <p v-else class="no-vaults">No vaults found. Create one below.</p>
+        <p
+          v-else
+          class="no-vaults"
+        >
+          No vaults found. Create one below.
+        </p>
       </div>
 
       <div class="create-vault-section">
-        <h2 class="section-title">Create New Vault</h2>
-        <form class="create-vault-form" @submit.prevent="createVault">
+        <h2 class="section-title">
+          Create New Vault
+        </h2>
+        <form
+          class="create-vault-form"
+          @submit.prevent="createVault"
+        >
           <input
             v-model="newVault.name"
             type="text"
             placeholder="Vault Name"
             class="form-input"
             required
-          />
+          >
           <input
             v-model="newVault.path"
             type="text"
             placeholder="Vault Path"
             class="form-input"
             required
-          />
-          <button type="submit" class="form-button">Create Vault</button>
+          >
+          <button
+            type="submit"
+            class="form-button"
+          >
+            Create Vault
+          </button>
         </form>
       </div>
     </main>

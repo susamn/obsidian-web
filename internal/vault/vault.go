@@ -15,6 +15,7 @@ import (
 	"github.com/susamn/obsidian-web/internal/explorer"
 	"github.com/susamn/obsidian-web/internal/indexing"
 	"github.com/susamn/obsidian-web/internal/logger"
+	"github.com/susamn/obsidian-web/internal/recon"
 	"github.com/susamn/obsidian-web/internal/search"
 	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
@@ -73,7 +74,7 @@ type Vault struct {
 	dbService       *db.DBService
 
 	// Event processing
-	reconService *ReconciliationService
+	reconService *recon.ReconciliationService
 	workers      []*Worker
 	sseManager   *sse.Manager
 
@@ -223,7 +224,7 @@ func (v *Vault) Start() error {
 	syncEvents := v.syncService.Events()
 
 	// Create reconciliation service
-	v.reconService = NewReconciliationService(
+	v.reconService = recon.NewReconciliationService(
 		v.config.ID,
 		v.ctx,
 		v.eventRouter,
@@ -503,7 +504,7 @@ func (v *Vault) updateDatabase(event syncpkg.FileChangeEvent) (string, error) {
 		return "", fmt.Errorf("db service not available")
 	}
 
-	return performDatabaseUpdate(v.dbService, v.vaultPath, event)
+	return v.dbService.PerformDatabaseUpdate(v.vaultPath, event)
 }
 
 // DEPRECATED: Legacy method - replaced by performDatabaseUpdate in db_helper.go

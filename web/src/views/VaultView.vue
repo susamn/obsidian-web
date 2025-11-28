@@ -20,7 +20,10 @@
       </div>
 
       <!-- Search Panel -->
-      <div v-if="showSearch" class="search-section">
+      <div
+        v-if="showSearch"
+        class="search-section"
+      >
         <SearchPanel
           :vault-id="fileStore.vaultId"
           @close="closeSearch"
@@ -33,9 +36,19 @@
       </div>
 
       <!-- File Tree -->
-      <div v-else class="file-tree">
-        <p v-if="fileStore.loading">Loading file tree...</p>
-        <p v-else-if="fileStore.error" class="text-red-500">Error: {{ fileStore.error }}</p>
+      <div
+        v-else
+        class="file-tree"
+      >
+        <p v-if="fileStore.loading">
+          Loading file tree...
+        </p>
+        <p
+          v-else-if="fileStore.error"
+          class="text-red-500"
+        >
+          Error: {{ fileStore.error }}
+        </p>
         <FileTree
           v-else
           :nodes="fileStore.treeData"
@@ -50,20 +63,34 @@
     </aside>
 
     <main class="main-content">
-      <div v-if="fileStore.loading" class="loading-spinner">
+      <div
+        v-if="fileStore.loading"
+        class="loading-spinner"
+      >
         <i class="fas fa-spinner fa-spin" />
         <p>Loading file content...</p>
       </div>
-      <div v-else-if="fileStore.error" class="error-message">
+      <div
+        v-else-if="fileStore.error"
+        class="error-message"
+      >
         <i class="fas fa-exclamation-circle" />
         <p>Error: {{ fileStore.error }}</p>
       </div>
-      <div v-else-if="fileStore.selectedFileContent" class="file-viewer">
+      <div
+        v-else-if="fileStore.selectedFileContent"
+        class="file-viewer"
+      >
         <!-- Breadcrumb and Header -->
         <div class="file-header-section">
           <div class="navigation-bar">
             <div class="nav-buttons">
-              <button class="nav-button" :disabled="!canGoBack" title="Go back" @click="goBack">
+              <button
+                class="nav-button"
+                :disabled="!canGoBack"
+                title="Go back"
+                @click="goBack"
+              >
                 <i class="fas fa-arrow-left" />
               </button>
               <button
@@ -76,8 +103,15 @@
               </button>
             </div>
             <div class="breadcrumb">
-              <span v-for="(part, index) in breadcrumbParts" :key="index" class="breadcrumb-item">
-                <span v-if="index > 0" class="breadcrumb-separator">/</span>
+              <span
+                v-for="(part, index) in breadcrumbParts"
+                :key="index"
+                class="breadcrumb-item"
+              >
+                <span
+                  v-if="index > 0"
+                  class="breadcrumb-separator"
+                >/</span>
                 <span>{{ part }}</span>
               </span>
             </div>
@@ -86,12 +120,21 @@
             <h1 class="file-title">
               {{ currentFileName }}
             </h1>
-            <div v-if="markdownResult.stats && markdownResult.stats.words > 0" class="file-stats">
-              <span class="stat-chip" title="Word count">
+            <div
+              v-if="markdownResult.stats && markdownResult.stats.words > 0"
+              class="file-stats"
+            >
+              <span
+                class="stat-chip"
+                title="Word count"
+              >
                 <i class="fas fa-font" />
                 {{ markdownResult.stats.words.toLocaleString() }}
               </span>
-              <span class="stat-chip" title="Character count">
+              <span
+                class="stat-chip"
+                title="Character count"
+              >
                 <i class="fas fa-text-width" />
                 {{
                   markdownResult.stats.chars
@@ -99,7 +142,10 @@
                     : markdownResult.stats.characters?.toLocaleString()
                 }}
               </span>
-              <span class="stat-chip" title="Reading time">
+              <span
+                class="stat-chip"
+                title="Reading time"
+              >
                 <i class="far fa-clock" />
                 {{
                   typeof markdownResult.stats.readingTime === 'number'
@@ -122,7 +168,10 @@
           @wikilink-click="handleWikilinkNavigation"
         />
       </div>
-      <div v-else class="file-viewer">
+      <div
+        v-else
+        class="file-viewer"
+      >
         <div class="no-content-message">
           <i class="fas fa-file" />
           <p>Select a file to view its content.</p>

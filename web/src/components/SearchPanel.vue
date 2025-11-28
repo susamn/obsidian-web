@@ -1,7 +1,11 @@
 <template>
   <div class="search-panel">
     <div class="search-header">
-      <button class="back-button" title="Back to file browser" @click="onClose">
+      <button
+        class="back-button"
+        title="Back to file browser"
+        @click="onClose"
+      >
         <i class="fas fa-folder" />
       </button>
       <div class="search-input-wrapper">
@@ -14,29 +18,58 @@
           :placeholder="getPlaceholder()"
           @keyup.enter="handleSearch"
           @input="handleInput"
-        />
-        <button v-if="searchQuery" class="clear-button" title="Clear search" @click="clearQuery">
+        >
+        <button
+          v-if="searchQuery"
+          class="clear-button"
+          title="Clear search"
+          @click="clearQuery"
+        >
           <i class="fas fa-times" />
         </button>
       </div>
     </div>
 
     <div class="search-filters">
-      <select v-model="selectedSearchType" class="search-type-select">
-        <option value="text">Text</option>
-        <option value="title">Title Only</option>
-        <option value="tag">Tag</option>
-        <option value="wikilink">Wikilink</option>
-        <option value="fuzzy">Fuzzy</option>
-        <option value="phrase">Phrase</option>
-        <option value="prefix">Prefix</option>
+      <select
+        v-model="selectedSearchType"
+        class="search-type-select"
+      >
+        <option value="text">
+          Text
+        </option>
+        <option value="title">
+          Title Only
+        </option>
+        <option value="tag">
+          Tag
+        </option>
+        <option value="wikilink">
+          Wikilink
+        </option>
+        <option value="fuzzy">
+          Fuzzy
+        </option>
+        <option value="phrase">
+          Phrase
+        </option>
+        <option value="prefix">
+          Prefix
+        </option>
       </select>
-      <button class="search-button" :disabled="!searchQuery.trim()" @click="handleSearch">
+      <button
+        class="search-button"
+        :disabled="!searchQuery.trim()"
+        @click="handleSearch"
+      >
         Search
       </button>
     </div>
 
-    <div v-if="searchStore.total > 0" class="search-info">
+    <div
+      v-if="searchStore.total > 0"
+      class="search-info"
+    >
       <span class="result-count">{{ searchStore.total }} results</span>
       <span class="search-time">({{ searchStore.took }})</span>
     </div>

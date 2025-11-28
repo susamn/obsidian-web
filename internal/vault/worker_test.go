@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	recon2 "github.com/susamn/obsidian-web/internal/recon"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
@@ -17,7 +18,7 @@ func TestWorker_Creation(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
 
 	worker := NewWorker(
 		0,
@@ -52,7 +53,7 @@ func TestWorker_ReconServiceIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
 
 	worker := NewWorker(
 		0,
@@ -92,7 +93,7 @@ func TestWorker_Metrics(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
 
 	worker := NewWorker(
 		0,
@@ -130,7 +131,7 @@ func TestWorker_StartStop(t *testing.T) {
 	var wg sync.WaitGroup
 	syncEvents := make(chan syncpkg.FileChangeEvent, 10)
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
 
 	worker := NewWorker(
 		0,

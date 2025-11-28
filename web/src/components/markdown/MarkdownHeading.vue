@@ -1,6 +1,13 @@
 <template>
-  <component :is="headingTag" :id="node.id" class="md-heading">
-    <InlineRenderer :tokens="node.content" @wikilink-click="$emit('wikilink-click', $event)" />
+  <component
+    :is="headingTag"
+    :id="node.id"
+    class="md-heading"
+  >
+    <InlineRenderer
+      :tokens="node.content"
+      @wikilink-click="$emit('wikilink-click', $event)"
+    />
   </component>
 </template>
 

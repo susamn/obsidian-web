@@ -1,6 +1,9 @@
 <template>
   <div class="md-code-block">
-    <div v-if="node.language" class="code-language">
+    <div
+      v-if="node.language"
+      class="code-language"
+    >
       {{ node.language }}
     </div>
     <pre><code>{{ node.content }}</code></pre>
