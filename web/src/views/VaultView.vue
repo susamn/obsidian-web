@@ -1,6 +1,13 @@
 <template>
   <div class="vault-view">
-    <aside class="sidebar">
+    <aside
+      class="sidebar"
+      :style="{
+        width: sidebarWidth + 'px',
+        minWidth: sidebarWidth + 'px',
+        maxWidth: sidebarWidth + 'px',
+      }"
+    >
       <div class="sidebar-header">
         <div class="header-top">
           <h2 class="vault-name">
@@ -65,6 +72,12 @@
         />
       </div>
     </aside>
+
+    <!-- Resize Handle -->
+    <div
+      class="resize-handle"
+      @mousedown="startResize"
+    />
 
     <main class="main-content">
       <div
@@ -232,6 +245,38 @@ const isNavigatingHistory = ref(false) // Flag to prevent adding to history duri
 const showCreateDialog = ref(false)
 const createParentId = ref(null)
 
+// Sidebar resizing state
+const sidebarWidth = ref(300)
+const isResizing = ref(false)
+
+const startResize = () => {
+  isResizing.value = true
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  // Add resizing class to body to prevent text selection and set cursor
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+const handleResize = (e) => {
+  if (isResizing.value) {
+    const newWidth = e.clientX
+    // Clamp width between 200px and 600px (or 50% of screen)
+    if (newWidth >= 200 && newWidth <= 800) {
+      sidebarWidth.value = newWidth
+    }
+  }
+}
+
+const stopResize = () => {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+  // Restore cursor and selection
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
 // Bulk operation progress tracking
 const bulkOperationProgress = ref({
   active: false,
@@ -292,6 +337,14 @@ const handleToggleExpand = (node) => {
 
       // Children are already loaded in the full tree, just mark as expanded
       persistentTreeStore.expandNode(fileStore.vaultId, node.metadata.id)
+
+      // Scroll the folder into view to keep context visible
+      nextTick(() => {
+        const element = document.querySelector(`[data-node-id="${node.metadata.id}"]`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+        }
+      })
     }
   }
 }
@@ -328,7 +381,7 @@ const handleQuickFindSelect = async (node) => {
       setTimeout(() => {
         const element = document.querySelector(`[data-node-id="${fileId}"]`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
         }
       }, 100)
     })
@@ -457,7 +510,7 @@ const handleSearchResultSelected = async (result) => {
         setTimeout(() => {
           const element = document.querySelector(`[data-node-id="${fileId}"]`)
           if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
           }
         }, 100)
       })
@@ -524,7 +577,7 @@ const handleWikilinkNavigation = async (event) => {
       setTimeout(() => {
         const element = document.querySelector(`[data-node-id="${fileId}"]`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
         }
       }, 100)
     })
@@ -650,7 +703,7 @@ const goBack = async () => {
       setTimeout(() => {
         const element = document.querySelector(`[data-node-id="${item.fileId}"]`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
         }
       }, 100)
     })
@@ -706,7 +759,7 @@ const goForward = async () => {
       setTimeout(() => {
         const element = document.querySelector(`[data-node-id="${item.fileId}"]`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
         }
       }, 100)
     })
@@ -872,18 +925,62 @@ onMounted(() => {
 }
 
 .sidebar {
-  width: 300px;
-  min-width: 300px;
-  max-width: 300px;
+  /* Width handled by inline style */
   flex-shrink: 0;
   background-color: var(--background-color-light);
-  padding: 1rem;
-  border-right: 1px solid var(--border-color);
-  overflow-y: auto;
+  /* Border handled by resize handle logic or keep as visual boundary */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent main sidebar scroll */
+}
+
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background-color: var(--border-color);
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background-color: var(--primary-color);
 }
 
 .sidebar-header {
-  margin-bottom: 1rem;
+  padding: 1rem;
+  flex-shrink: 0; /* Prevent header from shrinking */
+  border-bottom: 1px solid var(--border-color); /* Optional: separator */
+}
+
+.sidebar-content {
+  flex: 1;
+  /* overflow-y: auto; -- Removed to allow file-tree-content to scroll */
+  overflow-x: auto; /* Allow horizontal scrolling */
+  padding: 0 1rem 1rem 1rem;
+  min-height: 0; /* Critical for flex scrolling */
+}
+
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* Allow it to fill sidebar-content vertically */
+  overflow: hidden; /* Prevent this wrapper from scrolling, let inner content scroll */
+}
+
+.file-tree-content {
+  flex: 1; /* Make FileTree take remaining vertical space */
+  overflow-y: auto; /* Allow FileTree to scroll vertically */
+  min-height: 0; /* Critical for flex scrolling */
+}
+
+/* Ensure search section fills height if needed or scrolls */
+.search-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .header-top {
@@ -934,8 +1031,9 @@ onMounted(() => {
 .search-section {
   display: flex;
   flex-direction: column;
-  height: calc(100% - 4rem);
-  overflow: hidden;
+  flex: 1; /* Allow it to fill sidebar-content vertically */
+  height: auto; /* Remove fixed height if it was calc(100% - 4rem) */
+  overflow: hidden; /* Manage scrolling internally */
 }
 
 .main-content {
