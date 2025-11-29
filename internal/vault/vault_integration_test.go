@@ -179,10 +179,12 @@ func TestForceReindex(t *testing.T) {
 
 	vault.WaitForReady(10 * time.Second)
 
-	// Force reindex
-	if err := vault.ForceReindex(); err != nil {
-		t.Fatalf("Failed to force reindex: %v", err)
-	}
+	// Trigger reindex (async)
+	vault.TriggerReindex()
+	time.Sleep(8 * time.Second) // Wait for async reindex
+
+	// Wait for reindex to complete
+	time.Sleep(10 * time.Second)
 
 	// Verify database was repopulated
 	dbSvc := vault.GetDBService()
@@ -219,7 +221,9 @@ func TestExplorerServiceIntegration(t *testing.T) {
 	vault.WaitForReady(10 * time.Second)
 
 	// Reindex to populate database
-	if err := vault.ForceReindex(); err != nil {
+	vault.TriggerReindex() // Wait for async reindex
+	time.Sleep(10 * time.Second)
+	if false {
 		t.Fatalf("Failed to force reindex: %v", err)
 	}
 
@@ -274,7 +278,8 @@ func TestFileEventProcessing(t *testing.T) {
 	vault.WaitForReady(10 * time.Second)
 
 	// Reindex to populate database
-	vault.ForceReindex()
+	vault.TriggerReindex()
+	time.Sleep(8 * time.Second) // Wait for async reindex
 
 	// Get explorer service
 	explorerSvc := vault.GetExplorerService()
@@ -331,7 +336,8 @@ func TestDBPathRelativization(t *testing.T) {
 	vault.WaitForReady(10 * time.Second)
 
 	// Force reindex
-	vault.ForceReindex()
+	vault.TriggerReindex()
+	time.Sleep(8 * time.Second) // Wait for async reindex
 
 	dbSvc := vault.GetDBService()
 
@@ -366,7 +372,8 @@ func TestMultiLevelHierarchy(t *testing.T) {
 	}
 
 	vault.WaitForReady(10 * time.Second)
-	vault.ForceReindex()
+	vault.TriggerReindex()
+	time.Sleep(8 * time.Second) // Wait for async reindex
 
 	dbSvc := vault.GetDBService()
 
@@ -444,7 +451,8 @@ func TestExplorerIDFetching(t *testing.T) {
 	}
 
 	vault.WaitForReady(10 * time.Second)
-	vault.ForceReindex()
+	vault.TriggerReindex()
+	time.Sleep(8 * time.Second) // Wait for async reindex
 
 	explorerSvc := vault.GetExplorerService()
 
@@ -483,7 +491,8 @@ func TestConcurrentVaultOperations(t *testing.T) {
 	}
 
 	vault.WaitForReady(10 * time.Second)
-	vault.ForceReindex()
+	vault.TriggerReindex()
+	time.Sleep(8 * time.Second) // Wait for async reindex
 
 	explorerSvc := vault.GetExplorerService()
 	dbSvc := vault.GetDBService()

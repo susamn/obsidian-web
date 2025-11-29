@@ -659,8 +659,8 @@ func (s *Server) handleGetTreeByID(w http.ResponseWriter, r *http.Request) {
 */
 
 // handleForceReindex godoc
-// @Summary Force reindex vault
-// @Description Force reindex the entire vault, clearing and rebuilding the database
+// @Summary Trigger vault reindex
+// @Description Trigger a full vault reindex using the reconciliation service. This will disable all files, clear caches and index, then rebuild everything from the filesystem.
 // @Tags files
 // @Produce json
 // @Param vault path string true "Vault ID"
@@ -696,15 +696,8 @@ func (s *Server) handleForceReindex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Start reindex in a goroutine to avoid blocking the response
-	go func() {
-		if err := v.ForceReindex(); err != nil {
-			logger.WithFields(map[string]interface{}{
-				"vault_id": vaultID,
-				"error":    err,
-			}).Error("Force reindex failed")
-		}
-	}()
+	// Trigger reindex via reconciliation service (runs asynchronously)
+	v.TriggerReindex()
 
 	writeSuccess(w, map[string]interface{}{
 		"message":  "Reindex started",

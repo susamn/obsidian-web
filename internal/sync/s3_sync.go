@@ -47,3 +47,9 @@ func (s *s3Sync) Stop() error {
 	// TODO: Cleanup S3 resources if needed
 	return nil
 }
+
+// ReIndex triggers a full re-index (placeholder)
+func (s *s3Sync) ReIndex(events chan<- FileChangeEvent) error {
+	logger.WithField("vault_id", s.vaultID).Warn("S3 ReIndex not implemented")
+	return nil
+}

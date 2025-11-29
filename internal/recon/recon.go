@@ -6,12 +6,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/susamn/obsidian-web/internal/db"
+	"github.com/susamn/obsidian-web/internal/explorer"
+	"github.com/susamn/obsidian-web/internal/indexing"
 	"github.com/susamn/obsidian-web/internal/logger"
+	"github.com/susamn/obsidian-web/internal/sse"
 	syncpkg "github.com/susamn/obsidian-web/internal/sync"
 )
 
 // ReconciliationService handles failed events and retries them
-// All workers share the same DLQ through this service
+// Also orchestrates full vault reindexing
 type ReconciliationService struct {
 	vaultID        string
 	dlq            chan syncpkg.FileChangeEvent
@@ -19,6 +23,13 @@ type ReconciliationService struct {
 	ctx            context.Context
 	wg             *sync.WaitGroup
 	retryInterval  time.Duration
+
+	// Dependencies for reindexing
+	dbService       *db.DBService
+	explorerService *explorer.ExplorerService
+	indexService    *indexing.IndexService
+	sseManager      *sse.Manager
+	setStatus       func(reindexing bool) // Callback to update vault status
 
 	// Metrics
 	dlqCount     int64
@@ -31,13 +42,23 @@ func NewReconciliationService(
 	vaultID string,
 	ctx context.Context,
 	wg *sync.WaitGroup,
+	dbSvc *db.DBService,
+	expSvc *explorer.ExplorerService,
+	idxSvc *indexing.IndexService,
+	sseMgr *sse.Manager,
+	setStatus func(reindexing bool),
 ) *ReconciliationService {
 	return &ReconciliationService{
-		vaultID:       vaultID,
-		dlq:           make(chan syncpkg.FileChangeEvent, 1000),
-		ctx:           ctx,
-		wg:            wg,
-		retryInterval: 5 * time.Second,
+		vaultID:         vaultID,
+		dlq:             make(chan syncpkg.FileChangeEvent, 1000),
+		ctx:             ctx,
+		wg:              wg,
+		retryInterval:   5 * time.Second,
+		dbService:       dbSvc,
+		explorerService: expSvc,
+		indexService:    idxSvc,
+		sseManager:      sseMgr,
+		setStatus:       setStatus,
 	}
 }
 
@@ -55,6 +76,89 @@ func (r *ReconciliationService) Start() {
 		"vault_id":       r.vaultID,
 		"retry_interval": r.retryInterval,
 	}).Info("Reconciliation service started")
+}
+
+// TriggerReindex triggers a full reindex of the vault
+func (r *ReconciliationService) TriggerReindex() {
+	logger.WithField("vault_id", r.vaultID).Info("Triggering full reindex")
+
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+
+		// 1. Set status to reindexing and notify
+		if r.setStatus != nil {
+			r.setStatus(true)
+		}
+		if r.sseManager != nil {
+			r.sseManager.BroadcastReindex(r.vaultID)
+		}
+
+		// 2. Disable all files in DB (UI will show no files)
+		if r.dbService != nil {
+			if err := r.dbService.DisableAllFiles(); err != nil {
+				logger.WithError(err).Error("Failed to disable files during reindex")
+			}
+		}
+
+		// 3. Clear Explorer Cache
+		if r.explorerService != nil {
+			r.explorerService.ClearCache()
+		}
+
+		// 4. Clear Index
+		if r.indexService != nil {
+			if err := r.indexService.Clear(); err != nil {
+				logger.WithError(err).Error("Failed to clear index during reindex")
+			}
+		}
+
+		// 5. Trigger SyncService ReIndex
+		if r.syncServiceRef != nil {
+			if err := r.syncServiceRef.ReIndex(); err != nil {
+				logger.WithError(err).Error("Failed to trigger sync service reindex")
+			}
+		}
+
+		// 6. Wait logic
+		// Wait for 5 seconds
+		time.Sleep(5 * time.Second)
+
+		// Wait for sync channel to drain
+		if r.syncServiceRef != nil {
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+
+			timeout := time.After(5 * time.Minute) // Safety timeout
+
+			for {
+				select {
+				case <-timeout:
+					logger.Warn("Reindex wait timed out")
+					goto Finish
+				case <-ticker.C:
+					// Only check sync channel, not DLQ as requested
+					if r.syncServiceRef.PendingEventsCount() == 0 {
+						goto Finish
+					}
+				case <-r.ctx.Done():
+					return
+				}
+			}
+		}
+
+	Finish:
+		logger.WithField("vault_id", r.vaultID).Info("Full reindex completed")
+
+		// Restore status
+		if r.setStatus != nil {
+			r.setStatus(false)
+		}
+		// Notify UI of completion (Refresh)
+		if r.sseManager != nil {
+			r.sseManager.TriggerRefresh(r.vaultID)
+		}
+	}()
 }
 
 // SendToDLQ sends a failed event to the DLQ for retry

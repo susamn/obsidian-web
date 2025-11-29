@@ -47,3 +47,9 @@ func (m *minioSync) Stop() error {
 	// TODO: Cleanup MinIO resources if needed
 	return nil
 }
+
+// ReIndex triggers a full re-index (placeholder)
+func (m *minioSync) ReIndex(events chan<- FileChangeEvent) error {
+	logger.WithField("vault_id", m.vaultID).Warn("MinIO ReIndex not implemented")
+	return nil
+}

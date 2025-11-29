@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -776,6 +777,46 @@ func (s *IndexService) Stop() error {
 	s.status = StatusStopped
 	s.mu.Unlock()
 
+	return nil
+}
+
+// Clear closes the existing index, removes the index directory, and creates a new empty index.
+func (s *IndexService) Clear() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Close existing index if open
+	if s.index != nil {
+		logger.WithField("vault_id", s.vaultID).Info("Closing index for clearing")
+		if err := s.index.Close(); err != nil {
+			return fmt.Errorf("failed to close index: %w", err)
+		}
+		s.index = nil
+	}
+
+	// Remove the index directory
+	logger.WithField("index_path", s.indexPath).Info("Removing index directory")
+	if err := os.RemoveAll(s.indexPath); err != nil {
+		return fmt.Errorf("failed to remove index directory: %w", err)
+	}
+
+	// Recreate the index
+	logger.WithField("vault_id", s.vaultID).Info("Recreating empty index")
+	docMapping := buildIndexMapping()
+	index, err := bleve.New(s.indexPath, docMapping)
+	if err != nil {
+		return fmt.Errorf("failed to recreate index: %w", err)
+	}
+
+	s.index = index
+
+	// Update status to ready (new empty index is ready to use)
+	s.status = StatusReady
+
+	// Notify subscribers about the new index (rebuild event)
+	s.notifyIndexUpdate("rebuild")
+
+	logger.WithField("vault_id", s.vaultID).Info("Index cleared and recreated successfully")
 	return nil
 }
 

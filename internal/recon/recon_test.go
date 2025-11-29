@@ -17,7 +17,7 @@ func TestReconciliationService_Creation(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	if recon == nil {
 		t.Fatal("Expected reconciliation service to be created")
@@ -39,7 +39,7 @@ func TestReconciliationService_SendToDLQ(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	// Initially DLQ should be empty
 	if depth := recon.GetDLQDepth(); depth != 0 {
@@ -72,7 +72,7 @@ func TestReconciliationService_DLQFull(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	// Fill the DLQ (1000 capacity)
 	for i := 0; i < 1000; i++ {
@@ -127,7 +127,7 @@ func TestReconciliationService_RetryMechanism(t *testing.T) {
 		t.Fatalf("Failed to create sync service: %v", err)
 	}
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 	recon.SetSyncService(syncSvc)
 	recon.retryInterval = 100 * time.Millisecond // Speed up for testing
 
@@ -163,7 +163,7 @@ func TestReconciliationService_Metrics(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	recon := NewReconciliationService("test-vault", ctx, &wg)
+	recon := NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	metrics := recon.GetMetrics()
 	if metrics.DLQDepth != 0 {

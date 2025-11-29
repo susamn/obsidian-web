@@ -18,7 +18,7 @@ func TestWorker_Creation(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
-	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	worker := NewWorker(
 		0,
@@ -53,7 +53,7 @@ func TestWorker_ReconServiceIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
-	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	worker := NewWorker(
 		0,
@@ -93,7 +93,7 @@ func TestWorker_Metrics(t *testing.T) {
 	tmpDir := t.TempDir()
 	var wg sync.WaitGroup
 
-	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	worker := NewWorker(
 		0,
@@ -131,7 +131,7 @@ func TestWorker_StartStop(t *testing.T) {
 	var wg sync.WaitGroup
 	syncEvents := make(chan syncpkg.FileChangeEvent, 10)
 
-	recon := recon2.NewReconciliationService("test-vault", ctx, &wg)
+	recon := recon2.NewReconciliationService("test-vault", ctx, &wg, nil, nil, nil, nil, nil)
 
 	worker := NewWorker(
 		0,

@@ -66,6 +66,25 @@ func (l *localSync) Stop() error {
 	return nil
 }
 
+// ReIndex walks the entire vault and emits FileCreated events for all files
+func (l *localSync) ReIndex(events chan<- FileChangeEvent) error {
+	logger.WithField("vault_id", l.vaultID).Info("Starting local re-index")
+
+	// Run in a separate goroutine to avoid blocking
+	go func() {
+		// Context for re-indexing (can be cancelled if needed, but here we use Background)
+		// In a real implementation, we might want to pass a context from SyncService
+		ctx := context.Background()
+
+		// Reuse emitEventsForDirectory to walk the root and emit events
+		l.emitEventsForDirectory(ctx, l.rootPath, events, FileCreated)
+
+		logger.WithField("vault_id", l.vaultID).Info("Local re-index walk completed")
+	}()
+
+	return nil
+}
+
 // watchLoop processes filesystem events (blocking)
 func (l *localSync) watchLoop(ctx context.Context, events chan<- FileChangeEvent) {
 	for {

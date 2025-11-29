@@ -1122,6 +1122,35 @@ func (s *DBService) ClearAll() error {
 	return nil
 }
 
+// DisableAllFiles sets the status of all files to DISABLED.
+// This is used during full reindexing to invalidate all existing entries.
+func (s *DBService) DisableAllFiles() error {
+	db := s.getDB()
+	if db == nil {
+		return errors.New("db not ready")
+	}
+
+	// Get the DISABLED status ID
+	disabledStatusID, err := s.GetFileStatusID(FileStatusDisabled)
+	if err != nil {
+		return fmt.Errorf("failed to get disabled status ID: %w", err)
+	}
+	if disabledStatusID == nil {
+		return errors.New("disabled status not found in database")
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	defer cancel()
+
+	// Update all entries to DISABLED
+	_, err = db.ExecContext(ctx, `UPDATE file_entries SET file_status_id = ?`, *disabledStatusID)
+	if err != nil {
+		return fmt.Errorf("disable all files: %w", err)
+	}
+
+	return nil
+}
+
 // GetFileEntryByName finds a file entry by name (for resolving wikilinks)
 // This searches for an exact match or match with .md extension
 func (s *DBService) GetFileEntryByName(name string) (*FileEntry, error) {

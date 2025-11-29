@@ -17,6 +17,7 @@ const (
 	EventBulkProcess EventType = "bulk_process"
 	EventPing        EventType = "ping"
 	EventRefresh     EventType = "refresh"
+	EventReindex     EventType = "reindex"
 	EventError       EventType = "error"
 )
 
@@ -375,6 +376,18 @@ func (m *Manager) TriggerRefresh(vaultID string) {
 	pendingCount := m.getPendingCount(vaultID)
 	event := Event{
 		Type:         EventRefresh,
+		VaultID:      vaultID,
+		PendingCount: pendingCount,
+		Timestamp:    time.Now(),
+	}
+	m.broadcastToVault(vaultID, event)
+}
+
+// BroadcastReindex sends a reindex event immediately
+func (m *Manager) BroadcastReindex(vaultID string) {
+	pendingCount := m.getPendingCount(vaultID)
+	event := Event{
+		Type:         EventReindex,
 		VaultID:      vaultID,
 		PendingCount: pendingCount,
 		Timestamp:    time.Now(),

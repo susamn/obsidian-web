@@ -44,6 +44,7 @@ type FileChangeEvent struct {
 type syncBackend interface {
 	Start(ctx context.Context, events chan<- FileChangeEvent) error
 	Stop() error
+	ReIndex(events chan<- FileChangeEvent) error
 }
 
 // SyncService monitors storage backend for file changes
@@ -194,4 +195,11 @@ func (s *SyncService) InjectEvent(event FileChangeEvent) bool {
 	default:
 		return false
 	}
+}
+
+// ReIndex triggers a full re-index of the vault
+// It walks the entire filesystem and emits FileCreated events for all files
+// This operation runs asynchronously on the backend but this method blocks until the walk is started
+func (s *SyncService) ReIndex() error {
+	return s.backend.ReIndex(s.events)
 }
