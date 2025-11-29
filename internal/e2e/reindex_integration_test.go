@@ -1,4 +1,4 @@
-package vault
+package e2e
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/susamn/obsidian-web/internal/config"
 	"github.com/susamn/obsidian-web/internal/db"
+	"github.com/susamn/obsidian-web/internal/vault"
 )
 
 /*
@@ -76,7 +77,7 @@ func TestFullReindexIntegration(t *testing.T) {
 	}
 
 	// Create and start vault
-	v, err := NewVault(ctx, vaultCfg)
+	v, err := vault.NewVault(ctx, vaultCfg)
 	if err != nil {
 		t.Fatalf("Failed to create vault: %v", err)
 	}
@@ -175,7 +176,7 @@ func TestFullReindexIntegration(t *testing.T) {
 
 	// Check vault status changed to Reindexing
 	status := v.GetStatus()
-	if status != VaultStatusReindexing {
+	if status != vault.VaultStatusReindexing {
 		t.Logf("Warning: Vault status is %s (expected Reindexing, but may have already transitioned)", status)
 	} else {
 		t.Log("✓ Vault status is Reindexing")
@@ -215,7 +216,7 @@ func TestFullReindexIntegration(t *testing.T) {
 
 	for time.Now().Before(deadline) {
 		status := v.GetStatus()
-		if status == VaultStatusActive {
+		if status == vault.VaultStatusActive {
 			t.Log("✓ Vault status returned to Active")
 			break
 		}
@@ -301,7 +302,7 @@ func TestFullReindexIntegration(t *testing.T) {
 
 	// Verify vault status is Active
 	finalStatus := v.GetStatus()
-	if finalStatus != VaultStatusActive {
+	if finalStatus != vault.VaultStatusActive {
 		t.Errorf("Final vault status is %s (expected Active)", finalStatus)
 	} else {
 		t.Log("✓ Vault status is Active")
