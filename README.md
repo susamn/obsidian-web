@@ -1,5 +1,8 @@
 # Obsidian Web
 
+![CI](https://github.com/susamn/obsidian-web/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/susamn/obsidian-web/graph/badge.svg)](https://codecov.io/gh/susamn/obsidian-web)
+
 A web-based viewer and editor for Obsidian vaults with support for multiple storage backends (local, S3, MinIO) and LLM integration.
 
 ## Features
@@ -11,17 +14,19 @@ A web-based viewer and editor for Obsidian vaults with support for multiple stor
 - 🔍 Search and tag support
 - 🌓 Dark mode support
 - 🚀 Lazy loading for performance
-- 🔄 Conflict detection and resolution
 
 ## Architecture
 
 ### Backend (Go)
 - **cmd/server**: Application entry point
+- **internal/web**: HTTP handlers and server setup
 - **internal/vault**: Storage abstraction layer
-- **internal/metadata**: Metadata extraction from markdown files
-- **internal/connector**: Knowledge graph builder
+- **internal/indexing**: Content indexing and metadata extraction
+- **internal/search**: Search service implementation
+- **internal/vector**: Vector database and semantic search
 - **internal/llm**: LLM provider abstraction
-- **internal/orchestrator**: REST API layer
+- **internal/sync**: Synchronization with external storage
+- **internal/render**: Markdown rendering pipeline
 
 **Key Libraries:**
 - chi/v5: HTTP router
@@ -29,13 +34,16 @@ A web-based viewer and editor for Obsidian vaults with support for multiple stor
 - viper: Configuration management
 - AWS SDK v2: S3 support
 - Minio SDK: MinIO support
+- Bleve: Text indexing
 
 ### Frontend (Vue.js)
 - **views**: Page components
 - **components**: Reusable UI components
+- **composables**: Vue composables (logic reuse)
 - **services**: API client services
 - **stores**: Pinia state management
 - **router**: Vue Router configuration
+- **utils**: Helper functions
 
 **Key Libraries:**
 - Vue 3 + Vue Router + Pinia
@@ -163,4 +171,3 @@ MIT
 2. Write tests for your changes
 3. Run `make test` and `make lint`
 4. Submit pull request
-# obsidian-web
